@@ -1,0 +1,191 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../server/generated/prisma"
+  runtime             = "nodejs"
+  moduleFormat        = "esm"
+  engineType          = "client"
+  importFileExtension = "ts"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+enum SeasonStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum TeamStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum PlayerStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum GameStatus {
+  SCHEDULED
+  POSTPONED
+  CANCELLED
+  FINAL
+}
+
+enum BattingSide {
+  RIGHT
+  LEFT
+  SWITCH
+  UNKNOWN
+}
+
+enum ThrowingArm {
+  RIGHT
+  LEFT
+  UNKNOWN
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String?
+  name         String?
+  role         UserRole @default(USER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  recordedResults GameResult[]
+}
+
+model Season {
+  id        String       @id @default(cuid())
+  name      String
+  year      Int
+  startsAt  DateTime?
+  endsAt    DateTime?
+  status    SeasonStatus @default(DRAFT)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  teams TeamSeason[]
+  games Game[]
+
+  @@unique([name, year])
+  @@index([status])
+}
+
+model Team {
+  id             String     @id @default(cuid())
+  name           String     @unique
+  shortName      String?
+  slug           String     @unique
+  logoUrl        String?
+  primaryColor   String?
+  secondaryColor String?
+  managerName    String?
+  status         TeamStatus @default(ACTIVE)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  seasons   TeamSeason[]
+  players   Player[]
+  homeGames Game[]       @relation("HomeTeam")
+  awayGames Game[]       @relation("AwayTeam")
+}
+
+model TeamSeason {
+  id        String   @id @default(cuid())
+  seasonId  String
+  teamId    String
+  createdAt DateTime @default(now())
+
+  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([seasonId, teamId])
+  @@index([teamId])
+}
+
+model Player {
+  id        String       @id @default(cuid())
+  teamId    String
+  firstName String
+  lastName  String
+  number    Int?
+  position  String?
+  bats      BattingSide  @default(UNKNOWN)
+  throws    ThrowingArm  @default(UNKNOWN)
+  status    PlayerStatus @default(ACTIVE)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, number])
+  @@index([teamId, status])
+}
+
+model Field {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  address   String?
+  notes     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  games Game[]
+}
+
+model Game {
+  id          String     @id @default(cuid())
+  seasonId    String
+  homeTeamId  String
+  awayTeamId  String
+  fieldId     String?
+  round       Int?
+  scheduledAt DateTime
+  status      GameStatus @default(SCHEDULED)
+  notes       String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  season   Season      @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  homeTeam Team        @relation("HomeTeam", fields: [homeTeamId], references: [id], onDelete: Restrict)
+  awayTeam Team        @relation("AwayTeam", fields: [awayTeamId], references: [id], onDelete: Restrict)
+  field    Field?      @relation(fields: [fieldId], references: [id], onDelete: SetNull)
+  result   GameResult?
+
+  @@index([seasonId, scheduledAt])
+  @@index([homeTeamId])
+  @@index([awayTeamId])
+  @@index([fieldId])
+  @@index([status])
+}
+
+model GameResult {
+  id           String   @id @default(cuid())
+  gameId       String   @unique
+  homeScore    Int
+  awayScore    Int
+  innings      Int?
+  isForfeit    Boolean  @default(false)
+  recordedById String?
+  recordedAt   DateTime @default(now())
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  game       Game  @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  recordedBy User? @relation(fields: [recordedById], references: [id], onDelete: SetNull)
+
+  @@index([recordedAt])
+  @@index([recordedById])
+}
