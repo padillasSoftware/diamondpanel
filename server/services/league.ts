@@ -1,5 +1,8 @@
 import { prisma } from '../utils/db'
-import { GameStatus, SeasonStatus } from '../generated/prisma/enums'
+import { GameStatus, SeasonStatus, TeamBranch, TeamCategory } from '../generated/prisma/enums'
+
+type TeamBranchValue = (typeof TeamBranch)[keyof typeof TeamBranch]
+type TeamCategoryValue = (typeof TeamCategory)[keyof typeof TeamCategory]
 
 type TeamStanding = {
   team: {
@@ -10,6 +13,8 @@ type TeamStanding = {
     logoUrl: string | null
     primaryColor: string | null
     secondaryColor: string | null
+    category: TeamCategoryValue
+    branch: TeamBranchValue
   }
   played: number
   wins: number
@@ -56,18 +61,26 @@ export async function getActiveSeasonOrThrow() {
   return season
 }
 
-export async function getTeamsForSeason(seasonId?: string) {
-  const season = seasonId ? { id: seasonId } : await getActiveSeasonOrThrow()
+export async function getTeamsForSeason(options: { seasonId?: string, category?: string, branch?: string } = {}) {
+  const season = options.seasonId ? { id: options.seasonId } : await getActiveSeasonOrThrow()
+  const category = getCategoryFilter(options.category)
+  const branch = getBranchFilter(options.branch)
 
   return prisma.team.findMany({
     where: {
+      ...(category ? { category } : {}),
+      ...(branch ? { branch } : {}),
       seasons: {
         some: {
           seasonId: season.id
         }
       }
     },
-    orderBy: { name: 'asc' },
+    orderBy: [
+      { category: 'asc' },
+      { branch: 'asc' },
+      { name: 'asc' }
+    ],
     select: {
       id: true,
       name: true,
@@ -77,6 +90,8 @@ export async function getTeamsForSeason(seasonId?: string) {
       primaryColor: true,
       secondaryColor: true,
       managerName: true,
+      category: true,
+      branch: true,
       status: true,
       players: {
         where: { status: 'ACTIVE' },
@@ -111,6 +126,8 @@ export async function getTeamBySlug(slug: string) {
       primaryColor: true,
       secondaryColor: true,
       managerName: true,
+      category: true,
+      branch: true,
       status: true,
       seasons: {
         select: {
@@ -144,13 +161,22 @@ export async function getTeamBySlug(slug: string) {
   })
 }
 
-export async function getUpcomingGames(options: { seasonId?: string, limit?: number } = {}) {
+export async function getUpcomingGames(options: { seasonId?: string, category?: string, branch?: string, limit?: number } = {}) {
   const season = options.seasonId ? { id: options.seasonId } : await getActiveSeasonOrThrow()
+  const category = getCategoryFilter(options.category)
+  const branch = getBranchFilter(options.branch)
+  const teamRelationFilter = getTeamRelationFilter(category, branch)
   const limit = options.limit ?? 10
 
   return prisma.game.findMany({
     where: {
       seasonId: season.id,
+      ...(teamRelationFilter
+        ? {
+            homeTeam: { is: teamRelationFilter },
+            awayTeam: { is: teamRelationFilter }
+          }
+        : {}),
       status: {
         in: [GameStatus.SCHEDULED, GameStatus.POSTPONED]
       }
@@ -180,14 +206,23 @@ export async function getUpcomingGames(options: { seasonId?: string, limit?: num
   })
 }
 
-export async function getRecentResults(options: { seasonId?: string, limit?: number } = {}) {
+export async function getRecentResults(options: { seasonId?: string, category?: string, branch?: string, limit?: number } = {}) {
   const season = options.seasonId ? { id: options.seasonId } : await getActiveSeasonOrThrow()
+  const category = getCategoryFilter(options.category)
+  const branch = getBranchFilter(options.branch)
+  const teamRelationFilter = getTeamRelationFilter(category, branch)
   const limit = options.limit ?? 10
 
   return prisma.game.findMany({
     where: {
       seasonId: season.id,
       status: GameStatus.FINAL,
+      ...(teamRelationFilter
+        ? {
+            homeTeam: { is: teamRelationFilter },
+            awayTeam: { is: teamRelationFilter }
+          }
+        : {}),
       result: {
         isNot: null
       }
@@ -225,13 +260,22 @@ export async function getRecentResults(options: { seasonId?: string, limit?: num
   })
 }
 
-export async function getStandings(seasonId?: string) {
-  const season = seasonId ? { id: seasonId } : await getActiveSeasonOrThrow()
-  const teams = await getTeamsForSeason(season.id)
+export async function getStandings(options: { seasonId?: string, category?: string, branch?: string } = {}) {
+  const season = options.seasonId ? { id: options.seasonId } : await getActiveSeasonOrThrow()
+  const category = getCategoryFilter(options.category)
+  const branch = getBranchFilter(options.branch)
+  const teamRelationFilter = getTeamRelationFilter(category, branch)
+  const teams = await getTeamsForSeason({ seasonId: season.id, category, branch })
   const finalGames = await prisma.game.findMany({
     where: {
       seasonId: season.id,
       status: GameStatus.FINAL,
+      ...(teamRelationFilter
+        ? {
+            homeTeam: { is: teamRelationFilter },
+            awayTeam: { is: teamRelationFilter }
+          }
+        : {}),
       result: {
         isNot: null
       }
@@ -263,7 +307,9 @@ export async function getStandings(seasonId?: string) {
         slug: team.slug,
         logoUrl: team.logoUrl,
         primaryColor: team.primaryColor,
-        secondaryColor: team.secondaryColor
+        secondaryColor: team.secondaryColor,
+        category: team.category,
+        branch: team.branch
       },
       played: 0,
       wins: 0,
@@ -327,8 +373,46 @@ const teamSummarySelect = {
   slug: true,
   logoUrl: true,
   primaryColor: true,
-  secondaryColor: true
+  secondaryColor: true,
+  category: true,
+  branch: true
 } as const
+
+function getCategoryFilter(category?: string) {
+  const normalized = category?.trim().toUpperCase()
+
+  if (
+    normalized === TeamCategory.A
+    || normalized === TeamCategory.B
+    || normalized === TeamCategory.C
+    || normalized === TeamCategory.D
+    || normalized === TeamCategory.E
+    || normalized === TeamCategory.R
+  ) {
+    return normalized as TeamCategoryValue
+  }
+
+  return undefined
+}
+
+function getBranchFilter(branch?: string) {
+  const normalized = branch?.trim().toUpperCase()
+
+  if (normalized === TeamBranch.VARONIL || normalized === TeamBranch.FEMENIL) {
+    return normalized as TeamBranchValue
+  }
+
+  return undefined
+}
+
+function getTeamRelationFilter(category?: TeamCategoryValue, branch?: TeamBranchValue) {
+  if (!category && !branch) return undefined
+
+  return {
+    ...(category ? { category } : {}),
+    ...(branch ? { branch } : {})
+  }
+}
 
 function applyGameResult(input: {
   standings: Map<string, TeamStanding>

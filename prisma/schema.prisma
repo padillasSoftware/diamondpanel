@@ -27,6 +27,20 @@ enum TeamStatus {
   INACTIVE
 }
 
+enum TeamCategory {
+  A
+  B
+  C
+  D
+  E
+  R
+}
+
+enum TeamBranch {
+  VARONIL
+  FEMENIL
+}
+
 enum PlayerStatus {
   ACTIVE
   INACTIVE
@@ -90,6 +104,8 @@ model Team {
   primaryColor   String?
   secondaryColor String?
   managerName    String?
+  category       TeamCategory @default(A)
+  branch         TeamBranch   @default(VARONIL)
   status         TeamStatus @default(ACTIVE)
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
@@ -98,6 +114,8 @@ model Team {
   players   Player[]
   homeGames Game[]       @relation("HomeTeam")
   awayGames Game[]       @relation("AwayTeam")
+
+  @@index([category, branch, status])
 }
 
 model TeamSeason {

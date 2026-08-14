@@ -6,6 +6,8 @@ export default defineEventHandler(async (event) => {
 
   return getUpcomingGames({
     seasonId: getStringFromQuery(query.seasonId),
+    category: getStringFromQuery(query.category),
+    branch: getStringFromQuery(query.branch),
     limit: getLimitFromQuery(query.limit)
   })
 })

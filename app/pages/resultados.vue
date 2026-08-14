@@ -1,0 +1,233 @@
+<script setup lang="ts">
+import {
+  branchColor,
+  branchLabel,
+  categoryColor,
+  categoryLabel,
+  formatGameDate,
+  formatShortDate,
+  resultWinnerLabel,
+  roundLabel,
+  scoreClass,
+  teamInitials,
+  type ResultGame,
+  type Season
+} from '~/utils/league'
+
+useSeoMeta({
+  title: 'Resultados | DiamondPanel',
+  description: 'Resultados recientes de la temporada activa de DiamondPanel.'
+})
+
+const [
+  { data: season },
+  { data: results }
+] = await Promise.all([
+  useFetch<Season>('/api/seasons/active'),
+  useFetch<ResultGame[]>('/api/results/recent', { query: { limit: 50 } })
+])
+
+const resultRows = computed(() => results.value ?? [])
+const totalRuns = computed(() => resultRows.value.reduce((total, game) => total + game.result.homeScore + game.result.awayScore, 0))
+const averageRuns = computed(() => resultRows.value.length ? (totalRuns.value / resultRows.value.length).toFixed(1) : '0.0')
+const latestResult = computed(() => resultRows.value[0])
+</script>
+
+<template>
+  <UContainer class="py-6 sm:py-8">
+    <div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <div>
+        <div class="mb-3 flex flex-wrap items-center gap-2">
+          <UBadge
+            color="primary"
+            variant="subtle"
+            icon="i-lucide-table-2"
+          >
+            Resultados
+          </UBadge>
+          <UBadge
+            color="neutral"
+            variant="outline"
+          >
+            {{ season?.name }} {{ season?.year }}
+          </UBadge>
+        </div>
+        <h1 class="text-3xl font-bold tracking-normal text-highlighted sm:text-4xl">
+          Marcadores finales
+        </h1>
+        <p class="mt-2 max-w-2xl text-base text-muted">
+          Historial reciente de partidos jugados, ganador, carreras e innings registrados.
+        </p>
+      </div>
+
+      <UButton
+        to="/posiciones"
+        icon="i-lucide-trophy"
+        label="Ver posiciones"
+        color="primary"
+        variant="subtle"
+      />
+    </div>
+
+    <div class="mb-4 grid gap-3 md:grid-cols-3">
+      <div class="rounded-lg border border-default bg-default p-4 shadow-sm">
+        <p class="text-sm text-muted">
+          Partidos finalizados
+        </p>
+        <p class="mt-1 text-2xl font-bold text-highlighted">
+          {{ resultRows.length }}
+        </p>
+        <p class="text-sm text-muted">
+          Con resultado capturado
+        </p>
+      </div>
+
+      <div class="rounded-lg border border-default bg-default p-4 shadow-sm">
+        <p class="text-sm text-muted">
+          Carreras totales
+        </p>
+        <p class="mt-1 text-2xl font-bold text-highlighted">
+          {{ totalRuns }}
+        </p>
+        <p class="text-sm text-muted">
+          {{ averageRuns }} por partido
+        </p>
+      </div>
+
+      <div class="rounded-lg border border-default bg-default p-4 shadow-sm">
+        <p class="text-sm text-muted">
+          Resultado más reciente
+        </p>
+        <p class="mt-1 truncate text-2xl font-bold text-highlighted">
+          {{ latestResult ? resultWinnerLabel(latestResult) : '-' }}
+        </p>
+        <p class="text-sm text-muted">
+          {{ latestResult ? formatShortDate(latestResult.scheduledAt) : '-' }}
+        </p>
+      </div>
+    </div>
+
+    <section class="rounded-lg border border-default bg-default p-5 shadow-sm">
+      <div class="mb-4 flex items-center justify-between gap-3">
+        <div>
+          <h2 class="text-xl font-bold text-highlighted">
+            Juegos completados
+          </h2>
+          <p class="text-sm text-muted">
+            Ordenados del más reciente al más antiguo.
+          </p>
+        </div>
+        <UIcon
+          name="i-lucide-clipboard-check"
+          class="size-5 text-muted"
+        />
+      </div>
+
+      <div
+        v-if="resultRows.length"
+        class="grid gap-3"
+      >
+        <article
+          v-for="game in resultRows"
+          :key="game.id"
+          class="rounded-lg border border-default p-4"
+        >
+          <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex flex-wrap items-center gap-2 text-sm text-muted">
+              <span>{{ roundLabel(game.round) }}</span>
+              <span>•</span>
+              <span>{{ formatGameDate(game.scheduledAt) }}</span>
+              <span>•</span>
+              <span>{{ game.field?.name ?? 'Campo por definir' }}</span>
+            </div>
+            <div class="flex flex-wrap gap-1">
+              <UBadge
+                :color="categoryColor(game.homeTeam.category)"
+                variant="subtle"
+              >
+                {{ categoryLabel(game.homeTeam.category) }}
+              </UBadge>
+              <UBadge
+                :color="branchColor(game.homeTeam.branch)"
+                variant="subtle"
+              >
+                {{ branchLabel(game.homeTeam.branch) }}
+              </UBadge>
+              <UBadge
+                color="success"
+                variant="subtle"
+              >
+                {{ resultWinnerLabel(game) }}
+              </UBadge>
+            </div>
+          </div>
+
+          <div class="grid gap-2">
+            <div class="grid grid-cols-[1fr_auto] items-center gap-3 rounded-md bg-muted/30 px-3 py-2">
+              <div class="flex min-w-0 items-center gap-3">
+                <span
+                  class="flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+                  :style="{ backgroundColor: game.homeTeam.primaryColor ?? '#047857' }"
+                >
+                  {{ teamInitials(game.homeTeam) }}
+                </span>
+                <p
+                  class="truncate font-semibold"
+                  :class="scoreClass(game, 'home')"
+                >
+                  {{ game.homeTeam.name }}
+                </p>
+              </div>
+              <p
+                class="text-2xl font-bold"
+                :class="scoreClass(game, 'home')"
+              >
+                {{ game.result.homeScore }}
+              </p>
+            </div>
+
+            <div class="grid grid-cols-[1fr_auto] items-center gap-3 rounded-md bg-muted/30 px-3 py-2">
+              <div class="flex min-w-0 items-center gap-3">
+                <span
+                  class="flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+                  :style="{ backgroundColor: game.awayTeam.primaryColor ?? '#f97316' }"
+                >
+                  {{ teamInitials(game.awayTeam) }}
+                </span>
+                <p
+                  class="truncate font-semibold"
+                  :class="scoreClass(game, 'away')"
+                >
+                  {{ game.awayTeam.name }}
+                </p>
+              </div>
+              <p
+                class="text-2xl font-bold"
+                :class="scoreClass(game, 'away')"
+              >
+                {{ game.result.awayScore }}
+              </p>
+            </div>
+          </div>
+
+          <p class="mt-3 text-sm text-muted">
+            {{ game.result.innings ?? 7 }} innings{{ game.result.isForfeit ? ' • Forfeit' : '' }}
+          </p>
+        </article>
+      </div>
+
+      <div
+        v-else
+        class="rounded-lg border border-dashed border-default p-8 text-center"
+      >
+        <UIcon
+          name="i-lucide-clipboard-x"
+          class="mx-auto mb-3 size-8 text-muted"
+        />
+        <p class="font-semibold text-highlighted">
+          Aún no hay resultados capturados.
+        </p>
+      </div>
+    </section>
+  </UContainer>
+</template>

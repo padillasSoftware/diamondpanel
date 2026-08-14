@@ -5,6 +5,8 @@ import {
   BattingSide,
   GameStatus,
   SeasonStatus,
+  TeamBranch,
+  TeamCategory,
   ThrowingArm,
   UserRole
 } from '../server/generated/prisma/enums.ts'
@@ -21,92 +23,130 @@ const prisma = new PrismaClient({ adapter })
 
 const toDate = (value: string) => new Date(value)
 
-const teamSeeds = [
-  {
-    name: 'Tigres',
-    shortName: 'TR',
-    slug: 'tigres',
-    primaryColor: '#047857',
-    secondaryColor: '#f97316',
-    managerName: 'Carlos Martinez',
-    players: [
-      { firstName: 'Miguel', lastName: 'Ramirez', number: 7, position: 'SS', bats: BattingSide.RIGHT, throws: ThrowingArm.RIGHT },
-      { firstName: 'Jose', lastName: 'Gomez', number: 12, position: 'LF', bats: BattingSide.LEFT, throws: ThrowingArm.LEFT },
-      { firstName: 'Carlos', lastName: 'Lopez', number: 23, position: '1B', bats: BattingSide.RIGHT, throws: ThrowingArm.RIGHT },
-      { firstName: 'Andres', lastName: 'Torres', number: 30, position: 'C', bats: BattingSide.RIGHT, throws: ThrowingArm.RIGHT }
-    ]
-  },
-  {
-    name: 'Aguilas',
-    shortName: 'AG',
-    slug: 'aguilas',
-    primaryColor: '#f97316',
-    secondaryColor: '#0f172a',
-    managerName: 'Luis Rivera',
-    players: [
-      { firstName: 'Daniel', lastName: 'Castro', number: 4, position: 'CF', bats: BattingSide.LEFT, throws: ThrowingArm.RIGHT },
-      { firstName: 'Marco', lastName: 'Santos', number: 9, position: 'P', bats: BattingSide.RIGHT, throws: ThrowingArm.RIGHT },
-      { firstName: 'Hector', lastName: 'Vega', number: 18, position: '3B', bats: BattingSide.RIGHT, throws: ThrowingArm.RIGHT },
-      { firstName: 'Raul', lastName: 'Medina', number: 27, position: 'RF', bats: BattingSide.SWITCH, throws: ThrowingArm.RIGHT }
-    ]
-  },
-  {
-    name: 'Leones',
-    shortName: 'LE',
-    slug: 'leones',
-    primaryColor: '#dc2626',
-    secondaryColor: '#facc15',
-    managerName: 'Pedro Garcia',
-    players: [
-      { firstName: 'Oscar', lastName: 'Morales', number: 2, position: '2B', bats: BattingSide.RIGHT, throws: ThrowingArm.RIGHT },
-      { firstName: 'Ivan', lastName: 'Flores', number: 11, position: 'P', bats: BattingSide.LEFT, throws: ThrowingArm.LEFT },
-      { firstName: 'Ruben', lastName: 'Nava', number: 21, position: 'C', bats: BattingSide.RIGHT, throws: ThrowingArm.RIGHT },
-      { firstName: 'Adrian', lastName: 'Rojas', number: 34, position: '1B', bats: BattingSide.RIGHT, throws: ThrowingArm.RIGHT }
-    ]
-  },
-  {
-    name: 'Halcones',
-    shortName: 'HA',
-    slug: 'halcones',
-    primaryColor: '#2563eb',
-    secondaryColor: '#f8fafc',
-    managerName: 'Juan Perez',
-    players: [
-      { firstName: 'Sergio', lastName: 'Molina', number: 5, position: 'SS', bats: BattingSide.RIGHT, throws: ThrowingArm.RIGHT },
-      { firstName: 'Alberto', lastName: 'Reyes', number: 14, position: 'LF', bats: BattingSide.LEFT, throws: ThrowingArm.LEFT },
-      { firstName: 'Victor', lastName: 'Ortega', number: 24, position: 'P', bats: BattingSide.RIGHT, throws: ThrowingArm.RIGHT },
-      { firstName: 'Emilio', lastName: 'Cruz', number: 33, position: 'RF', bats: BattingSide.RIGHT, throws: ThrowingArm.RIGHT }
-    ]
-  },
-  {
-    name: 'Toros',
-    shortName: 'TO',
-    slug: 'toros',
-    primaryColor: '#991b1b',
-    secondaryColor: '#111827',
-    managerName: 'Miguel Alvarez',
-    players: [
-      { firstName: 'Jorge', lastName: 'Herrera', number: 3, position: '3B', bats: BattingSide.RIGHT, throws: ThrowingArm.RIGHT },
-      { firstName: 'Manuel', lastName: 'Silva', number: 10, position: 'CF', bats: BattingSide.LEFT, throws: ThrowingArm.RIGHT },
-      { firstName: 'Felipe', lastName: 'Ibarra', number: 19, position: 'P', bats: BattingSide.RIGHT, throws: ThrowingArm.RIGHT },
-      { firstName: 'Arturo', lastName: 'Campos', number: 28, position: '1B', bats: BattingSide.RIGHT, throws: ThrowingArm.RIGHT }
-    ]
-  },
-  {
-    name: 'Panteras',
-    shortName: 'PA',
-    slug: 'panteras',
-    primaryColor: '#7c3aed',
-    secondaryColor: '#f59e0b',
-    managerName: 'Roberto Sanchez',
-    players: [
-      { firstName: 'Ricardo', lastName: 'Fuentes', number: 6, position: '2B', bats: BattingSide.RIGHT, throws: ThrowingArm.RIGHT },
-      { firstName: 'Ernesto', lastName: 'Diaz', number: 15, position: 'C', bats: BattingSide.RIGHT, throws: ThrowingArm.RIGHT },
-      { firstName: 'Mario', lastName: 'Salazar', number: 22, position: 'P', bats: BattingSide.LEFT, throws: ThrowingArm.LEFT },
-      { firstName: 'Tomas', lastName: 'Luna', number: 31, position: 'RF', bats: BattingSide.SWITCH, throws: ThrowingArm.RIGHT }
-    ]
+const scheduleFormatter = new Intl.DateTimeFormat('en-US', {
+  weekday: 'short',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+  timeZone: 'America/Tijuana'
+})
+
+function getScheduleParts(date: Date) {
+  const parts = Object.fromEntries(
+    scheduleFormatter.formatToParts(date).map(part => [part.type, part.value])
+  )
+
+  return {
+    weekday: parts.weekday,
+    hour: Number(parts.hour),
+    minute: Number(parts.minute)
   }
+}
+
+function assertValidGameSlot(date: Date) {
+  const { weekday, hour, minute } = getScheduleParts(date)
+  const isFridaySlot = weekday === 'Fri' && minute === 0 && (hour === 19 || hour === 21)
+  const isWeekendSlot = (weekday === 'Sat' || weekday === 'Sun') && minute === 0 && hour >= 10 && hour <= 22
+
+  if (!isFridaySlot && !isWeekendSlot) {
+    throw new Error(`Invalid game slot: ${date.toISOString()}. Allowed slots are Friday 7/9 PM and Saturday/Sunday 10 AM-10 PM.`)
+  }
+}
+
+const teamCategories = [
+  TeamCategory.A,
+  TeamCategory.B,
+  TeamCategory.C,
+  TeamCategory.D,
+  TeamCategory.E,
+  TeamCategory.R
+] as const
+
+const teamBlueprints = [
+  { category: TeamCategory.A, branch: TeamBranch.VARONIL, teams: [['Tigres', 'TR'], ['Aguilas', 'AG'], ['Leones', 'LE']] },
+  { category: TeamCategory.A, branch: TeamBranch.FEMENIL, teams: [['Diamantes', 'DI'], ['Amazonas', 'AM'], ['Estrellas', 'ES']] },
+  { category: TeamCategory.B, branch: TeamBranch.VARONIL, teams: [['Halcones', 'HA'], ['Toros', 'TO'], ['Panteras', 'PA']] },
+  { category: TeamCategory.B, branch: TeamBranch.FEMENIL, teams: [['Auroras', 'AU'], ['Sirenas', 'SI'], ['Valkirias', 'VA']] },
+  { category: TeamCategory.C, branch: TeamBranch.VARONIL, teams: [['Bravos', 'BR'], ['Cardenales', 'CA'], ['Delfines', 'DE']] },
+  { category: TeamCategory.C, branch: TeamBranch.FEMENIL, teams: [['Lunas', 'LU'], ['Reinas', 'RE'], ['Cometas', 'CO']] },
+  { category: TeamCategory.D, branch: TeamBranch.VARONIL, teams: [['Guerreros', 'GU'], ['Marineros', 'MA'], ['Venados', 'VE']] },
+  { category: TeamCategory.D, branch: TeamBranch.FEMENIL, teams: [['Centellas', 'CE'], ['Nereidas', 'NE'], ['Gacelas', 'GA']] },
+  { category: TeamCategory.E, branch: TeamBranch.VARONIL, teams: [['Coyotes', 'CY'], ['Titanes', 'TI'], ['Piratas', 'PI']] },
+  { category: TeamCategory.E, branch: TeamBranch.FEMENIL, teams: [['Fieras', 'FI'], ['Guerreras', 'GR'], ['Halconas', 'HN']] },
+  { category: TeamCategory.R, branch: TeamBranch.VARONIL, teams: [['Rangers', 'RA'], ['Astros', 'AS'], ['Relampagos', 'RL']] },
+  { category: TeamCategory.R, branch: TeamBranch.FEMENIL, teams: [['Pioneras', 'PN'], ['Lobas', 'LO'], ['Tormentas', 'TM']] }
+] as const
+
+const primaryColors = [
+  '#047857',
+  '#f97316',
+  '#dc2626',
+  '#2563eb',
+  '#991b1b',
+  '#7c3aed',
+  '#be123c',
+  '#0891b2',
+  '#0f766e',
+  '#854d0e',
+  '#c2410c',
+  '#0e7490'
 ]
+
+const secondaryColors = ['#0f172a', '#f8fafc', '#fbbf24', '#111827']
+const managerNames = [
+  'Carlos Martinez',
+  'Luis Rivera',
+  'Pedro Garcia',
+  'Juan Perez',
+  'Miguel Alvarez',
+  'Roberto Sanchez',
+  'Fernando Ruiz',
+  'Armando Castillo',
+  'Enrique Navarro',
+  'Santiago Robles',
+  'Rafael Molina',
+  'Francisco Leon'
+]
+const maleFirstNames = ['Miguel', 'Jose', 'Carlos', 'Andres', 'Daniel', 'Marco', 'Hector', 'Raul', 'Oscar', 'Ivan', 'Ruben', 'Adrian']
+const femaleFirstNames = ['Ana', 'Sofia', 'Valeria', 'Camila', 'Mariana', 'Lucia', 'Elena', 'Paola', 'Diana', 'Clara', 'Renata', 'Isabel']
+const lastNames = ['Ramirez', 'Gomez', 'Lopez', 'Torres', 'Castro', 'Santos', 'Vega', 'Medina', 'Morales', 'Flores', 'Nava', 'Rojas']
+const positions = ['P', 'C', '1B', '2B', 'SS', 'CF']
+const playerNumbers = [3, 8, 15, 24]
+
+function slugify(value: string) {
+  return value.toLowerCase().replaceAll(' ', '-')
+}
+
+function createPlayers(seedIndex: number, branch: (typeof TeamBranch)[keyof typeof TeamBranch]) {
+  const firstNames = branch === TeamBranch.FEMENIL ? femaleFirstNames : maleFirstNames
+
+  return playerNumbers.map((number, playerIndex) => ({
+    firstName: firstNames[(seedIndex + playerIndex) % firstNames.length],
+    lastName: lastNames[(seedIndex * 2 + playerIndex) % lastNames.length],
+    number,
+    position: positions[(seedIndex + playerIndex) % positions.length],
+    bats: playerIndex === 1 ? BattingSide.LEFT : playerIndex === 3 ? BattingSide.SWITCH : BattingSide.RIGHT,
+    throws: playerIndex === 1 ? ThrowingArm.LEFT : ThrowingArm.RIGHT
+  }))
+}
+
+const teamSeeds = teamBlueprints.flatMap((group, groupIndex) =>
+  group.teams.map(([name, shortName], teamIndex) => {
+    const seedIndex = groupIndex * 3 + teamIndex
+
+    return {
+      name,
+      shortName,
+      slug: slugify(name),
+      category: group.category,
+      branch: group.branch,
+      primaryColor: primaryColors[seedIndex % primaryColors.length],
+      secondaryColor: secondaryColors[seedIndex % secondaryColors.length],
+      managerName: managerNames[seedIndex % managerNames.length],
+      players: createPlayers(seedIndex, group.branch)
+    }
+  })
+)
 
 const fieldSeeds = [
   { name: 'Campo 1', address: 'Unidad Deportiva Municipal', notes: 'Campo principal' },
@@ -130,6 +170,8 @@ async function upsertSeedGame(input: {
     recordedById: string
   }
 }) {
+  assertValidGameSlot(input.scheduledAt)
+
   const existingGame = await prisma.game.findFirst({
     where: {
       seasonId: input.seasonId,
@@ -263,6 +305,14 @@ async function main() {
     )
   )
 
+  await prisma.player.deleteMany({
+    where: {
+      teamId: {
+        in: teams.map(team => team.id)
+      }
+    }
+  })
+
   for (const teamSeed of teamSeeds) {
     const team = teamBySlug.get(teamSeed.slug)
 
@@ -329,111 +379,85 @@ async function main() {
     return field
   }
 
-  const gameSeeds = [
-    {
-      round: 1,
-      scheduledAt: toDate('2026-03-07T09:00:00-08:00'),
-      field: 'Campo 1',
-      home: 'tigres',
-      away: 'aguilas',
-      status: GameStatus.FINAL,
-      result: { homeScore: 10, awayScore: 2, innings: 7 }
-    },
-    {
-      round: 1,
-      scheduledAt: toDate('2026-03-07T10:30:00-08:00'),
-      field: 'Campo 2',
-      home: 'leones',
-      away: 'panteras',
-      status: GameStatus.FINAL,
-      result: { homeScore: 6, awayScore: 1, innings: 7 }
-    },
-    {
-      round: 1,
-      scheduledAt: toDate('2026-03-07T12:00:00-08:00'),
-      field: 'Campo 1',
-      home: 'halcones',
-      away: 'toros',
-      status: GameStatus.FINAL,
-      result: { homeScore: 4, awayScore: 8, innings: 7 }
-    },
-    {
-      round: 2,
-      scheduledAt: toDate('2026-03-14T09:00:00-08:00'),
-      field: 'Campo 2',
-      home: 'tigres',
-      away: 'halcones',
-      status: GameStatus.FINAL,
-      result: { homeScore: 8, awayScore: 3, innings: 7 }
-    },
-    {
-      round: 2,
-      scheduledAt: toDate('2026-03-14T10:30:00-08:00'),
-      field: 'Campo 1',
-      home: 'aguilas',
-      away: 'leones',
-      status: GameStatus.FINAL,
-      result: { homeScore: 6, awayScore: 1, innings: 7 }
-    },
-    {
-      round: 2,
-      scheduledAt: toDate('2026-03-14T12:00:00-08:00'),
-      field: 'Campo 2',
-      home: 'panteras',
-      away: 'toros',
-      status: GameStatus.FINAL,
-      result: { homeScore: 3, awayScore: 7, innings: 7 }
-    },
-    {
-      round: 3,
-      scheduledAt: toDate('2026-03-21T09:00:00-07:00'),
-      field: 'Campo 1',
-      home: 'toros',
-      away: 'tigres',
-      status: GameStatus.SCHEDULED
-    },
-    {
-      round: 3,
-      scheduledAt: toDate('2026-03-21T10:30:00-07:00'),
-      field: 'Campo 2',
-      home: 'panteras',
-      away: 'aguilas',
-      status: GameStatus.SCHEDULED
-    },
-    {
-      round: 3,
-      scheduledAt: toDate('2026-03-21T12:00:00-07:00'),
-      field: 'Campo 3',
-      home: 'leones',
-      away: 'halcones',
-      status: GameStatus.POSTPONED,
-      notes: 'Pendiente de reprogramar por disponibilidad de campo'
-    },
-    {
-      round: 4,
-      scheduledAt: toDate('2026-03-28T09:00:00-07:00'),
-      field: 'Campo 2',
-      home: 'tigres',
-      away: 'panteras',
-      status: GameStatus.SCHEDULED
-    },
-    {
-      round: 4,
-      scheduledAt: toDate('2026-03-28T10:30:00-07:00'),
-      field: 'Campo 1',
-      home: 'aguilas',
-      away: 'halcones',
-      status: GameStatus.SCHEDULED
-    },
-    {
-      round: 4,
-      scheduledAt: toDate('2026-03-28T12:00:00-07:00'),
-      field: 'Campo 3',
-      home: 'toros',
-      away: 'leones',
-      status: GameStatus.SCHEDULED
-    }
+  await prisma.gameResult.deleteMany({ where: { game: { seasonId: season.id } } })
+  await prisma.game.deleteMany({ where: { seasonId: season.id } })
+
+  if (teamBlueprints.length !== teamCategories.length * 2) {
+    throw new Error('Every category must have varonil and femenil teams.')
+  }
+
+  const scheduleDays = [
+    { date: '2026-03-06', offset: '-08:00', hours: [19, 21] },
+    { date: '2026-03-07', offset: '-08:00', hours: [10, 12, 14, 16] },
+    { date: '2026-03-08', offset: '-07:00', hours: [10, 12] },
+    { date: '2026-03-13', offset: '-07:00', hours: [19, 21] },
+    { date: '2026-03-14', offset: '-07:00', hours: [10, 12, 14, 16] },
+    { date: '2026-03-15', offset: '-07:00', hours: [10, 12] },
+    { date: '2026-03-20', offset: '-07:00', hours: [19, 21] },
+    { date: '2026-03-21', offset: '-07:00', hours: [10, 12, 14, 16] },
+    { date: '2026-03-22', offset: '-07:00', hours: [10, 12] },
+    { date: '2026-03-27', offset: '-07:00', hours: [19, 21] },
+    { date: '2026-03-28', offset: '-07:00', hours: [10, 12, 14, 16] },
+    { date: '2026-03-29', offset: '-07:00', hours: [10, 12] },
+    { date: '2026-04-03', offset: '-07:00', hours: [19, 21] },
+    { date: '2026-04-04', offset: '-07:00', hours: [10, 12, 14, 16] },
+    { date: '2026-04-05', offset: '-07:00', hours: [10, 12] }
   ]
+
+  const gameSlots = scheduleDays.flatMap((day, dayIndex) =>
+    day.hours.map((hour, hourIndex) => ({
+      scheduledAt: toDate(`${day.date}T${hour.toString().padStart(2, '0')}:00:00${day.offset}`),
+      field: fieldSeeds[(dayIndex + hourIndex) % fieldSeeds.length].name
+    }))
+  )
+  const divisionGroups = teamBlueprints.map(group => group.teams.map(([name]) => slugify(name)))
+  const resultSlots = gameSlots.slice(0, divisionGroups.length)
+  const upcomingSlots = gameSlots.slice(divisionGroups.length)
+  const gameSeeds = divisionGroups.flatMap((divisionTeams, groupIndex) => {
+    const finalSlot = resultSlots[groupIndex]
+    const firstUpcomingSlot = upcomingSlots[groupIndex * 2]
+    const secondUpcomingSlot = upcomingSlots[groupIndex * 2 + 1]
+    const homeScore = 5 + ((groupIndex * 2) % 8)
+    const awayScore = homeScore === 3 + (groupIndex % 7)
+      ? 4 + (groupIndex % 7)
+      : 3 + (groupIndex % 7)
+    const firstUpcomingStatus = groupIndex % 4 === 0 ? GameStatus.POSTPONED : GameStatus.SCHEDULED
+
+    if (!finalSlot || !firstUpcomingSlot || !secondUpcomingSlot) {
+      throw new Error('Not enough valid schedule slots for seeded games.')
+    }
+
+    return [
+      {
+        round: 1,
+        scheduledAt: finalSlot.scheduledAt,
+        field: finalSlot.field,
+        home: divisionTeams[0],
+        away: divisionTeams[1],
+        status: GameStatus.FINAL,
+        result: { homeScore, awayScore, innings: 7 }
+      },
+      {
+        round: 2,
+        scheduledAt: firstUpcomingSlot.scheduledAt,
+        field: firstUpcomingSlot.field,
+        home: divisionTeams[1],
+        away: divisionTeams[2],
+        status: firstUpcomingStatus,
+        notes: firstUpcomingStatus === GameStatus.POSTPONED
+          ? 'Pendiente de reprogramar por disponibilidad de campo'
+          : undefined
+      },
+      {
+        round: 3,
+        scheduledAt: secondUpcomingSlot.scheduledAt,
+        field: secondUpcomingSlot.field,
+        home: divisionTeams[2],
+        away: divisionTeams[0],
+        status: GameStatus.SCHEDULED
+      }
+    ]
+  })
 
   for (const game of gameSeeds) {
     await upsertSeedGame({
