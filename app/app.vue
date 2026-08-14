@@ -89,7 +89,7 @@ useSeoMeta({
           color="neutral"
           variant="ghost"
           size="sm"
-          class="hidden rounded-full bg-white/95 text-[#005f3d] ring-1 ring-white/30 hover:bg-white sm:inline-flex"
+          class="hidden rounded-full bg-white/95 text-green-700 ring-1 ring-white/30 hover:bg-white sm:inline-flex"
         />
 
         <UButton

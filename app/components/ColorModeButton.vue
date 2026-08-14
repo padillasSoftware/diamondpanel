@@ -51,7 +51,7 @@ const startViewTransition = (event: MouseEvent) => {
       :color="nextTheme !== 'dark' ? 'neutral' : 'primary'"
       variant="ghost"
       size="sm"
-      class="rounded-full hover:bg-white/10 hover:text-white focus-visible:ring-white/40"
+      class="rounded-full hover:bg-white/10 focus-visible:ring-white/40 cursor-pointer"
       @click="startViewTransition"
     />
     <template #fallback>
