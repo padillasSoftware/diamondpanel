@@ -32,8 +32,11 @@ useSeoMeta({
 </script>
 
 <template>
-  <UApp>
-    <UHeader class="border-b border-default bg-default/95 backdrop-blur">
+  <UApp class="min-w-0 overflow-x-hidden">
+    <UHeader
+      :toggle="false"
+      class="max-w-full overflow-hidden border-b border-default bg-default/95 backdrop-blur"
+    >
       <template #left>
         <NuxtLink
           to="/"
@@ -57,7 +60,7 @@ useSeoMeta({
           />
         </nav>
 
-        <UColorModeButton />
+        <ColorModeButton />
 
         <UButton
           icon="i-lucide-log-in"
@@ -66,14 +69,14 @@ useSeoMeta({
           variant="subtle"
           size="sm"
           disabled
-          class="hidden sm:inline-flex"
+          class=" sm:inline-flex"
         />
       </template>
     </UHeader>
 
-    <div class="border-b border-default bg-default lg:hidden">
-      <UContainer class="py-2">
-        <nav class="flex gap-1 overflow-x-auto">
+    <div class="max-w-full overflow-hidden border-b border-default bg-default lg:hidden">
+      <UContainer class="min-w-0 py-2">
+        <nav class="flex max-w-full gap-1 overflow-x-auto pb-1 scrollbar-none [&::-webkit-scrollbar]:hidden">
           <UButton
             v-for="item in navigation"
             :key="item.to"
@@ -89,7 +92,7 @@ useSeoMeta({
       </UContainer>
     </div>
 
-    <UMain>
+    <UMain class="min-w-0 overflow-x-hidden">
       <NuxtPage />
     </UMain>
 

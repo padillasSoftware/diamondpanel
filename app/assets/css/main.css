@@ -16,3 +16,15 @@
   --color-green-900: #0A5331;
   --color-green-950: #052E16;
 }
+
+html,
+body,
+#__nuxt {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+#__nuxt {
+  min-width: 0;
+}

@@ -137,7 +137,7 @@ const activePlayers = computed(() => team.value?.players.filter(player => player
         </div>
 
         <div class="overflow-x-auto">
-          <table class="w-full min-w-[620px] text-sm">
+          <table class="w-full min-w-155 text-sm">
             <thead>
               <tr class="border-b border-default text-left text-xs uppercase text-muted">
                 <th class="py-3 pr-3">

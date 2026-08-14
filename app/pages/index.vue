@@ -36,9 +36,9 @@ const featuredTeams = computed(() => teams.value?.slice(0, 6) ?? [])
 </script>
 
 <template>
-  <UContainer class="py-6 sm:py-8">
+  <UContainer class="min-w-0 py-5 sm:py-8">
     <div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-      <div>
+      <div class="min-w-0">
         <div class="mb-3 flex flex-wrap items-center gap-2">
           <UBadge
             color="primary"
@@ -56,7 +56,7 @@ const featuredTeams = computed(() => teams.value?.slice(0, 6) ?? [])
           </UBadge>
         </div>
 
-        <h1 class="text-3xl font-bold tracking-normal text-highlighted sm:text-4xl">
+        <h1 class="wrap-break-word text-3xl font-bold tracking-normal text-highlighted sm:text-4xl">
           Control de liga de softball
         </h1>
         <p class="mt-2 max-w-2xl text-base text-muted">
@@ -64,8 +64,8 @@ const featuredTeams = computed(() => teams.value?.slice(0, 6) ?? [])
         </p>
       </div>
 
-      <div class="grid grid-cols-3 gap-2 rounded-lg border border-default bg-muted/30 p-2 text-center">
-        <div class="rounded-md bg-default px-3 py-2">
+      <div class="grid w-full min-w-0 grid-cols-3 gap-2 rounded-lg border border-default bg-muted/30 p-2 text-center lg:w-auto">
+        <div class="min-w-0 rounded-md bg-default px-2 py-2 sm:px-3">
           <p class="text-xl font-bold text-highlighted">
             {{ teams?.length ?? 0 }}
           </p>
@@ -73,7 +73,7 @@ const featuredTeams = computed(() => teams.value?.slice(0, 6) ?? [])
             Equipos
           </p>
         </div>
-        <div class="rounded-md bg-default px-3 py-2">
+        <div class="min-w-0 rounded-md bg-default px-2 py-2 sm:px-3">
           <p class="text-xl font-bold text-highlighted">
             {{ upcomingGames?.length ?? 0 }}
           </p>
@@ -81,7 +81,7 @@ const featuredTeams = computed(() => teams.value?.slice(0, 6) ?? [])
             En rol
           </p>
         </div>
-        <div class="rounded-md bg-default px-3 py-2">
+        <div class="min-w-0 rounded-md bg-default px-2 py-2 sm:px-3">
           <p class="text-xl font-bold text-highlighted">
             {{ completedGames }}
           </p>
@@ -92,10 +92,10 @@ const featuredTeams = computed(() => teams.value?.slice(0, 6) ?? [])
       </div>
     </div>
 
-    <div class="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+    <div class="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
       <section
         id="rol"
-        class="rounded-lg border border-default bg-default p-5 shadow-sm"
+        class="min-w-0 rounded-lg border border-default bg-default p-4 shadow-sm sm:p-5"
       >
         <div class="mb-4 flex items-center justify-between gap-3">
           <div>
@@ -114,40 +114,50 @@ const featuredTeams = computed(() => teams.value?.slice(0, 6) ?? [])
 
         <div
           v-if="nextGame"
-          class="rounded-lg border border-default bg-muted/30 p-4"
+          class="rounded-lg border border-default bg-muted/30 p-3 sm:p-4"
         >
-          <div class="mb-4 flex flex-wrap items-center justify-between gap-2 text-sm text-muted">
+          <div class="mb-4 flex flex-col gap-1 text-sm text-muted sm:flex-row sm:items-center sm:justify-between sm:gap-2">
             <span>{{ formatGameDate(nextGame.scheduledAt) }}</span>
             <span>{{ nextGame.field?.name ?? 'Campo por definir' }}</span>
           </div>
 
-          <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-            <div class="text-center">
+          <div class="grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+            <div class="flex min-w-0 items-center gap-3 rounded-md bg-default p-3 sm:block sm:bg-transparent sm:p-0 sm:text-center">
               <div
-                class="mx-auto flex size-16 items-center justify-center rounded-full text-lg font-bold text-white shadow-sm"
+                class="flex size-12 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white shadow-sm sm:mx-auto sm:size-16 sm:text-lg"
                 :style="{ backgroundColor: nextGame.homeTeam.primaryColor ?? '#047857' }"
               >
                 {{ teamInitials(nextGame.homeTeam) }}
               </div>
-              <p class="mt-2 font-semibold text-highlighted">
-                {{ nextGame.homeTeam.name }}
-              </p>
+              <div class="min-w-0 sm:mt-2">
+                <p class="truncate font-semibold text-highlighted sm:overflow-visible sm:text-clip sm:whitespace-normal">
+                  {{ nextGame.homeTeam.name }}
+                </p>
+                <p class="text-xs text-muted sm:hidden">
+                  Local
+                </p>
+              </div>
             </div>
 
-            <div class="rounded-md border border-default bg-default px-3 py-2 text-sm font-bold text-muted">
+            <div class="mx-auto rounded-md border border-default bg-default px-3 py-2 text-sm font-bold text-muted sm:mx-0">
               vs
             </div>
 
-            <div class="text-center">
+            <div class="flex min-w-0 items-center gap-3 rounded-md bg-default p-3 sm:block sm:bg-transparent sm:p-0 sm:text-center">
               <div
-                class="mx-auto flex size-16 items-center justify-center rounded-full text-lg font-bold text-white shadow-sm"
+                class="flex size-12 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white shadow-sm sm:mx-auto sm:size-16 sm:text-lg"
                 :style="{ backgroundColor: nextGame.awayTeam.primaryColor ?? '#f97316' }"
               >
                 {{ teamInitials(nextGame.awayTeam) }}
               </div>
-              <p class="mt-2 font-semibold text-highlighted">
-                {{ nextGame.awayTeam.name }}
-              </p>
+              <div class="min-w-0 sm:mt-2">
+                <p class="truncate font-semibold text-highlighted sm:overflow-visible sm:text-clip sm:whitespace-normal">
+                  {{ nextGame.awayTeam.name }}
+                </p>
+                <p class="text-xs text-muted sm:hidden">
+                  Visitante
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -156,7 +166,7 @@ const featuredTeams = computed(() => teams.value?.slice(0, 6) ?? [])
           <div
             v-for="game in upcomingGames?.slice(1)"
             :key="game.id"
-            class="flex items-center justify-between gap-3 rounded-md border border-default px-3 py-2"
+            class="grid gap-2 rounded-md border border-default px-3 py-2 sm:grid-cols-[1fr_auto] sm:items-center"
           >
             <div class="min-w-0">
               <p class="truncate text-sm font-semibold text-highlighted">
@@ -169,6 +179,7 @@ const featuredTeams = computed(() => teams.value?.slice(0, 6) ?? [])
             <UBadge
               :color="game.status === 'POSTPONED' ? 'warning' : 'primary'"
               variant="subtle"
+              class="w-fit sm:justify-self-end"
             >
               {{ game.status === 'POSTPONED' ? 'Suspendido' : formatGameDate(game.scheduledAt) }}
             </UBadge>
@@ -178,7 +189,7 @@ const featuredTeams = computed(() => teams.value?.slice(0, 6) ?? [])
 
       <section
         id="posiciones"
-        class="rounded-lg border border-default bg-default p-5 shadow-sm"
+        class="min-w-0 rounded-lg border border-default bg-default p-4 shadow-sm sm:p-5"
       >
         <div class="mb-4 flex items-center justify-between">
           <div>
@@ -195,8 +206,8 @@ const featuredTeams = computed(() => teams.value?.slice(0, 6) ?? [])
           />
         </div>
 
-        <div class="overflow-x-auto">
-          <table class="w-full min-w-[520px] text-sm">
+        <div class="max-w-full overflow-x-auto">
+          <table class="w-full min-w-130 text-sm">
             <thead>
               <tr class="border-b border-default text-left text-xs uppercase text-muted">
                 <th class="py-2 pr-3">
@@ -264,10 +275,10 @@ const featuredTeams = computed(() => teams.value?.slice(0, 6) ?? [])
       </section>
     </div>
 
-    <div class="mt-4 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+    <div class="mt-4 grid min-w-0 gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
       <section
         id="resultados"
-        class="rounded-lg border border-default bg-default p-5 shadow-sm"
+        class="min-w-0 rounded-lg border border-default bg-default p-4 shadow-sm sm:p-5"
       >
         <div class="mb-4 flex items-center justify-between">
           <div>
@@ -320,7 +331,7 @@ const featuredTeams = computed(() => teams.value?.slice(0, 6) ?? [])
 
       <section
         id="equipos"
-        class="rounded-lg border border-default bg-default p-5 shadow-sm"
+        class="min-w-0 rounded-lg border border-default bg-default p-4 shadow-sm sm:p-5"
       >
         <div class="mb-4 flex items-center justify-between">
           <div>

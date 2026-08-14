@@ -171,7 +171,7 @@ const bestDefense = computed(() => [...standingRows.value].sort((a, b) => a.runs
       </div>
 
       <div class="overflow-x-auto">
-        <table class="w-full min-w-[820px] text-sm">
+        <table class="w-full min-w-205 text-sm">
           <thead>
             <tr class="border-b border-default text-left text-xs uppercase text-muted">
               <th class="py-3 pr-3">
