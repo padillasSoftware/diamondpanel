@@ -12,6 +12,17 @@ const isActive = (to: string) => to === '/'
   ? route.path === '/'
   : route.path === to || route.path.startsWith(`${to}/`)
 
+const { user, initialized, isAdmin, fetchSession, logout } = useAuth()
+
+if (!initialized.value) {
+  await fetchSession().catch(() => null)
+}
+
+const handleLogout = async () => {
+  await logout()
+  await navigateTo('/login')
+}
+
 useHead({
   meta: [
     { name: 'viewport', content: 'width=device-width, initial-scale=1' }
@@ -39,6 +50,7 @@ useSeoMeta({
 <template>
   <UApp class="min-w-0 overflow-x-hidden">
     <UHeader
+      v-if="user"
       :toggle="false"
       class="league-header max-w-full overflow-hidden"
     >
@@ -70,18 +82,32 @@ useSeoMeta({
         <ColorModeButton />
 
         <UButton
-          icon="i-lucide-user-round"
-          aria-label="Login"
+          v-if="isAdmin"
+          to="/admin"
+          icon="i-lucide-layout-dashboard"
+          label="Admin"
           color="neutral"
           variant="ghost"
           size="sm"
-          disabled
-          class="rounded-full bg-white/95 text-[#005f3d] ring-1 ring-white/30 hover:bg-white disabled:opacity-90"
+          class="hidden rounded-full bg-white/95 text-[#005f3d] ring-1 ring-white/30 hover:bg-white sm:inline-flex"
+        />
+
+        <UButton
+          icon="i-lucide-log-out"
+          aria-label="Cerrar sesión"
+          color="neutral"
+          variant="ghost"
+          size="sm"
+          class="rounded-full text-white hover:bg-white/10 hover:text-white"
+          @click="handleLogout"
         />
       </template>
     </UHeader>
 
-    <div class="league-mobile-nav max-w-full overflow-hidden lg:hidden">
+    <div
+      v-if="user"
+      class="league-mobile-nav max-w-full overflow-hidden lg:hidden"
+    >
       <UContainer class="min-w-0 py-2">
         <nav class="flex max-w-full gap-1 overflow-x-auto pb-1 scrollbar-none [&::-webkit-scrollbar]:hidden">
           <NuxtLink

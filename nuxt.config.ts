@@ -11,6 +11,10 @@ export default defineNuxtConfig({
 
   css: ['~/assets/css/main.css'],
 
+  runtimeConfig: {
+    authSecret: process.env.AUTH_SECRET
+  },
+
   compatibilityDate: '2026-06-30',
 
   eslint: {
