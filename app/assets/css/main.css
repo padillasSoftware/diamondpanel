@@ -4,17 +4,69 @@
 @theme static {
   --font-sans: 'Public Sans', sans-serif;
 
-  --color-green-50: #EFFDF5;
-  --color-green-100: #D9FBE8;
-  --color-green-200: #B3F5D1;
-  --color-green-300: #75EDAE;
-  --color-green-400: #00DC82;
-  --color-green-500: #00C16A;
-  --color-green-600: #00A155;
-  --color-green-700: #007F45;
-  --color-green-800: #016538;
-  --color-green-900: #0A5331;
-  --color-green-950: #052E16;
+  --color-green-50: #EDF8F1;
+  --color-green-100: #D6F0DF;
+  --color-green-200: #AEE0C3;
+  --color-green-300: #78C89B;
+  --color-green-400: #3FAE74;
+  --color-green-500: #168A55;
+  --color-green-600: #096B43;
+  --color-green-700: #005F3D;
+  --color-green-800: #004A31;
+  --color-green-900: #003820;
+  --color-green-950: #062016;
+
+  --color-orange-50: #FFF7E8;
+  --color-orange-100: #FFE7BA;
+  --color-orange-200: #FFD17A;
+  --color-orange-300: #FFB13A;
+  --color-orange-400: #FF9800;
+  --color-orange-500: #F07E00;
+  --color-orange-600: #C96000;
+  --color-orange-700: #9D4700;
+  --color-orange-800: #783600;
+  --color-orange-900: #5A2900;
+  --color-orange-950: #301500;
+}
+
+:root {
+  --league-green-950: #062016;
+  --league-green-900: #003820;
+  --league-green-800: #004A31;
+  --league-green-700: #005F3D;
+  --league-accent: #FF9800;
+  --league-page-bg: #F4F7F3;
+}
+
+.light {
+  --ui-primary: var(--league-green-700);
+  --ui-bg: #FFFFFF;
+  --ui-bg-muted: #F4F7F3;
+  --ui-bg-elevated: #EEF4EF;
+  --ui-bg-accented: #E2EBE5;
+  --ui-border: #D9E4DC;
+  --ui-border-muted: #E5ECE7;
+  --ui-border-accented: #C9D8CE;
+  --ui-text: #17241E;
+  --ui-text-muted: #64736B;
+  --ui-text-toned: #3F5148;
+  --ui-text-highlighted: #101A15;
+}
+
+.dark {
+  --ui-primary: #44C47E;
+  --ui-bg: #071A14;
+  --ui-bg-muted: #0B241B;
+  --ui-bg-elevated: #103225;
+  --ui-bg-accented: #164531;
+  --ui-border: #1E4938;
+  --ui-border-muted: #173A2C;
+  --ui-border-accented: #276246;
+  --ui-text: #DDEBE2;
+  --ui-text-muted: #9DB3A7;
+  --ui-text-toned: #BBD0C3;
+  --ui-text-highlighted: #F7FFF9;
+  --league-page-bg: #061610;
 }
 
 html,
@@ -27,4 +79,90 @@ body,
 
 #__nuxt {
   min-width: 0;
+}
+
+body {
+  background:
+    radial-gradient(circle at top left, rgb(255 152 0 / 0.06), transparent 26rem),
+    var(--league-page-bg);
+}
+
+.league-header,
+.league-mobile-nav {
+  border-bottom: 1px solid rgb(0 56 32 / 0.9);
+  background: linear-gradient(180deg, #006A43 0%, #004A31 100%);
+  color: #FFFFFF;
+  box-shadow: 0 10px 26px rgb(0 56 32 / 0.16);
+}
+
+.dark .league-header,
+.dark .league-mobile-nav {
+  border-bottom-color: rgb(255 152 0 / 0.22);
+  background: linear-gradient(180deg, #063A27 0%, #061F16 100%);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.28);
+}
+
+.league-nav-link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 2.25rem;
+  padding: 0.375rem 0.625rem;
+  border-radius: 0.375rem;
+  color: rgb(255 255 255 / 0.88);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+.league-nav-link:hover {
+  background: rgb(255 255 255 / 0.1);
+  color: #FFFFFF;
+}
+
+.league-nav-link.is-active {
+  color: #FFFFFF;
+}
+
+.league-nav-link.is-active::after {
+  position: absolute;
+  right: 0.55rem;
+  bottom: -0.8rem;
+  left: 0.55rem;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--league-accent);
+  content: "";
+}
+
+.league-nav-link--mobile {
+  min-height: 2rem;
+  padding-inline: 0.5rem;
+  font-size: 0.75rem;
+}
+
+.league-nav-link--mobile.is-active::after {
+  bottom: -0.45rem;
+}
+
+table thead tr {
+  border-color: transparent;
+  background: linear-gradient(180deg, var(--league-green-700), var(--league-green-900));
+  color: #FFFFFF;
+}
+
+table thead th {
+  color: inherit;
+}
+
+table thead th:first-child {
+  border-top-left-radius: 0.375rem;
+}
+
+table thead th:last-child {
+  border-top-right-radius: 0.375rem;
 }

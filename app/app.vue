@@ -7,6 +7,11 @@ const navigation = [
   { label: 'Equipos', to: '/equipos', icon: 'i-lucide-users' }
 ]
 
+const route = useRoute()
+const isActive = (to: string) => to === '/'
+  ? route.path === '/'
+  : route.path === to || route.path.startsWith(`${to}/`)
+
 useHead({
   meta: [
     { name: 'viewport', content: 'width=device-width, initial-scale=1' }
@@ -35,7 +40,7 @@ useSeoMeta({
   <UApp class="min-w-0 overflow-x-hidden">
     <UHeader
       :toggle="false"
-      class="max-w-full overflow-hidden border-b border-default bg-default/95 backdrop-blur"
+      class="league-header max-w-full overflow-hidden"
     >
       <template #left>
         <NuxtLink
@@ -48,46 +53,49 @@ useSeoMeta({
 
       <template #right>
         <nav class="hidden items-center gap-1 lg:flex">
-          <UButton
+          <NuxtLink
             v-for="item in navigation"
             :key="item.to"
             :to="item.to"
-            :icon="item.icon"
-            :label="item.label"
-            color="neutral"
-            variant="ghost"
-            size="sm"
-          />
+            :class="['league-nav-link', { 'is-active': isActive(item.to) }]"
+          >
+            <UIcon
+              :name="item.icon"
+              class="size-4 shrink-0"
+            />
+            <span>{{ item.label }}</span>
+          </NuxtLink>
         </nav>
 
         <ColorModeButton />
 
         <UButton
-          icon="i-lucide-log-in"
-          label="Login"
-          color="primary"
-          variant="subtle"
+          icon="i-lucide-user-round"
+          aria-label="Login"
+          color="neutral"
+          variant="ghost"
           size="sm"
           disabled
-          class=" sm:inline-flex"
+          class="rounded-full bg-white/95 text-[#005f3d] ring-1 ring-white/30 hover:bg-white disabled:opacity-90"
         />
       </template>
     </UHeader>
 
-    <div class="max-w-full overflow-hidden border-b border-default bg-default lg:hidden">
+    <div class="league-mobile-nav max-w-full overflow-hidden lg:hidden">
       <UContainer class="min-w-0 py-2">
         <nav class="flex max-w-full gap-1 overflow-x-auto pb-1 scrollbar-none [&::-webkit-scrollbar]:hidden">
-          <UButton
+          <NuxtLink
             v-for="item in navigation"
             :key="item.to"
             :to="item.to"
-            :icon="item.icon"
-            :label="item.label"
-            color="neutral"
-            variant="ghost"
-            size="sm"
-            class="shrink-0"
-          />
+            :class="['league-nav-link league-nav-link--mobile shrink-0', { 'is-active': isActive(item.to) }]"
+          >
+            <UIcon
+              :name="item.icon"
+              class="size-4 shrink-0"
+            />
+            <span>{{ item.label }}</span>
+          </NuxtLink>
         </nav>
       </UContainer>
     </div>
