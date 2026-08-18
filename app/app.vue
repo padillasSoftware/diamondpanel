@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const navigation = [
+const baseNavigation = [
   { label: 'Inicio', to: '/', icon: 'i-lucide-house' },
   { label: 'Posiciones', to: '/posiciones', icon: 'i-lucide-trophy' },
   { label: 'Rol', to: '/rol', icon: 'i-lucide-calendar-days' },
@@ -13,6 +13,13 @@ const isActive = (to: string) => to === '/'
   : route.path === to || route.path.startsWith(`${to}/`)
 
 const { user, initialized, isAdmin, fetchSession, logout } = useAuth()
+const { public: { leagueName } } = useRuntimeConfig()
+const navigation = computed(() => [
+  ...baseNavigation,
+  ...(user.value?.managedTeamId
+    ? [{ label: 'Mi equipo', to: '/mi-equipo', icon: 'i-lucide-clipboard-pen' }]
+    : [])
+])
 
 if (!initialized.value) {
   await fetchSession().catch(() => null)
@@ -35,8 +42,8 @@ useHead({
   }
 })
 
-const title = 'DiamondPanel'
-const description = 'Panel público para consultar posiciones, rol de juegos, resultados y equipos de una liga de softball.'
+const title = `${leagueName} | DiamondPanel`
+const description = `Panel privado para manejadores registrados de ${leagueName}.`
 
 useSeoMeta({
   title,
@@ -57,7 +64,7 @@ useSeoMeta({
       <template #left>
         <NuxtLink
           to="/"
-          aria-label="Ir al inicio de DiamondPanel"
+          :aria-label="`Ir al inicio de ${leagueName}`"
         >
           <AppLogo class="shrink-0" />
         </NuxtLink>
@@ -141,7 +148,7 @@ useSeoMeta({
 
       <template #right>
         <p class="text-sm text-muted">
-          Softball league control
+          {{ leagueName }}
         </p>
       </template>
     </UFooter>

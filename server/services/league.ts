@@ -1,5 +1,5 @@
 import { prisma } from '../utils/db'
-import { GameStatus, SeasonStatus, TeamBranch, TeamCategory } from '../generated/prisma/enums'
+import { GameStatus, PlayerStatus, SeasonStatus, TeamBranch, TeamCategory, TeamMemberRole } from '../generated/prisma/enums'
 
 type TeamBranchValue = (typeof TeamBranch)[keyof typeof TeamBranch]
 type TeamCategoryValue = (typeof TeamCategory)[keyof typeof TeamCategory]
@@ -94,7 +94,10 @@ export async function getTeamsForSeason(options: { seasonId?: string, category?:
       branch: true,
       status: true,
       players: {
-        where: { status: 'ACTIVE' },
+        where: {
+          status: PlayerStatus.ACTIVE,
+          memberRole: TeamMemberRole.PLAYER
+        },
         orderBy: [
           { number: 'asc' },
           { lastName: 'asc' }
@@ -104,6 +107,7 @@ export async function getTeamsForSeason(options: { seasonId?: string, category?:
           firstName: true,
           lastName: true,
           number: true,
+          memberRole: true,
           position: true,
           bats: true,
           throws: true,
@@ -142,6 +146,10 @@ export async function getTeamBySlug(slug: string) {
         }
       },
       players: {
+        where: {
+          status: PlayerStatus.ACTIVE,
+          memberRole: TeamMemberRole.PLAYER
+        },
         orderBy: [
           { number: 'asc' },
           { lastName: 'asc' }
@@ -151,6 +159,7 @@ export async function getTeamBySlug(slug: string) {
           firstName: true,
           lastName: true,
           number: true,
+          memberRole: true,
           position: true,
           bats: true,
           throws: true,

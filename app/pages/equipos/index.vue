@@ -72,7 +72,7 @@ const categoryGroups = computed(() =>
           Clubes registrados
         </h1>
         <p class="mt-2 max-w-2xl text-base text-muted">
-          Directorio público de equipos, managers y jugadores activos de la liga.
+          Directorio interno de equipos, managers y jugadores activos de la liga.
         </p>
       </div>
 

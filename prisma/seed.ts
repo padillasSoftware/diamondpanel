@@ -7,6 +7,7 @@ import {
   SeasonStatus,
   TeamBranch,
   TeamCategory,
+  TeamMemberRole,
   ThrowingArm,
   UserRole
 } from '../server/generated/prisma/enums.ts'
@@ -124,15 +125,51 @@ function createPlayers(seedIndex: number, branch: (typeof TeamBranch)[keyof type
     firstName: firstNames[(seedIndex + playerIndex) % firstNames.length],
     lastName: lastNames[(seedIndex * 2 + playerIndex) % lastNames.length],
     number,
+    memberRole: TeamMemberRole.PLAYER,
     position: positions[(seedIndex + playerIndex) % positions.length],
     bats: playerIndex === 1 ? BattingSide.LEFT : playerIndex === 3 ? BattingSide.SWITCH : BattingSide.RIGHT,
     throws: playerIndex === 1 ? ThrowingArm.LEFT : ThrowingArm.RIGHT
   }))
 }
 
+function splitName(fullName: string) {
+  const [firstName, ...lastNameParts] = fullName.split(' ')
+
+  return {
+    firstName,
+    lastName: lastNameParts.join(' ') || 'Staff'
+  }
+}
+
+function createTeamMembers(seedIndex: number, branch: (typeof TeamBranch)[keyof typeof TeamBranch], managerName: string) {
+  const coachFirstNames = branch === TeamBranch.FEMENIL ? femaleFirstNames : maleFirstNames
+
+  return [
+    ...createPlayers(seedIndex, branch),
+    {
+      ...splitName(managerName),
+      number: null,
+      memberRole: TeamMemberRole.MANAGER,
+      position: null,
+      bats: BattingSide.UNKNOWN,
+      throws: ThrowingArm.UNKNOWN
+    },
+    {
+      firstName: coachFirstNames[(seedIndex + 6) % coachFirstNames.length],
+      lastName: lastNames[(seedIndex + 8) % lastNames.length],
+      number: null,
+      memberRole: TeamMemberRole.COACH,
+      position: null,
+      bats: BattingSide.UNKNOWN,
+      throws: ThrowingArm.UNKNOWN
+    }
+  ]
+}
+
 const teamSeeds = teamBlueprints.flatMap((group, groupIndex) =>
   group.teams.map(([name, shortName], teamIndex) => {
     const seedIndex = groupIndex * 3 + teamIndex
+    const managerName = managerNames[seedIndex % managerNames.length]
 
     return {
       name,
@@ -142,8 +179,8 @@ const teamSeeds = teamBlueprints.flatMap((group, groupIndex) =>
       branch: group.branch,
       primaryColor: primaryColors[seedIndex % primaryColors.length],
       secondaryColor: secondaryColors[seedIndex % secondaryColors.length],
-      managerName: managerNames[seedIndex % managerNames.length],
-      players: createPlayers(seedIndex, group.branch)
+      managerName,
+      players: createTeamMembers(seedIndex, group.branch, managerName)
     }
   })
 )
@@ -229,7 +266,8 @@ async function main() {
     update: {
       name: 'DiamondPanel Admin',
       passwordHash: adminPasswordHash,
-      role: UserRole.ADMIN
+      role: UserRole.ADMIN,
+      managedTeamId: null
     },
     create: {
       email: 'admin@diamondpanel.app',
@@ -239,17 +277,17 @@ async function main() {
     }
   })
 
-  await prisma.user.upsert({
+  const managerUser = await prisma.user.upsert({
     where: { email: 'usuario@diamondpanel.app' },
     update: {
-      name: 'Usuario Demo',
+      name: 'Carlos Martinez',
       passwordHash: userPasswordHash,
       role: UserRole.USER
     },
     create: {
       email: 'usuario@diamondpanel.app',
       passwordHash: userPasswordHash,
-      name: 'Usuario Demo',
+      name: 'Carlos Martinez',
       role: UserRole.USER
     }
   })
@@ -286,6 +324,16 @@ async function main() {
   )
 
   const teamBySlug = new Map(teams.map(team => [team.slug, team]))
+  const demoManagedTeam = teamBySlug.get('tigres')
+
+  if (!demoManagedTeam) {
+    throw new Error('Missing seeded manager team: tigres')
+  }
+
+  await prisma.user.update({
+    where: { id: managerUser.id },
+    data: { managedTeamId: demoManagedTeam.id }
+  })
 
   await Promise.all(
     teams.map(team =>
@@ -320,24 +368,11 @@ async function main() {
       throw new Error(`Missing seeded team: ${teamSeed.slug}`)
     }
 
-    for (const player of teamSeed.players) {
-      await prisma.player.upsert({
-        where: {
-          teamId_number: {
-            teamId: team.id,
-            number: player.number
-          }
-        },
-        update: {
-          firstName: player.firstName,
-          lastName: player.lastName,
-          position: player.position,
-          bats: player.bats,
-          throws: player.throws
-        },
-        create: {
+    for (const member of teamSeed.players) {
+      await prisma.player.create({
+        data: {
           teamId: team.id,
-          ...player
+          ...member
         }
       })
     }
@@ -478,10 +513,11 @@ async function main() {
     })
   }
 
-  const [userCount, teamCount, playerCount, fieldCount, gameCount, resultCount] = await Promise.all([
+  const [userCount, teamCount, memberCount, playerCount, fieldCount, gameCount, resultCount] = await Promise.all([
     prisma.user.count(),
     prisma.team.count(),
     prisma.player.count(),
+    prisma.player.count({ where: { memberRole: TeamMemberRole.PLAYER } }),
     prisma.field.count(),
     prisma.game.count(),
     prisma.gameResult.count()
@@ -490,6 +526,7 @@ async function main() {
   console.log('Seed completed:')
   console.log(`- Users: ${userCount}`)
   console.log(`- Teams: ${teamCount}`)
+  console.log(`- Members: ${memberCount}`)
   console.log(`- Players: ${playerCount}`)
   console.log(`- Fields: ${fieldCount}`)
   console.log(`- Games: ${gameCount}`)

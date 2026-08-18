@@ -19,7 +19,7 @@ const { data: team } = await useFetch<TeamDetail>(`/api/teams/${slug}`)
 
 useSeoMeta({
   title: () => `${team.value?.name ?? 'Equipo'} | DiamondPanel`,
-  description: () => `Roster y datos públicos de ${team.value?.name ?? 'equipo'} en DiamondPanel.`
+  description: () => `Roster y datos internos de ${team.value?.name ?? 'equipo'} en DiamondPanel.`
 })
 
 const activePlayers = computed(() => team.value?.players.filter(player => player.status === 'ACTIVE') ?? [])

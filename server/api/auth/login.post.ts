@@ -30,6 +30,14 @@ export default defineEventHandler(async (event) => {
       email: true,
       name: true,
       role: true,
+      managedTeamId: true,
+      managedTeam: {
+        select: {
+          id: true,
+          name: true,
+          slug: true
+        }
+      },
       passwordHash: true
     }
   })
@@ -52,7 +60,9 @@ export default defineEventHandler(async (event) => {
       id: user.id,
       email: user.email,
       name: user.name,
-      role: user.role
+      role: user.role,
+      managedTeamId: user.managedTeamId,
+      managedTeam: user.managedTeam
     }
   }
 })

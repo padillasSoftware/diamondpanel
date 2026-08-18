@@ -18,13 +18,27 @@ export type AuthUser = {
   email: string
   name: string | null
   role: UserRoleValue
+  managedTeamId: string | null
+  managedTeam: {
+    id: string
+    name: string
+    slug: string
+  } | null
 }
 
 const userSelect = {
   id: true,
   email: true,
   name: true,
-  role: true
+  role: true,
+  managedTeamId: true,
+  managedTeam: {
+    select: {
+      id: true,
+      name: true,
+      slug: true
+    }
+  }
 } as const
 
 function getAuthSecret(event: H3Event) {
@@ -161,4 +175,17 @@ export async function requireAdmin(event: H3Event) {
   }
 
   return user
+}
+
+export async function requireTeamManager(event: H3Event) {
+  const user = await requireUser(event)
+
+  if (!user.managedTeamId) {
+    throw createError({
+      statusCode: 403,
+      statusMessage: 'A managed team is required'
+    })
+  }
+
+  return user as AuthUser & { managedTeamId: string }
 }

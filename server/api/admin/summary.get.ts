@@ -1,4 +1,4 @@
-import { GameStatus, PlayerStatus, SeasonStatus, TeamStatus } from '../../generated/prisma/enums'
+import { GameStatus, PlayerStatus, SeasonStatus, TeamMemberRole, TeamStatus } from '../../generated/prisma/enums'
 import { prisma } from '../../utils/db'
 import { requireAdmin } from '../../utils/session'
 
@@ -26,7 +26,12 @@ export default defineEventHandler(async (event) => {
     fields
   ] = await Promise.all([
     prisma.team.count({ where: { status: TeamStatus.ACTIVE } }),
-    prisma.player.count({ where: { status: PlayerStatus.ACTIVE } }),
+    prisma.player.count({
+      where: {
+        status: PlayerStatus.ACTIVE,
+        memberRole: TeamMemberRole.PLAYER
+      }
+    }),
     prisma.game.count({
       where: {
         ...(activeSeason ? { seasonId: activeSeason.id } : {}),

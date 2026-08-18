@@ -16,7 +16,10 @@ export default defineNuxtConfig({
   },
 
   runtimeConfig: {
-    authSecret: process.env.AUTH_SECRET
+    authSecret: process.env.AUTH_SECRET,
+    public: {
+      leagueName: process.env.NUXT_PUBLIC_LEAGUE_NAME || 'Liga de Softball'
+    }
   },
 
   compatibilityDate: '2026-06-30',

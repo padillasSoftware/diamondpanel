@@ -33,6 +33,7 @@ const topStandings = computed(() => standings.value?.slice(0, 5) ?? [])
 const nextGame = computed(() => upcomingGames.value?.[0])
 const completedGames = computed(() => recentResults.value?.length ?? 0)
 const featuredTeams = computed(() => teams.value?.slice(0, 6) ?? [])
+const { public: { leagueName } } = useRuntimeConfig()
 </script>
 
 <template>
@@ -57,7 +58,7 @@ const featuredTeams = computed(() => teams.value?.slice(0, 6) ?? [])
         </div>
 
         <h1 class="wrap-break-word text-3xl font-bold tracking-normal text-highlighted sm:text-4xl">
-          Control de liga de softball
+          {{ leagueName }}
         </h1>
         <p class="mt-2 max-w-2xl text-base text-muted">
           Consulta posiciones, rol de juegos, resultados recientes y equipos desde un panel rápido para la temporada activa.

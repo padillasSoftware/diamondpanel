@@ -3,6 +3,12 @@ export type AuthUser = {
   email: string
   name: string | null
   role: 'ADMIN' | 'USER'
+  managedTeamId: string | null
+  managedTeam: {
+    id: string
+    name: string
+    slug: string
+  } | null
 }
 
 type SessionResponse = {
@@ -19,6 +25,7 @@ export function useAuth() {
   const initialized = useState('auth:initialized', () => false)
   const isAuthenticated = computed(() => Boolean(user.value))
   const isAdmin = computed(() => user.value?.role === 'ADMIN')
+  const isTeamManager = computed(() => Boolean(user.value?.managedTeamId))
 
   const fetchSession = async () => {
     const fetcher = import.meta.server ? useRequestFetch() : $fetch
@@ -54,6 +61,7 @@ export function useAuth() {
     initialized,
     isAuthenticated,
     isAdmin,
+    isTeamManager,
     fetchSession,
     login,
     logout

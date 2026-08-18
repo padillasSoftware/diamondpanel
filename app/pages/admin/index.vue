@@ -14,6 +14,12 @@ type AdminSummary = {
     email: string
     name: string | null
     role: 'ADMIN' | 'USER'
+    managedTeamId: string | null
+    managedTeam: {
+      id: string
+      name: string
+      slug: string
+    } | null
   }
   activeSeason: {
     id: string

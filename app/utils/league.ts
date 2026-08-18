@@ -1,6 +1,7 @@
 export type BadgeColor = 'primary' | 'secondary' | 'success' | 'info' | 'warning' | 'error' | 'neutral'
 export type TeamBranch = 'VARONIL' | 'FEMENIL'
 export type TeamCategory = 'A' | 'B' | 'C' | 'D' | 'E' | 'R'
+export type TeamMemberRole = 'PLAYER' | 'MANAGER' | 'COACH'
 
 export const TEAM_CATEGORY_OPTIONS: { label: string, value: 'ALL' | TeamCategory }[] = [
   { label: 'Todas', value: 'ALL' },
@@ -18,6 +19,25 @@ export const TEAM_BRANCH_OPTIONS: { label: string, value: 'ALL' | TeamBranch }[]
   { label: 'Femenil', value: 'FEMENIL' }
 ]
 
+export const TEAM_MEMBER_ROLE_OPTIONS: { label: string, value: TeamMemberRole }[] = [
+  { label: 'Jugador', value: 'PLAYER' },
+  { label: 'Manejador', value: 'MANAGER' },
+  { label: 'Coach', value: 'COACH' }
+]
+
+export const PLAYER_POSITION_OPTIONS = [
+  'P',
+  'C',
+  '1B',
+  '2B',
+  '3B',
+  'SS',
+  'LF',
+  'CF',
+  'RF',
+  'UT'
+]
+
 export type Season = {
   id: string
   name: string
@@ -32,6 +52,7 @@ export type Player = {
   firstName: string
   lastName: string
   number: number | null
+  memberRole: TeamMemberRole
   position: string | null
   bats: string
   throws: string
@@ -246,6 +267,22 @@ export function teamStatusLabel(status?: string) {
 export function teamStatusColor(status?: string): BadgeColor {
   if (status === 'ACTIVE') return 'success'
   if (status === 'INACTIVE') return 'neutral'
+
+  return 'neutral'
+}
+
+export function memberRoleLabel(role?: string) {
+  if (role === 'PLAYER') return 'Jugador'
+  if (role === 'MANAGER') return 'Manejador'
+  if (role === 'COACH') return 'Coach'
+
+  return 'Integrante'
+}
+
+export function memberRoleColor(role?: string): BadgeColor {
+  if (role === 'PLAYER') return 'primary'
+  if (role === 'MANAGER') return 'warning'
+  if (role === 'COACH') return 'info'
 
   return 'neutral'
 }
