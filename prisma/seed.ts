@@ -325,6 +325,16 @@ async function main() {
 
   const teamBySlug = new Map(teams.map(team => [team.slug, team]))
   const demoManagedTeam = teamBySlug.get('tigres')
+  const demoManagedTeamSlugs = ['tigres', 'halcones', 'reinas']
+  const demoManagedTeams = demoManagedTeamSlugs.map((slug) => {
+    const team = teamBySlug.get(slug)
+
+    if (!team) {
+      throw new Error(`Missing seeded manager team: ${slug}`)
+    }
+
+    return team
+  })
 
   if (!demoManagedTeam) {
     throw new Error('Missing seeded manager team: tigres')
@@ -334,6 +344,24 @@ async function main() {
     where: { id: managerUser.id },
     data: { managedTeamId: demoManagedTeam.id }
   })
+
+  await Promise.all(
+    demoManagedTeams.map(team =>
+      prisma.teamManager.upsert({
+        where: {
+          userId_teamId: {
+            userId: managerUser.id,
+            teamId: team.id
+          }
+        },
+        update: {},
+        create: {
+          userId: managerUser.id,
+          teamId: team.id
+        }
+      })
+    )
+  )
 
   await Promise.all(
     teams.map(team =>

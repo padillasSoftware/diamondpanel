@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { branchLabel, categoryLabel } from '~/utils/league'
+import type { AuthUser } from '~/composables/useAuth'
+
 const baseNavigation = [
   { label: 'Inicio', to: '/', icon: 'i-lucide-house' },
   { label: 'Posiciones', to: '/posiciones', icon: 'i-lucide-trophy' },
@@ -15,9 +18,12 @@ const isActive = (to: string) => to === '/'
 
 const { user, initialized, isAdmin, fetchSession, logout } = useAuth()
 const { public: { leagueName } } = useRuntimeConfig()
+const managedTeams = computed(() => user.value?.managedTeams ?? [])
+const hasMultipleManagedTeams = computed(() => managedTeams.value.length > 1)
+const isSwitchingTeam = ref(false)
 const navigation = computed(() => [
   ...baseNavigation,
-  ...(user.value?.managedTeamId
+  ...(managedTeams.value.length
     ? [{ label: 'Mi equipo', to: '/mi-equipo', icon: 'i-lucide-clipboard-pen' }]
     : [])
 ])
@@ -29,6 +35,32 @@ if (!initialized.value) {
 const handleLogout = async () => {
   await logout()
   await navigateTo('/login')
+}
+
+const switchActiveTeam = async (teamId: string) => {
+  if (!teamId || teamId === user.value?.activeTeamId) return
+
+  isSwitchingTeam.value = true
+
+  try {
+    const session = await $fetch<{ user: AuthUser }>('/api/manager/active-team', {
+      method: 'PATCH',
+      body: { teamId }
+    })
+
+    user.value = session.user
+    await refreshNuxtData()
+  } finally {
+    isSwitchingTeam.value = false
+  }
+}
+
+const handleActiveTeamChange = (event: Event) => {
+  const target = event.target
+
+  if (!(target instanceof HTMLSelectElement)) return
+
+  void switchActiveTeam(target.value)
 }
 
 useHead({
@@ -155,6 +187,31 @@ useSeoMeta({
           </NuxtLink>
         </nav>
 
+        <label
+          v-if="hasMultipleManagedTeams"
+          class="hidden items-center gap-2 rounded-full bg-white/95 px-3 py-1.5 text-sm font-medium text-green-800 ring-1 ring-white/30 md:flex"
+        >
+          <UIcon
+            name="i-lucide-shuffle"
+            class="size-4 shrink-0"
+          />
+          <select
+            :value="user.activeTeamId ?? ''"
+            :disabled="isSwitchingTeam"
+            class="max-w-44 bg-transparent text-sm font-semibold outline-none"
+            aria-label="Equipo activo"
+            @change="handleActiveTeamChange"
+          >
+            <option
+              v-for="team in managedTeams"
+              :key="team.id"
+              :value="team.id"
+            >
+              {{ team.name }}
+            </option>
+          </select>
+        </label>
+
         <ColorModeButton tone="navbar" />
 
         <UButton
@@ -185,6 +242,33 @@ useSeoMeta({
       class="league-mobile-nav max-w-full overflow-hidden lg:hidden"
     >
       <UContainer class="min-w-0 py-2">
+        <label
+          v-if="hasMultipleManagedTeams"
+          class="mb-2 grid gap-1 rounded-lg border border-default bg-default p-2 text-sm"
+        >
+          <span class="flex items-center gap-2 font-medium text-highlighted">
+            <UIcon
+              name="i-lucide-shuffle"
+              class="size-4"
+            />
+            Equipo activo
+          </span>
+          <select
+            :value="user.activeTeamId ?? ''"
+            :disabled="isSwitchingTeam"
+            class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
+            @change="handleActiveTeamChange"
+          >
+            <option
+              v-for="team in managedTeams"
+              :key="team.id"
+              :value="team.id"
+            >
+              {{ team.name }} · {{ categoryLabel(team.category) }} · {{ branchLabel(team.branch) }}
+            </option>
+          </select>
+        </label>
+
         <nav class="flex max-w-full gap-1 overflow-x-auto pb-1 scrollbar-none [&::-webkit-scrollbar]:hidden">
           <NuxtLink
             v-for="item in navigation"

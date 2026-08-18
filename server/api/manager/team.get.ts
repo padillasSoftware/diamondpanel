@@ -5,7 +5,7 @@ import { managerTeamSelect } from '../../utils/team-members'
 export default defineEventHandler(async (event) => {
   const user = await requireTeamManager(event)
   const team = await prisma.team.findUnique({
-    where: { id: user.managedTeamId },
+    where: { id: user.activeTeamId },
     select: managerTeamSelect
   })
 

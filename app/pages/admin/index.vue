@@ -19,7 +19,17 @@ type AdminSummary = {
       id: string
       name: string
       slug: string
+      category: string
+      branch: string
     } | null
+    managedTeams: {
+      id: string
+      name: string
+      slug: string
+      category: string
+      branch: string
+    }[]
+    activeTeamId: string | null
   }
   activeSeason: {
     id: string

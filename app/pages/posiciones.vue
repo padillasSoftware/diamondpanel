@@ -23,8 +23,8 @@ useSeoMeta({
   description: 'Tabla de posiciones de la temporada activa de DiamondPanel.'
 })
 
-const managedTeamCategory = computed(() => user.value?.managedTeam?.category ?? null)
-const managedTeamBranch = computed(() => user.value?.managedTeam?.branch ?? null)
+const managedTeamCategory = computed(() => user.value?.activeTeam?.category ?? null)
+const managedTeamBranch = computed(() => user.value?.activeTeam?.branch ?? null)
 const showStandingsFilters = computed(() => user.value?.role === 'ADMIN')
 const categoryOptions = computed(() =>
   TEAM_CATEGORY_OPTIONS.filter(
@@ -36,15 +36,21 @@ const categoryOptions = computed(() =>
 const selectedCategory = ref<TeamCategory>(managedTeamCategory.value ?? 'A')
 const selectedBranch = ref<'ALL' | TeamBranch>(managedTeamBranch.value ?? 'ALL')
 
-watch(managedTeamCategory, (category) => {
-  if (category) {
+watch([managedTeamCategory, showStandingsFilters], ([category, showFilters]) => {
+  if (!showFilters && category) {
     selectedCategory.value = category
   }
 }, { immediate: true })
 
-watch(managedTeamBranch, (branch) => {
-  if (branch) {
+watch([managedTeamBranch, showStandingsFilters], ([branch, showFilters]) => {
+  if (!showFilters && branch) {
     selectedBranch.value = branch
+  }
+}, { immediate: true })
+
+watch(showStandingsFilters, (showFilters) => {
+  if (showFilters) {
+    selectedBranch.value = 'ALL'
   }
 }, { immediate: true })
 

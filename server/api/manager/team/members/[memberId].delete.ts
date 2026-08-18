@@ -15,7 +15,7 @@ export default defineEventHandler(async (event) => {
   const member = await prisma.player.findFirst({
     where: {
       id: memberId,
-      teamId: user.managedTeamId
+      teamId: user.activeTeamId
     },
     select: { id: true }
   })

@@ -12,7 +12,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
     })
   }
 
-  if (!user.value.managedTeamId) {
+  if (!user.value.managedTeams.length) {
     return navigateTo('/sin-equipo')
   }
 })

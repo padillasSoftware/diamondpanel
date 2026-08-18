@@ -1,18 +1,23 @@
 import type { TeamBranch, TeamCategory } from '~/utils/league'
 
+export type AuthManagedTeam = {
+  id: string
+  name: string
+  slug: string
+  category: TeamCategory
+  branch: TeamBranch
+}
+
 export type AuthUser = {
   id: string
   email: string
   name: string | null
   role: 'ADMIN' | 'USER'
   managedTeamId: string | null
-  managedTeam: {
-    id: string
-    name: string
-    slug: string
-    category: TeamCategory
-    branch: TeamBranch
-  } | null
+  managedTeam: AuthManagedTeam | null
+  managedTeams: AuthManagedTeam[]
+  activeTeamId: string | null
+  activeTeam: AuthManagedTeam | null
 }
 
 type SessionResponse = {
@@ -29,7 +34,7 @@ export function useAuth() {
   const initialized = useState('auth:initialized', () => false)
   const isAuthenticated = computed(() => Boolean(user.value))
   const isAdmin = computed(() => user.value?.role === 'ADMIN')
-  const isTeamManager = computed(() => Boolean(user.value?.managedTeamId))
+  const isTeamManager = computed(() => Boolean(user.value?.managedTeams.length))
 
   const fetchSession = async () => {
     const fetcher = import.meta.server ? useRequestFetch() : $fetch

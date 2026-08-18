@@ -33,7 +33,7 @@ export default defineEventHandler(async (event) => {
 
   try {
     return await prisma.team.update({
-      where: { id: user.managedTeamId },
+      where: { id: user.activeTeamId },
       data: {
         name: cleanRequiredText(body.name, 'Team name', 100),
         shortName: cleanOptionalText(body.shortName, 16),

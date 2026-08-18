@@ -1,6 +1,6 @@
 import { verifyPassword } from '../../utils/password'
 import { prisma } from '../../utils/db'
-import { setSessionCookie } from '../../utils/session'
+import { getAuthUserById, setSessionCookie } from '../../utils/session'
 
 type LoginBody = {
   email?: string
@@ -30,16 +30,6 @@ export default defineEventHandler(async (event) => {
       email: true,
       name: true,
       role: true,
-      managedTeamId: true,
-      managedTeam: {
-        select: {
-          id: true,
-          name: true,
-          slug: true,
-          category: true,
-          branch: true
-        }
-      },
       passwordHash: true
     }
   })
@@ -58,13 +48,6 @@ export default defineEventHandler(async (event) => {
   setSessionCookie(event, user.id)
 
   return {
-    user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-      managedTeamId: user.managedTeamId,
-      managedTeam: user.managedTeam
-    }
+    user: await getAuthUserById(event, user.id)
   }
 })

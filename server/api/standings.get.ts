@@ -10,10 +10,10 @@ export default defineEventHandler(async (event) => {
   const requestedBranch = getStringFromQuery(query.branch)
   const category = user.role === UserRole.ADMIN
     ? requestedCategory
-    : user.managedTeam?.category
+    : user.activeTeam?.category
   const branch = user.role === UserRole.ADMIN
     ? requestedBranch
-    : user.managedTeam?.branch
+    : user.activeTeam?.branch
 
   if (user.role !== UserRole.ADMIN && (!category || !branch)) {
     throw createError({

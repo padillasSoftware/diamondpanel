@@ -28,7 +28,7 @@ const handleLogout = async () => {
       </h1>
 
       <p class="mt-3 text-sm text-muted">
-        Para ver la liga, tu usuario debe estar registrado como manejador de un equipo activo. Pide al administrador que ligue tu cuenta a tu equipo.
+        Para ver la liga, tu usuario debe estar registrado como manejador de uno o más equipos activos. Pide al administrador que ligue tu cuenta a tus equipos.
       </p>
 
       <div class="mt-5 rounded-md bg-muted/40 p-3 text-sm">

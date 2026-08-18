@@ -5,6 +5,7 @@ import type { TeamBranch, TeamCategory } from '../generated/prisma/enums'
 import { prisma } from './db'
 
 const sessionCookieName = 'diamondpanel_session'
+const activeTeamCookieName = 'diamondpanel_active_team'
 const sessionMaxAge = 60 * 60 * 24 * 7
 
 type UserRoleValue = (typeof UserRole)[keyof typeof UserRole]
@@ -14,20 +15,40 @@ type SessionPayload = {
   exp: number
 }
 
+export type AuthManagedTeam = {
+  id: string
+  name: string
+  slug: string
+  category: TeamCategory
+  branch: TeamBranch
+}
+
 export type AuthUser = {
   id: string
   email: string
   name: string | null
   role: UserRoleValue
   managedTeamId: string | null
-  managedTeam: {
-    id: string
-    name: string
-    slug: string
-    category: TeamCategory
-    branch: TeamBranch
-  } | null
+  managedTeam: AuthManagedTeam | null
+  managedTeams: AuthManagedTeam[]
+  activeTeamId: string | null
+  activeTeam: AuthManagedTeam | null
 }
+
+export type AuthTeamManager = AuthUser & {
+  managedTeamId: string
+  managedTeam: AuthManagedTeam
+  activeTeamId: string
+  activeTeam: AuthManagedTeam
+}
+
+const managedTeamSelect = {
+  id: true,
+  name: true,
+  slug: true,
+  category: true,
+  branch: true
+} as const
 
 const userSelect = {
   id: true,
@@ -36,15 +57,27 @@ const userSelect = {
   role: true,
   managedTeamId: true,
   managedTeam: {
+    select: managedTeamSelect
+  },
+  teamManagers: {
+    orderBy: { createdAt: 'asc' },
     select: {
-      id: true,
-      name: true,
-      slug: true,
-      category: true,
-      branch: true
+      team: {
+        select: managedTeamSelect
+      }
     }
   }
 } as const
+
+type UserRecord = {
+  id: string
+  email: string
+  name: string | null
+  role: UserRoleValue
+  managedTeamId: string | null
+  managedTeam: AuthManagedTeam | null
+  teamManagers: { team: AuthManagedTeam }[]
+}
 
 function getAuthSecret(event: H3Event) {
   const config = useRuntimeConfig(event)
@@ -143,6 +176,65 @@ export function clearSessionCookie(event: H3Event) {
   deleteCookie(event, sessionCookieName, {
     path: '/'
   })
+  clearActiveTeamCookie(event)
+}
+
+function setActiveTeamCookie(event: H3Event, teamId: string) {
+  setCookie(event, activeTeamCookieName, teamId, {
+    httpOnly: true,
+    maxAge: sessionMaxAge,
+    path: '/',
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production'
+  })
+}
+
+function clearActiveTeamCookie(event: H3Event) {
+  deleteCookie(event, activeTeamCookieName, {
+    path: '/'
+  })
+}
+
+function getManagedTeams(user: UserRecord) {
+  const teams = [
+    ...user.teamManagers.map(assignment => assignment.team),
+    user.managedTeam
+  ].filter((team): team is AuthManagedTeam => Boolean(team))
+  const seen = new Set<string>()
+
+  return teams.filter((team) => {
+    if (seen.has(team.id)) return false
+
+    seen.add(team.id)
+
+    return true
+  })
+}
+
+function formatAuthUser(event: H3Event, user: UserRecord): AuthUser {
+  const managedTeams = getManagedTeams(user)
+  const requestedActiveTeamId = getCookie(event, activeTeamCookieName)
+  const activeTeam = managedTeams.find(team => team.id === requestedActiveTeamId) ?? managedTeams[0] ?? null
+
+  if (activeTeam && requestedActiveTeamId !== activeTeam.id) {
+    setActiveTeamCookie(event, activeTeam.id)
+  }
+
+  if (!activeTeam && requestedActiveTeamId) {
+    clearActiveTeamCookie(event)
+  }
+
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    managedTeamId: activeTeam?.id ?? user.managedTeamId,
+    managedTeam: activeTeam,
+    managedTeams,
+    activeTeamId: activeTeam?.id ?? null,
+    activeTeam
+  }
 }
 
 export async function getCurrentUser(event: H3Event): Promise<AuthUser | null> {
@@ -150,10 +242,16 @@ export async function getCurrentUser(event: H3Event): Promise<AuthUser | null> {
 
   if (!userId) return null
 
-  return prisma.user.findUnique({
+  return getAuthUserById(event, userId)
+}
+
+export async function getAuthUserById(event: H3Event, userId: string): Promise<AuthUser | null> {
+  const user = await prisma.user.findUnique({
     where: { id: userId },
     select: userSelect
   })
+
+  return user ? formatAuthUser(event, user) : null
 }
 
 export async function requireUser(event: H3Event) {
@@ -185,12 +283,38 @@ export async function requireAdmin(event: H3Event) {
 export async function requireTeamManager(event: H3Event) {
   const user = await requireUser(event)
 
-  if (!user.managedTeamId) {
+  if (!user.activeTeamId || !user.activeTeam) {
     throw createError({
       statusCode: 403,
       statusMessage: 'A managed team is required'
     })
   }
 
-  return user as AuthUser & { managedTeamId: string }
+  return {
+    ...user,
+    managedTeamId: user.activeTeamId,
+    managedTeam: user.activeTeam
+  } as AuthTeamManager
+}
+
+export async function setActiveManagedTeam(event: H3Event, teamId: string) {
+  const user = await requireUser(event)
+  const activeTeam = user.managedTeams.find(team => team.id === teamId)
+
+  if (!activeTeam) {
+    throw createError({
+      statusCode: 403,
+      statusMessage: 'Team is not assigned to this manager'
+    })
+  }
+
+  setActiveTeamCookie(event, activeTeam.id)
+
+  return {
+    ...user,
+    managedTeamId: activeTeam.id,
+    managedTeam: activeTeam,
+    activeTeamId: activeTeam.id,
+    activeTeam
+  } satisfies AuthTeamManager
 }

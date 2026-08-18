@@ -11,7 +11,7 @@ export default defineEventHandler(async (event) => {
 
   try {
     return await prisma.player.create({
-      data: buildMemberCreateData(body, user.managedTeamId),
+      data: buildMemberCreateData(body, user.activeTeamId),
       select: teamMemberSelect
     })
   } catch (error) {
