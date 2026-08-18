@@ -1,4 +1,8 @@
 <script setup lang="ts">
+definePageMeta({
+  layout: 'auth'
+})
+
 useSeoMeta({
   title: 'Login | DiamondPanel',
   description: 'Acceso administrativo de DiamondPanel.'
@@ -11,6 +15,7 @@ const email = ref('')
 const password = ref('')
 const isSubmitting = ref(false)
 const errorMessage = ref('')
+const showSplash = useState('app:show-splash')
 
 if (!initialized.value) {
   await fetchSession().catch(() => null)
@@ -63,6 +68,7 @@ async function handleLogin() {
       password: password.value
     })
 
+    showSplash.value = true
     await navigateTo(loggedInUser?.role === 'ADMIN' ? redirectPath.value : '/')
   } catch {
     errorMessage.value = 'El correo o la contraseña no son correctos.'

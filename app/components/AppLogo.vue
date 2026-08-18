@@ -4,7 +4,7 @@ const { public: { leagueName } } = useRuntimeConfig()
 
 <template>
   <div class="flex items-center gap-3 text-white">
-    <div class="flex size-9 items-center justify-center rounded-lg bg-white text-[#005f3d] shadow-sm ring-1 ring-white/25">
+    <div class="flex size-9 items-center justify-center rounded-lg bg-white text-green-700 shadow-sm ring-1 ring-white/25">
       <UIcon
         name="i-lucide-diamond"
         class="size-5"

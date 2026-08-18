@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {
-  TEAM_BRANCH_OPTIONS,
-  TEAM_CATEGORY_OPTIONS,
+  // TEAM_BRANCH_OPTIONS,
+  // TEAM_CATEGORY_OPTIONS,
   branchColor,
   branchLabel,
   categoryColor,
@@ -120,7 +120,7 @@ const gamesByDate = computed(() => {
       </div>
     </div>
 
-    <div class="mb-4 grid gap-3 rounded-lg border border-default bg-default p-3 shadow-sm sm:grid-cols-2">
+    <!-- <div class="mb-4 grid gap-3 rounded-lg border border-default bg-default p-3 shadow-sm sm:grid-cols-2">
       <label class="grid gap-1 text-sm">
         <span class="font-medium text-highlighted">Categoría</span>
         <select
@@ -152,7 +152,7 @@ const gamesByDate = computed(() => {
           </option>
         </select>
       </label>
-    </div>
+    </div> -->
 
     <section
       v-if="nextGame"
