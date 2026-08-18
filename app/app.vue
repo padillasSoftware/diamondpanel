@@ -79,7 +79,7 @@ useSeoMeta({
           </NuxtLink>
         </nav>
 
-        <ColorModeButton />
+        <ColorModeButton tone="navbar" />
 
         <UButton
           v-if="isAdmin"

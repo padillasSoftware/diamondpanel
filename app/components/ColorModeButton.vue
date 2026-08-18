@@ -1,7 +1,22 @@
 <script setup lang="ts">
+const props = withDefaults(defineProps<{
+  tone?: 'surface' | 'navbar'
+}>(), {
+  tone: 'surface'
+})
+
 const colorMode = useColorMode()
 
 const nextTheme = computed(() => (colorMode.value === 'dark' ? 'light' : 'dark'))
+const buttonColor = computed(() => props.tone === 'navbar'
+  ? 'neutral'
+  : nextTheme.value === 'dark' ? 'primary' : 'neutral')
+const buttonClasses = computed(() => [
+  'rounded-full cursor-pointer',
+  props.tone === 'navbar'
+    ? '!text-white hover:!bg-white/10 hover:!text-white focus-visible:!ring-white/40'
+    : 'focus-visible:ring-primary/40'
+])
 
 const switchTheme = () => {
   colorMode.preference = nextTheme.value
@@ -48,10 +63,10 @@ const startViewTransition = (event: MouseEvent) => {
     <UButton
       :aria-label="`Switch to ${nextTheme} mode`"
       :icon="`i-lucide-${nextTheme === 'dark' ? 'sun' : 'moon'}`"
-      :color="nextTheme !== 'dark' ? 'neutral' : 'primary'"
+      :color="buttonColor"
       variant="ghost"
       size="sm"
-      class="rounded-full hover:bg-white/10 focus-visible:ring-white/40 cursor-pointer"
+      :class="buttonClasses"
       @click="startViewTransition"
     />
     <template #fallback>
