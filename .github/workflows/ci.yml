@@ -5,6 +5,10 @@ on: push
 jobs:
   ci:
     runs-on: ${{ matrix.os }}
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/diamondpanel?schema=public
+      AUTH_SECRET: ci-auth-secret
+      NUXT_PUBLIC_LEAGUE_NAME: DiamondPanel CI
 
     strategy:
       matrix:
@@ -27,8 +31,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Generate Prisma client
+        run: pnpm run db:generate
+
       - name: Lint
         run: pnpm run lint
 
       - name: Typecheck
         run: pnpm run typecheck
+
+      - name: Build
+        run: pnpm run build
