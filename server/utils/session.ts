@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import type { H3Event } from 'h3'
 import { UserRole } from '../generated/prisma/enums'
+import type { TeamBranch, TeamCategory } from '../generated/prisma/enums'
 import { prisma } from './db'
 
 const sessionCookieName = 'diamondpanel_session'
@@ -23,6 +24,8 @@ export type AuthUser = {
     id: string
     name: string
     slug: string
+    category: TeamCategory
+    branch: TeamBranch
   } | null
 }
 
@@ -36,7 +39,9 @@ const userSelect = {
     select: {
       id: true,
       name: true,
-      slug: true
+      slug: true,
+      category: true,
+      branch: true
     }
   }
 } as const

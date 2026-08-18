@@ -16,15 +16,46 @@ import {
   type Standing
 } from '~/utils/league'
 
+const { user } = useAuth()
+
 useSeoMeta({
   title: 'Posiciones | DiamondPanel',
   description: 'Tabla de posiciones de la temporada activa de DiamondPanel.'
 })
 
-const selectedCategory = ref<'ALL' | TeamCategory>('ALL')
-const selectedBranch = ref<'ALL' | TeamBranch>('ALL')
+const managedTeamCategory = computed(() => user.value?.managedTeam?.category ?? null)
+const managedTeamBranch = computed(() => user.value?.managedTeam?.branch ?? null)
+const showStandingsFilters = computed(() => user.value?.role === 'ADMIN')
+const categoryOptions = computed(() =>
+  TEAM_CATEGORY_OPTIONS.filter(
+    (option): option is { label: string, value: TeamCategory } =>
+      option.value !== 'ALL'
+      && (showStandingsFilters.value || !managedTeamCategory.value || option.value === managedTeamCategory.value)
+  )
+)
+const selectedCategory = ref<TeamCategory>(managedTeamCategory.value ?? 'A')
+const selectedBranch = ref<'ALL' | TeamBranch>(managedTeamBranch.value ?? 'ALL')
+
+watch(managedTeamCategory, (category) => {
+  if (category) {
+    selectedCategory.value = category
+  }
+}, { immediate: true })
+
+watch(managedTeamBranch, (branch) => {
+  if (branch) {
+    selectedBranch.value = branch
+  }
+}, { immediate: true })
+
+watch(categoryOptions, (options) => {
+  if (!options.some(option => option.value === selectedCategory.value) && options[0]) {
+    selectedCategory.value = options[0].value
+  }
+})
+
 const standingsQuery = computed(() => ({
-  ...(selectedCategory.value === 'ALL' ? {} : { category: selectedCategory.value }),
+  category: selectedCategory.value,
   ...(selectedBranch.value === 'ALL' ? {} : { branch: selectedBranch.value })
 }))
 
@@ -34,7 +65,7 @@ const { data: standings } = await useFetch<Standing[]>('/api/standings', {
 })
 
 const standingRows = computed(() => standings.value ?? [])
-const selectedCategoryLabel = computed(() => selectedCategory.value === 'ALL' ? 'Todas las categorías' : categoryLabel(selectedCategory.value))
+const selectedCategoryLabel = computed(() => categoryLabel(selectedCategory.value))
 const selectedBranchLabel = computed(() => selectedBranch.value === 'ALL' ? 'Ambas ramas' : branchLabel(selectedBranch.value))
 const selectedScopeLabel = computed(() => `${selectedCategoryLabel.value} • ${selectedBranchLabel.value}`)
 const leader = computed(() => standingRows.value[0])
@@ -79,7 +110,10 @@ const bestDefense = computed(() => [...standingRows.value].sort((a, b) => a.runs
       />
     </div>
 
-    <div class="mb-4 grid gap-3 rounded-lg border border-default bg-default p-3 shadow-sm sm:grid-cols-2">
+    <div
+      v-if="showStandingsFilters"
+      class="mb-4 grid gap-3 rounded-lg border border-default bg-default p-3 shadow-sm"
+    >
       <label class="grid gap-1 text-sm">
         <span class="font-medium text-highlighted">Categoría</span>
         <select
@@ -87,7 +121,7 @@ const bestDefense = computed(() => [...standingRows.value].sort((a, b) => a.runs
           class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
         >
           <option
-            v-for="option in TEAM_CATEGORY_OPTIONS"
+            v-for="option in categoryOptions"
             :key="option.value"
             :value="option.value"
           >

@@ -1,3 +1,5 @@
+import type { TeamBranch, TeamCategory } from '~/utils/league'
+
 export type AuthUser = {
   id: string
   email: string
@@ -8,6 +10,8 @@ export type AuthUser = {
     id: string
     name: string
     slug: string
+    category: TeamCategory
+    branch: TeamBranch
   } | null
 }
 

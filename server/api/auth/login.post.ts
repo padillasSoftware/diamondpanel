@@ -35,7 +35,9 @@ export default defineEventHandler(async (event) => {
         select: {
           id: true,
           name: true,
-          slug: true
+          slug: true,
+          category: true,
+          branch: true
         }
       },
       passwordHash: true
