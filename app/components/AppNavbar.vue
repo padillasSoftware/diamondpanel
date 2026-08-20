@@ -10,6 +10,16 @@ const baseNavigation = [
   { label: 'Equipos', to: '/equipos', icon: 'i-lucide-users' }
 ]
 
+const adminNavigation = [
+  { label: 'Resumen', to: '/admin', icon: 'i-lucide-layout-dashboard' },
+  { label: 'Temporadas', to: '/admin/temporadas', icon: 'i-lucide-calendar-range' },
+  { label: 'Equipos', to: '/admin/equipos', icon: 'i-lucide-shield-plus' },
+  { label: 'Jugadores', to: '/admin/jugadores', icon: 'i-lucide-list-plus' },
+  { label: 'Rol de juegos', to: '/admin/rol', icon: 'i-lucide-calendar-plus' },
+  { label: 'Resultados', to: '/admin/resultados', icon: 'i-lucide-clipboard-check' },
+  { label: 'Campos', to: '/admin/campos', icon: 'i-lucide-map-pin' }
+]
+
 const route = useRoute()
 const { user, isAdmin, logout } = useAuth()
 const { public: { leagueName } } = useRuntimeConfig()
@@ -25,6 +35,12 @@ const navigation = computed(() => [
 
 const isActive = (to: string) => to === '/'
   ? route.path === '/'
+  : route.path === to || route.path.startsWith(`${to}/`)
+
+const isAdminSection = computed(() => route.path === '/admin' || route.path.startsWith('/admin/'))
+
+const isAdminNavItemActive = (to: string) => to === '/admin'
+  ? route.path === '/admin'
   : route.path === to || route.path.startsWith(`${to}/`)
 
 const handleLogout = async () => {
@@ -122,10 +138,13 @@ const handleActiveTeamChange = (event: Event) => {
           to="/admin"
           icon="i-lucide-layout-dashboard"
           label="Admin"
-          color="neutral"
+          :color="isAdminSection ? 'primary' : 'neutral'"
           variant="ghost"
           size="sm"
-          class="hidden rounded-full bg-white/95 text-green-700 ring-1 ring-white/30 hover:bg-white sm:inline-flex"
+          :class="[
+            'hidden ring-1 ring-white/30 sm:inline-flex',
+            isAdminSection ? 'bg-white text-primary' : 'bg-white/95 text-green-700 hover:bg-white'
+          ]"
         />
         <UButton
           to="/mi-perfil"
@@ -183,6 +202,28 @@ const handleActiveTeamChange = (event: Event) => {
             :key="item.to"
             :to="item.to"
             :class="['league-nav-link league-nav-link--mobile shrink-0', { 'is-active': isActive(item.to) }]"
+          >
+            <UIcon
+              :name="item.icon"
+              class="size-4 shrink-0"
+            />
+            <span>{{ item.label }}</span>
+          </NuxtLink>
+        </nav>
+      </UContainer>
+    </div>
+
+    <div
+      v-if="isAdmin && isAdminSection"
+      class="border-b border-default bg-muted/40 max-w-full overflow-hidden"
+    >
+      <UContainer class="min-w-0 py-2">
+        <nav class="flex max-w-full gap-1 overflow-x-auto pb-1 scrollbar-none [&::-webkit-scrollbar]:hidden">
+          <NuxtLink
+            v-for="item in adminNavigation"
+            :key="item.to"
+            :to="item.to"
+            :class="['admin-nav-link shrink-0', { 'is-active': isAdminNavItemActive(item.to) }]"
           >
             <UIcon
               :name="item.icon"

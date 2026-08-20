@@ -72,27 +72,38 @@ const metricCards = computed(() => [
 
 const adminModules = [
   {
+    title: 'Temporadas',
+    description: 'Crear temporadas, activar la vigente y archivar anteriores.',
+    icon: 'i-lucide-calendar-range',
+    to: '/admin/temporadas',
+    status: 'Disponible'
+  },
+  {
     title: 'Equipos',
     description: 'Crear clubes, asignar categoría, rama, colores y manager.',
     icon: 'i-lucide-shield-plus',
-    status: 'Siguiente'
+    to: '/admin/equipos',
+    status: 'Próximo'
   },
   {
     title: 'Jugadores',
     description: 'Administrar roster, números, posiciones y estatus.',
     icon: 'i-lucide-list-plus',
+    to: '/admin/jugadores',
     status: 'Próximo'
   },
   {
     title: 'Rol de juegos',
     description: 'Programar partidos en viernes, sábado o domingo.',
     icon: 'i-lucide-calendar-plus',
+    to: '/admin/rol',
     status: 'Próximo'
   },
   {
     title: 'Resultados',
     description: 'Capturar marcadores finales y actualizar posiciones.',
     icon: 'i-lucide-clipboard-check',
+    to: '/admin/resultados',
     status: 'Próximo'
   }
 ]
@@ -168,36 +179,37 @@ const adminModules = [
       </div>
 
       <div class="grid gap-3 md:grid-cols-2">
-        <div
-          v-for="module in adminModules"
-          :key="module.title"
-          class="rounded-lg border border-default p-4"
+        <NuxtLink
+          v-for="adminModule in adminModules"
+          :key="adminModule.title"
+          :to="adminModule.to"
+          class="rounded-lg border border-default p-4 transition-colors hover:border-primary hover:bg-primary/5"
         >
           <div class="mb-3 flex items-start justify-between gap-3">
             <div class="flex items-center gap-3">
               <span class="flex size-10 items-center justify-center rounded-md bg-primary/10 text-primary">
                 <UIcon
-                  :name="module.icon"
+                  :name="adminModule.icon"
                   class="size-5"
                 />
               </span>
               <div>
                 <h3 class="font-semibold text-highlighted">
-                  {{ module.title }}
+                  {{ adminModule.title }}
                 </h3>
                 <p class="text-sm text-muted">
-                  {{ module.description }}
+                  {{ adminModule.description }}
                 </p>
               </div>
             </div>
             <UBadge
-              color="neutral"
+              :color="adminModule.status === 'Disponible' ? 'success' : 'neutral'"
               variant="outline"
             >
-              {{ module.status }}
+              {{ adminModule.status }}
             </UBadge>
           </div>
-        </div>
+        </NuxtLink>
       </div>
     </section>
   </UContainer>

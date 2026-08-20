@@ -340,3 +340,23 @@ export function handLabel(value: string | null | undefined) {
 
   return value ? labels[value] ?? value : '-'
 }
+
+export function seasonStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    DRAFT: 'Borrador',
+    ACTIVE: 'Activa',
+    ARCHIVED: 'Archivada'
+  }
+
+  return labels[status] ?? status
+}
+
+export function seasonStatusColor(status: string): BadgeColor {
+  const colors: Record<string, BadgeColor> = {
+    DRAFT: 'neutral',
+    ACTIVE: 'success',
+    ARCHIVED: 'warning'
+  }
+
+  return colors[status] ?? 'neutral'
+}

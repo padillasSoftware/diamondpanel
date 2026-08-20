@@ -1,11 +1,7 @@
 import { prisma } from '../../utils/db'
 import { requireTeamManager } from '../../utils/session'
-import {
-  cleanHexColor,
-  cleanOptionalText,
-  cleanRequiredText,
-  managerTeamSelect
-} from '../../utils/team-members'
+import { managerTeamSelect } from '../../utils/team-members'
+import { cleanHexColor, cleanOptionalText, cleanRequiredText } from '../../utils/validation'
 
 type TeamBody = {
   name?: unknown
