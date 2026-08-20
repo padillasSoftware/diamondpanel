@@ -14,8 +14,8 @@ const { user, initialized, login, fetchSession } = useAuth()
 const email = ref('')
 const password = ref('')
 const isSubmitting = ref(false)
-const errorMessage = ref('')
 const showSplash = useState('app:show-splash')
+const toast = useToast()
 
 if (!initialized.value) {
   await fetchSession().catch(() => null)
@@ -52,10 +52,13 @@ const passwordError = computed(() => {
 const canSubmit = computed(() => Boolean(email.value && password.value && !emailError.value && !passwordError.value))
 
 async function handleLogin() {
-  errorMessage.value = ''
-
   if (!canSubmit.value) {
-    errorMessage.value = 'Revisa el email y la contraseña antes de continuar.'
+    toast.add({
+      title: 'Revisa tus datos',
+      description: 'Revisa el email y la contraseña antes de continuar.',
+      color: 'error',
+      icon: 'i-lucide-circle-alert'
+    })
 
     return
   }
@@ -71,7 +74,12 @@ async function handleLogin() {
     showSplash.value = true
     await navigateTo(loggedInUser?.role === 'ADMIN' ? redirectPath.value : '/')
   } catch {
-    errorMessage.value = 'El correo o la contraseña no son correctos.'
+    toast.add({
+      title: 'No se pudo iniciar sesión',
+      description: 'El correo o la contraseña no son correctos.',
+      color: 'error',
+      icon: 'i-lucide-circle-alert'
+    })
   } finally {
     isSubmitting.value = false
   }
@@ -140,14 +148,6 @@ async function handleLogin() {
             {{ passwordError }}
           </span>
         </label>
-
-        <UAlert
-          v-if="errorMessage"
-          color="error"
-          variant="subtle"
-          icon="i-lucide-circle-alert"
-          :description="errorMessage"
-        />
 
         <UButton
           type="submit"

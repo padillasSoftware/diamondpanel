@@ -1,6 +1,8 @@
 import { prisma } from '../../../../utils/db'
 import { requireTeamManager } from '../../../../utils/session'
 import {
+  assertCurpMatchesTeamBranch,
+  assertPlayerCategoryEligibility,
   buildMemberCreateData,
   teamMemberSelect
 } from '../../../../utils/team-members'
@@ -10,8 +12,15 @@ export default defineEventHandler(async (event) => {
   const body = await readBody<Record<string, unknown>>(event)
 
   try {
+    const member = buildMemberCreateData(body, user.activeTeamId)
+
+    if (member.memberRole === 'PLAYER' && member.curp) {
+      assertCurpMatchesTeamBranch(member.curp, user.activeTeam.branch)
+      await assertPlayerCategoryEligibility(prisma, member.curp, user.activeTeam)
+    }
+
     return await prisma.player.create({
-      data: buildMemberCreateData(body, user.activeTeamId),
+      data: member,
       select: teamMemberSelect
     })
   } catch (error) {

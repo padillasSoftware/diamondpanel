@@ -41,6 +41,8 @@ const teamForm = reactive({
 const memberForm = reactive({
   firstName: '',
   lastName: '',
+  curp: '',
+  birthDate: '',
   number: '',
   memberRole: 'PLAYER',
   position: '',
@@ -52,17 +54,9 @@ const memberForm = reactive({
 const editingMemberId = ref<string | null>(null)
 const isSavingTeam = ref(false)
 const isSavingMember = ref(false)
-const feedback = ref('')
-const errorMessage = ref('')
-
-const handOptions = [
-  { label: 'No especificado', value: 'UNKNOWN' },
-  { label: 'Derecha', value: 'RIGHT' },
-  { label: 'Izquierda', value: 'LEFT' },
-  { label: 'Ambos', value: 'SWITCH' }
-]
-
-const throwOptions = handOptions.filter(option => option.value !== 'SWITCH')
+const isDeletingMember = ref(false)
+const memberPendingDelete = ref<Player | null>(null)
+const toast = useToast()
 
 const statusOptions = [
   { label: 'Activo', value: 'ACTIVE' },
@@ -96,29 +90,58 @@ const editingMember = computed(() => members.value.find(member => member.id === 
 const canSaveMember = computed(() => {
   const hasBase = Boolean(memberForm.firstName.trim() && memberForm.lastName.trim())
   const hasPosition = memberForm.memberRole !== 'PLAYER' || Boolean(memberForm.position.trim())
+  const hasIdentity = Boolean(memberForm.curp.trim() && memberForm.birthDate)
 
-  return hasBase && hasPosition
+  return hasBase && hasPosition && hasIdentity && !curpError.value
 })
 
-function clearMessages() {
-  feedback.value = ''
-  errorMessage.value = ''
-}
+const hasDuplicateMemberNumber = computed(() => {
+  if (memberForm.memberRole !== 'PLAYER' || !memberForm.number) return false
+
+  return members.value.some(member =>
+    member.id !== editingMemberId.value
+    && member.number === Number(memberForm.number)
+  )
+})
+
+const curpError = computed(() => {
+  if (!memberForm.curp) return ''
+
+  return /^[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d$/.test(memberForm.curp.trim().toUpperCase())
+    ? ''
+    : 'Ingresa una CURP válida de 18 caracteres.'
+})
+
+const isDeleteModalOpen = computed({
+  get: () => memberPendingDelete.value !== null,
+  set: (value) => {
+    if (!value) memberPendingDelete.value = null
+  }
+})
 
 function showFeedback(message: string) {
-  feedback.value = message
-  errorMessage.value = ''
+  toast.add({
+    title: message,
+    color: 'success',
+    icon: 'i-lucide-check-circle-2'
+  })
 }
 
 function showError(message: string) {
-  errorMessage.value = message
-  feedback.value = ''
+  toast.add({
+    title: 'No se pudo completar la acción',
+    description: message,
+    color: 'error',
+    icon: 'i-lucide-circle-alert'
+  })
 }
 
 function resetMemberForm() {
   editingMemberId.value = null
   memberForm.firstName = ''
   memberForm.lastName = ''
+  memberForm.curp = ''
+  memberForm.birthDate = ''
   memberForm.number = ''
   memberForm.memberRole = 'PLAYER'
   memberForm.position = ''
@@ -128,10 +151,11 @@ function resetMemberForm() {
 }
 
 function editMember(member: Player) {
-  clearMessages()
   editingMemberId.value = member.id
   memberForm.firstName = member.firstName
   memberForm.lastName = member.lastName
+  memberForm.curp = member.curp ?? ''
+  memberForm.birthDate = member.birthDate?.slice(0, 10) ?? ''
   memberForm.number = member.number?.toString() ?? ''
   memberForm.memberRole = member.memberRole
   memberForm.position = member.position ?? ''
@@ -144,6 +168,8 @@ function memberPayload() {
   return {
     firstName: memberForm.firstName,
     lastName: memberForm.lastName,
+    curp: memberForm.curp,
+    birthDate: memberForm.birthDate,
     number: memberForm.number ? Number(memberForm.number) : null,
     memberRole: memberForm.memberRole,
     position: memberForm.memberRole === 'PLAYER' ? memberForm.position : null,
@@ -154,7 +180,6 @@ function memberPayload() {
 }
 
 async function saveTeam() {
-  clearMessages()
   isSavingTeam.value = true
 
   try {
@@ -171,10 +196,20 @@ async function saveTeam() {
 }
 
 async function saveMember() {
-  clearMessages()
-
   if (!canSaveMember.value) {
-    showError('Completa nombre, apellido y posición si el integrante es jugador.')
+    showError('Completa nombre, apellido, CURP, fecha de nacimiento y posición si el integrante es jugador.')
+
+    return
+  }
+
+  if (hasDuplicateMemberNumber.value) {
+    showError('Ese número ya está registrado para otro integrante de este equipo.')
+
+    return
+  }
+
+  if (curpError.value) {
+    showError(curpError.value)
 
     return
   }
@@ -187,39 +222,64 @@ async function saveMember() {
         method: 'PATCH',
         body: memberPayload()
       })
-      showFeedback('Integrante actualizado.')
+      toast.add({
+        title: 'Integrante actualizado',
+        color: 'success',
+        icon: 'i-lucide-check-circle-2'
+      })
     } else {
       await $fetch('/api/manager/team/members', {
         method: 'POST',
         body: memberPayload()
       })
-      showFeedback('Integrante agregado.')
+      toast.add({
+        title: 'Integrante agregado',
+        color: 'success',
+        icon: 'i-lucide-check-circle-2'
+      })
     }
 
     await refresh()
     resetMemberForm()
-  } catch {
-    showError('No se pudo guardar el integrante. Revisa que el número no esté repetido.')
+  } catch (error) {
+    const statusMessage = typeof error === 'object' && error && 'data' in error
+      ? String((error as { data?: { statusMessage?: unknown } }).data?.statusMessage ?? '')
+      : ''
+
+    showError(statusMessage || 'No se pudo guardar el integrante. Revisa los datos e inténtalo de nuevo.')
   } finally {
     isSavingMember.value = false
   }
 }
 
 async function deleteMember(member: Player) {
-  clearMessages()
+  memberPendingDelete.value = member
+}
 
-  if (!window.confirm(`¿Eliminar a ${playerName(member)} del equipo?`)) return
+async function confirmDeleteMember() {
+  const member = memberPendingDelete.value
 
-  await $fetch(`/api/manager/team/members/${member.id}`, {
-    method: 'DELETE'
-  })
-  await refresh()
+  if (!member) return
 
-  if (editingMemberId.value === member.id) {
-    resetMemberForm()
+  isDeletingMember.value = true
+
+  try {
+    await $fetch(`/api/manager/team/members/${member.id}`, {
+      method: 'DELETE'
+    })
+    await refresh()
+
+    if (editingMemberId.value === member.id) {
+      resetMemberForm()
+    }
+
+    showFeedback('Integrante eliminado.')
+    memberPendingDelete.value = null
+  } catch {
+    showError('No se pudo eliminar el integrante. Inténtalo de nuevo.')
+  } finally {
+    isDeletingMember.value = false
   }
-
-  showFeedback('Integrante eliminado.')
 }
 </script>
 
@@ -288,22 +348,6 @@ async function deleteMember(member: Player) {
           </div>
         </div>
       </div>
-
-      <UAlert
-        v-if="feedback"
-        color="success"
-        variant="subtle"
-        icon="i-lucide-check-circle-2"
-        :description="feedback"
-      />
-
-      <UAlert
-        v-if="errorMessage"
-        color="error"
-        variant="subtle"
-        icon="i-lucide-circle-alert"
-        :description="errorMessage"
-      />
 
       <section class="rounded-lg border border-default bg-default p-4 shadow-sm sm:p-5">
         <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -394,15 +438,15 @@ async function deleteMember(member: Player) {
 
       <section class="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
         <form
-          class="rounded-lg border border-default bg-default p-4 shadow-sm sm:p-5"
+          class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 lg:h-96"
           @submit.prevent="saveMember"
         >
-          <div class="mb-4 flex items-center justify-between gap-3">
+          <div class="mb-2.5 flex items-center justify-between gap-2">
             <div>
-              <h2 class="text-xl font-bold text-highlighted">
+              <h2 class="text-base font-bold text-highlighted">
                 {{ editingMember ? 'Editar integrante' : 'Nuevo integrante' }}
               </h2>
-              <p class="text-sm text-muted">
+              <p class="text-xs text-muted">
                 Selecciona si es jugador, manejador o coach.
               </p>
             </div>
@@ -418,7 +462,7 @@ async function deleteMember(member: Player) {
             />
           </div>
 
-          <div class="grid gap-3 sm:grid-cols-2">
+          <div class="grid gap-2 sm:grid-cols-2">
             <label class="grid gap-1.5 text-sm">
               <span class="font-medium text-highlighted">Nombre</span>
               <UInput
@@ -431,6 +475,35 @@ async function deleteMember(member: Player) {
               <span class="font-medium text-highlighted">Apellido</span>
               <UInput
                 v-model="memberForm.lastName"
+                required
+              />
+            </label>
+
+            <label class="grid gap-1.5 text-sm">
+              <span class="font-medium text-highlighted">CURP</span>
+              <UInput
+                v-model="memberForm.curp"
+                autocomplete="off"
+                maxlength="18"
+                placeholder="ABCD010101HDFXXX01"
+                :color="curpError ? 'error' : 'neutral'"
+                class="uppercase"
+                required
+              />
+              <span
+                v-if="curpError"
+                class="text-xs font-medium text-error"
+              >
+                {{ curpError }}
+              </span>
+            </label>
+
+            <label class="grid gap-1.5 text-sm">
+              <span class="font-medium text-highlighted">Fecha de nacimiento</span>
+              <UInput
+                v-model="memberForm.birthDate"
+                type="date"
+                :max="new Date().toISOString().slice(0, 10)"
                 required
               />
             </label>
@@ -503,44 +576,6 @@ async function deleteMember(member: Player) {
                 </option>
               </select>
             </label>
-
-            <label
-              v-if="memberForm.memberRole === 'PLAYER'"
-              class="grid gap-1.5 text-sm"
-            >
-              <span class="font-medium text-highlighted">Batea</span>
-              <select
-                v-model="memberForm.bats"
-                class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
-              >
-                <option
-                  v-for="option in handOptions"
-                  :key="option.value"
-                  :value="option.value"
-                >
-                  {{ option.label }}
-                </option>
-              </select>
-            </label>
-
-            <label
-              v-if="memberForm.memberRole === 'PLAYER'"
-              class="grid gap-1.5 text-sm"
-            >
-              <span class="font-medium text-highlighted">Lanza</span>
-              <select
-                v-model="memberForm.throws"
-                class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
-              >
-                <option
-                  v-for="option in throwOptions"
-                  :key="option.value"
-                  :value="option.value"
-                >
-                  {{ option.label }}
-                </option>
-              </select>
-            </label>
           </div>
 
           <UButton
@@ -548,20 +583,20 @@ async function deleteMember(member: Player) {
             icon="i-lucide-save"
             :label="editingMember ? 'Actualizar integrante' : 'Agregar integrante'"
             color="primary"
-            class="mt-4"
+            class="mt-2.5"
             :disabled="!canSaveMember"
             :loading="isSavingMember"
             block
           />
         </form>
 
-        <section class="rounded-lg border border-default bg-default p-4 shadow-sm sm:p-5">
-          <div class="mb-4 flex items-center justify-between gap-3">
+        <section class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 lg:flex lg:h-96 lg:flex-col">
+          <div class="mb-2.5 flex items-center justify-between gap-2">
             <div>
-              <h2 class="text-xl font-bold text-highlighted">
+              <h2 class="text-base font-bold text-highlighted">
                 Integrantes
               </h2>
-              <p class="text-sm text-muted">
+              <p class="text-xs text-muted">
                 Roster completo del equipo.
               </p>
             </div>
@@ -573,15 +608,15 @@ async function deleteMember(member: Player) {
             </UBadge>
           </div>
 
-          <div class="grid gap-3">
+          <div class="grid max-h-80 gap-2 overflow-y-auto pr-1 lg:max-h-none lg:min-h-0 lg:flex-1">
             <article
               v-for="member in members"
               :key="member.id"
-              class="rounded-lg border border-default p-3"
+              class="rounded-lg border border-default p-2"
             >
-              <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div class="min-w-0">
-                  <div class="mb-2 flex flex-wrap items-center gap-2">
+                  <div class="mb-1 flex flex-wrap items-center gap-1.5">
                     <UBadge
                       :color="memberRoleColor(member.memberRole)"
                       variant="subtle"
@@ -596,12 +631,12 @@ async function deleteMember(member: Player) {
                     </UBadge>
                   </div>
 
-                  <h3 class="truncate text-lg font-bold text-highlighted">
+                  <h3 class="truncate font-bold text-highlighted">
                     {{ playerName(member) }}
                   </h3>
-                  <p class="text-sm text-muted">
+                  <p class="text-xs text-muted">
                     <span v-if="member.memberRole === 'PLAYER'">
-                      #{{ member.number ?? '-' }} • {{ member.position }} • Batea {{ handLabel(member.bats) }} • Lanza {{ handLabel(member.throws) }}
+                      #{{ member.number ?? '-' }} • {{ member.position }} • CURP {{ member.curp ?? '-' }} • Batea {{ handLabel(member.bats) }} • Lanza {{ handLabel(member.throws) }}
                     </span>
                     <span v-else>
                       Staff del equipo
@@ -609,7 +644,7 @@ async function deleteMember(member: Player) {
                   </p>
                 </div>
 
-                <div class="flex shrink-0 gap-2">
+                <div class="flex shrink-0 gap-1.5">
                   <UButton
                     icon="i-lucide-pencil"
                     aria-label="Editar integrante"
@@ -633,5 +668,28 @@ async function deleteMember(member: Player) {
         </section>
       </section>
     </div>
+
+    <UModal
+      v-model:open="isDeleteModalOpen"
+      title="Eliminar integrante"
+      :description="memberPendingDelete ? `¿Seguro que deseas eliminar a ${playerName(memberPendingDelete)} del equipo? Esta acción no se puede deshacer.` : ''"
+    >
+      <template #footer="{ close }">
+        <UButton
+          label="Cancelar"
+          color="neutral"
+          variant="ghost"
+          :disabled="isDeletingMember"
+          @click="close"
+        />
+        <UButton
+          label="Eliminar"
+          color="error"
+          icon="i-lucide-trash-2"
+          :loading="isDeletingMember"
+          @click="confirmDeleteMember"
+        />
+      </template>
+    </UModal>
   </UContainer>
 </template>

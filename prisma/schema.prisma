@@ -163,6 +163,8 @@ model Player {
   teamId     String
   firstName  String
   lastName   String
+  curp       String?
+  birthDate  DateTime?
   number     Int?
   memberRole TeamMemberRole @default(PLAYER)
   position   String?
@@ -175,6 +177,7 @@ model Player {
   team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
   @@unique([teamId, number])
+  @@index([curp])
   @@index([teamId, memberRole, status])
   @@index([teamId, status])
 }

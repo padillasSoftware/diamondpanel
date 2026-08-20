@@ -26,16 +26,11 @@ export const TEAM_MEMBER_ROLE_OPTIONS: { label: string, value: TeamMemberRole }[
 ]
 
 export const PLAYER_POSITION_OPTIONS = [
-  'P',
-  'C',
-  '1B',
-  '2B',
-  '3B',
-  'SS',
-  'LF',
-  'CF',
-  'RF',
-  'UT'
+  'FIELDER',
+  'INFIELDER',
+  'PITCHER',
+  'CATCHER',
+  'UTILITY'
 ]
 
 export type Season = {
@@ -51,6 +46,8 @@ export type Player = {
   id: string
   firstName: string
   lastName: string
+  curp: string | null
+  birthDate: string | null
   number: number | null
   memberRole: TeamMemberRole
   position: string | null

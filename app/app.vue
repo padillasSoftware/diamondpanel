@@ -96,6 +96,8 @@ useSeoMeta({
 
 <template>
   <UApp class="min-w-0 overflow-x-hidden">
+    <UToaster />
+
     <NuxtLoadingIndicator
       color="#ff9800"
       :height="3"
