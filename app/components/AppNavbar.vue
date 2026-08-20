@@ -128,6 +128,15 @@ const handleActiveTeamChange = (event: Event) => {
           class="hidden rounded-full bg-white/95 text-green-700 ring-1 ring-white/30 hover:bg-white sm:inline-flex"
         />
         <UButton
+          to="/mi-perfil"
+          icon="i-lucide-user-round"
+          aria-label="Mi perfil"
+          color="neutral"
+          variant="ghost"
+          size="sm"
+          class="rounded-full text-white hover:bg-white/10 hover:text-white"
+        />
+        <UButton
           icon="i-lucide-log-out"
           aria-label="Cerrar sesión"
           color="neutral"

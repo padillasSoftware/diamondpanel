@@ -18,6 +18,7 @@ export type AuthUser = {
   managedTeams: AuthManagedTeam[]
   activeTeamId: string | null
   activeTeam: AuthManagedTeam | null
+  mustChangePassword: boolean
 }
 
 type SessionResponse = {
@@ -27,6 +28,11 @@ type SessionResponse = {
 type LoginInput = {
   email: string
   password: string
+}
+
+type ChangePasswordInput = {
+  currentPassword: string
+  newPassword: string
 }
 
 export function useAuth() {
@@ -65,6 +71,17 @@ export function useAuth() {
     initialized.value = true
   }
 
+  const changePassword = async (input: ChangePasswordInput) => {
+    const session = await $fetch<SessionResponse>('/api/auth/change-password', {
+      method: 'POST',
+      body: input
+    })
+
+    user.value = session.user
+
+    return session.user
+  }
+
   return {
     user,
     initialized,
@@ -73,6 +90,7 @@ export function useAuth() {
     isTeamManager,
     fetchSession,
     login,
-    logout
+    logout,
+    changePassword
   }
 }

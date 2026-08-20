@@ -33,6 +33,7 @@ export type AuthUser = {
   managedTeams: AuthManagedTeam[]
   activeTeamId: string | null
   activeTeam: AuthManagedTeam | null
+  mustChangePassword: boolean
 }
 
 export type AuthTeamManager = AuthUser & {
@@ -56,6 +57,7 @@ const userSelect = {
   name: true,
   role: true,
   managedTeamId: true,
+  mustChangePassword: true,
   managedTeam: {
     select: managedTeamSelect
   },
@@ -76,6 +78,7 @@ type UserRecord = {
   role: UserRoleValue
   managedTeamId: string | null
   managedTeam: AuthManagedTeam | null
+  mustChangePassword: boolean
   teamManagers: { team: AuthManagedTeam }[]
 }
 
@@ -233,7 +236,8 @@ function formatAuthUser(event: H3Event, user: UserRecord): AuthUser {
     managedTeam: activeTeam,
     managedTeams,
     activeTeamId: activeTeam?.id ?? null,
-    activeTeam
+    activeTeam,
+    mustChangePassword: user.mustChangePassword
   }
 }
 
