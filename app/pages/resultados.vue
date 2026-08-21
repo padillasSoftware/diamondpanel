@@ -1,15 +1,18 @@
 <script setup lang="ts">
 import {
+  battingHighlightLabel,
   branchColor,
   branchLabel,
   categoryColor,
   categoryLabel,
   formatGameDate,
   formatShortDate,
+  resultPersonName,
   resultWinnerLabel,
   roundLabel,
   scoreClass,
   teamInitials,
+  type GameBattingHighlightSide,
   type ResultGame,
   type Season
 } from '~/utils/league'
@@ -31,6 +34,18 @@ const resultRows = computed(() => results.value ?? [])
 const totalRuns = computed(() => resultRows.value.reduce((total, game) => total + game.result.homeScore + game.result.awayScore, 0))
 const averageRuns = computed(() => resultRows.value.length ? (totalRuns.value / resultRows.value.length).toFixed(1) : '0.0')
 const latestResult = computed(() => resultRows.value[0])
+
+function battingHighlightsBySide(game: ResultGame, side: GameBattingHighlightSide) {
+  return game.result.battingHighlights.filter(highlight => highlight.side === side)
+}
+
+function loserTeamName(game: ResultGame) {
+  if (game.result.homeScore === game.result.awayScore) return 'Empate'
+
+  return game.result.homeScore < game.result.awayScore
+    ? game.homeTeam.name
+    : game.awayTeam.name
+}
 </script>
 
 <template>
@@ -213,6 +228,69 @@ const latestResult = computed(() => resultRows.value[0])
           <p class="mt-3 text-sm text-muted">
             {{ game.result.innings ?? 7 }} innings{{ game.result.isForfeit ? ' • Forfeit' : '' }}
           </p>
+
+          <div
+            v-if="!game.result.isForfeit || game.result.notes"
+            class="mt-3 grid gap-2 rounded-lg border border-default bg-muted/20 p-3 text-sm md:grid-cols-2"
+          >
+            <div
+              v-if="!game.result.isForfeit"
+              class="grid gap-1"
+            >
+              <p class="font-semibold text-highlighted">
+                Pitchers
+              </p>
+              <p class="text-muted">
+                PG: {{ resultPersonName(game.result.winningPitcherName, game.result.winningPitcher) }}
+              </p>
+              <p class="text-muted">
+                PD: {{ resultPersonName(game.result.losingPitcherName, game.result.losingPitcher) }}
+              </p>
+            </div>
+
+            <div
+              v-if="game.result.notes"
+              class="text-sm text-muted"
+            >
+              <p class="font-semibold text-highlighted">
+                Notas
+              </p>
+              <p>{{ game.result.notes }}</p>
+            </div>
+          </div>
+
+          <div
+            v-if="game.result.battingHighlights.length"
+            class="mt-3 grid gap-2 md:grid-cols-2"
+          >
+            <div class="rounded-lg border border-default p-3">
+              <p class="mb-2 text-sm font-semibold text-highlighted">
+                Bateadores ganador
+              </p>
+              <div class="grid gap-1 text-sm text-muted">
+                <p
+                  v-for="highlight in battingHighlightsBySide(game, 'WINNER')"
+                  :key="highlight.id"
+                >
+                  {{ battingHighlightLabel(highlight) }}
+                </p>
+              </div>
+            </div>
+
+            <div class="rounded-lg border border-default p-3">
+              <p class="mb-2 text-sm font-semibold text-highlighted">
+                Bateadores derrotado · {{ loserTeamName(game) }}
+              </p>
+              <div class="grid gap-1 text-sm text-muted">
+                <p
+                  v-for="highlight in battingHighlightsBySide(game, 'LOSER')"
+                  :key="highlight.id"
+                >
+                  {{ battingHighlightLabel(highlight) }}
+                </p>
+              </div>
+            </div>
+          </div>
         </article>
       </div>
 

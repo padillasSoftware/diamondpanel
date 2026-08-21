@@ -196,6 +196,17 @@ const handleActiveTeamChange = (event: Event) => {
           </select>
         </label>
 
+        <UButton
+          v-if="isAdmin"
+          to="/admin"
+          icon="i-lucide-layout-dashboard"
+          label="Admin"
+          :color="isAdminSection ? 'primary' : 'neutral'"
+          :variant="isAdminSection ? 'solid' : 'subtle'"
+          size="sm"
+          class="mb-2 w-full justify-center sm:hidden"
+        />
+
         <nav class="flex max-w-full gap-1 overflow-x-auto pb-1 scrollbar-none [&::-webkit-scrollbar]:hidden">
           <NuxtLink
             v-for="item in navigation"

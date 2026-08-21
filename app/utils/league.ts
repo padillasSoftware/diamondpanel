@@ -2,6 +2,7 @@ export type BadgeColor = 'primary' | 'secondary' | 'success' | 'info' | 'warning
 export type TeamBranch = 'VARONIL' | 'FEMENIL'
 export type TeamCategory = 'A' | 'B' | 'C' | 'D' | 'E' | 'R'
 export type TeamMemberRole = 'PLAYER' | 'MANAGER' | 'COACH'
+export type GameBattingHighlightSide = 'WINNER' | 'LOSER'
 
 export const TEAM_CATEGORY_OPTIONS: { label: string, value: 'ALL' | TeamCategory }[] = [
   { label: 'Todas', value: 'ALL' },
@@ -113,6 +114,28 @@ export type Game = {
   awayTeam: TeamSummary
 }
 
+export type ResultPlayer = {
+  id: string
+  firstName: string
+  lastName: string
+  number: number | null
+  position: string | null
+  teamId: string
+}
+
+export type BattingHighlight = {
+  id: string
+  side: GameBattingHighlightSide
+  order: number
+  atBats: number
+  hits: number
+  homeRuns: number
+  teamId: string
+  playerId: string | null
+  playerName: string
+  player: ResultPlayer | null
+}
+
 export type ResultGame = Game & {
   result: {
     id: string
@@ -121,6 +144,14 @@ export type ResultGame = Game & {
     innings: number | null
     isForfeit: boolean
     recordedAt: string
+    notes: string | null
+    winningPitcherId: string | null
+    losingPitcherId: string | null
+    winningPitcherName: string | null
+    losingPitcherName: string | null
+    winningPitcher: ResultPlayer | null
+    losingPitcher: ResultPlayer | null
+    battingHighlights: BattingHighlight[]
   }
 }
 
@@ -303,6 +334,24 @@ export function resultWinnerLabel(game: ResultGame) {
     : game.awayTeam
 
   return `Ganó ${winner.shortName ?? winner.name}`
+}
+
+export function resultPlayerName(player: ResultPlayer | null | undefined) {
+  if (!player) return '-'
+
+  const number = player.number === null ? '' : `#${player.number} `
+
+  return `${number}${player.firstName} ${player.lastName}`
+}
+
+export function resultPersonName(name: string | null | undefined, player?: ResultPlayer | null) {
+  return name?.trim() || resultPlayerName(player)
+}
+
+export function battingHighlightLabel(highlight: BattingHighlight) {
+  const homeRunText = highlight.homeRuns ? `, ${highlight.homeRuns} HR` : ''
+
+  return `${resultPersonName(highlight.playerName, highlight.player)} ${highlight.hits}-${highlight.atBats}${homeRunText}`
 }
 
 export function streakLabel(streak: string) {

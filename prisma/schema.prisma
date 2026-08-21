@@ -72,6 +72,11 @@ enum ThrowingArm {
   UNKNOWN
 }
 
+enum GameBattingHighlightSide {
+  WINNER
+  LOSER
+}
+
 model User {
   id                 String   @id @default(cuid())
   email              String   @unique
@@ -125,10 +130,11 @@ model Team {
 
   seasons            TeamSeason[]
   players            Player[]
-  homeGames          Game[]        @relation("HomeTeam")
-  awayGames          Game[]        @relation("AwayTeam")
-  managerUsers       User[]        @relation("TeamManagers")
+  homeGames          Game[]                 @relation("HomeTeam")
+  awayGames          Game[]                 @relation("AwayTeam")
+  managerUsers       User[]                 @relation("TeamManagers")
   managerAssignments TeamManager[]
+  battingHighlights  GameBattingHighlight[]
 
   @@index([category, branch, status])
 }
@@ -193,6 +199,10 @@ model Player {
 
   team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
+  winningPitchingResults GameResult[]           @relation("WinningPitcher")
+  losingPitchingResults  GameResult[]           @relation("LosingPitcher")
+  battingHighlights      GameBattingHighlight[]
+
   @@unique([teamId, number])
   @@index([curp])
   @@index([teamId, memberRole, status])
@@ -238,21 +248,55 @@ model Game {
 }
 
 model GameResult {
-  id           String   @id @default(cuid())
-  gameId       String   @unique
-  homeScore    Int
-  awayScore    Int
-  innings      Int?
-  isForfeit    Boolean  @default(false)
-  recordedById String?
-  recordedAt   DateTime @default(now())
-  notes        String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  gameId             String   @unique
+  homeScore          Int
+  awayScore          Int
+  innings            Int?
+  isForfeit          Boolean  @default(false)
+  recordedById       String?
+  winningPitcherId   String?
+  losingPitcherId    String?
+  winningPitcherName String?
+  losingPitcherName  String?
+  recordedAt         DateTime @default(now())
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-  game       Game  @relation(fields: [gameId], references: [id], onDelete: Cascade)
-  recordedBy User? @relation(fields: [recordedById], references: [id], onDelete: SetNull)
+  game              Game                   @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  recordedBy        User?                  @relation(fields: [recordedById], references: [id], onDelete: SetNull)
+  winningPitcher    Player?                @relation("WinningPitcher", fields: [winningPitcherId], references: [id], onDelete: SetNull)
+  losingPitcher     Player?                @relation("LosingPitcher", fields: [losingPitcherId], references: [id], onDelete: SetNull)
+  battingHighlights GameBattingHighlight[]
 
   @@index([recordedAt])
   @@index([recordedById])
+  @@index([winningPitcherId])
+  @@index([losingPitcherId])
+}
+
+model GameBattingHighlight {
+  id           String                   @id @default(cuid())
+  gameResultId String
+  teamId       String
+  playerId     String?
+  playerName   String
+  side         GameBattingHighlightSide
+  order        Int
+  atBats       Int
+  hits         Int
+  homeRuns     Int                      @default(0)
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+
+  gameResult GameResult @relation(fields: [gameResultId], references: [id], onDelete: Cascade)
+  team       Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  player     Player?    @relation(fields: [playerId], references: [id], onDelete: SetNull)
+
+  @@unique([gameResultId, side, order])
+  @@index([gameResultId])
+  @@index([teamId])
+  @@index([playerId])
+  @@index([side])
 }

@@ -101,10 +101,10 @@ const adminModules = [
   },
   {
     title: 'Resultados',
-    description: 'Capturar marcadores finales y actualizar posiciones.',
+    description: 'Capturar marcadores, pitchers y bateadores destacados.',
     icon: 'i-lucide-clipboard-check',
     to: '/admin/resultados',
-    status: 'Próximo'
+    status: 'Disponible'
   }
 ]
 </script>

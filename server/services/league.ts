@@ -262,7 +262,38 @@ export async function getRecentResults(options: { seasonId?: string, category?: 
           awayScore: true,
           innings: true,
           isForfeit: true,
-          recordedAt: true
+          recordedAt: true,
+          notes: true,
+          winningPitcherId: true,
+          losingPitcherId: true,
+          winningPitcherName: true,
+          losingPitcherName: true,
+          winningPitcher: {
+            select: resultPlayerSelect
+          },
+          losingPitcher: {
+            select: resultPlayerSelect
+          },
+          battingHighlights: {
+            orderBy: [
+              { side: 'asc' },
+              { order: 'asc' }
+            ],
+            select: {
+              id: true,
+              side: true,
+              order: true,
+              atBats: true,
+              hits: true,
+              homeRuns: true,
+              teamId: true,
+              playerId: true,
+              playerName: true,
+              player: {
+                select: resultPlayerSelect
+              }
+            }
+          }
         }
       }
     }
@@ -385,6 +416,15 @@ const teamSummarySelect = {
   secondaryColor: true,
   category: true,
   branch: true
+} as const
+
+const resultPlayerSelect = {
+  id: true,
+  firstName: true,
+  lastName: true,
+  number: true,
+  position: true,
+  teamId: true
 } as const
 
 function getCategoryFilter(category?: string) {
