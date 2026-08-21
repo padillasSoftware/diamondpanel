@@ -17,6 +17,7 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     authSecret: process.env.AUTH_SECRET,
+    managerTempPassword: process.env.MANAGER_TEMP_PASSWORD || 'Softball2026!',
     public: {
       leagueName: process.env.NUXT_PUBLIC_LEAGUE_NAME || 'Liga de Softball'
     }

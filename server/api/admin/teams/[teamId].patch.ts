@@ -1,9 +1,12 @@
 import { prisma } from '../../../utils/db'
+import { hashPassword } from '../../../utils/password'
 import { requireAdmin } from '../../../utils/session'
 import {
   adminTeamSelect,
   buildTeamUpdateData,
   cleanManagerUserIds,
+  cleanNewManagerInput,
+  createOrFindManagerUser,
   handleTeamConflict,
   syncTeamManagers
 } from '../../../utils/teams'
@@ -33,6 +36,21 @@ export default defineEventHandler(async (event) => {
   try {
     const team = buildTeamUpdateData(body, current)
     const managerUserIds = cleanManagerUserIds(body.managerUserIds)
+    const newManager = cleanNewManagerInput(body.newManager)
+    const { managerTempPassword } = useRuntimeConfig()
+
+    if (newManager && managerTempPassword.length < 8) {
+      throw createError({
+        statusCode: 500,
+        statusMessage: 'Manager temporary password is not configured correctly'
+      })
+    }
+
+    const newManagerPasswordHash = newManager ? await hashPassword(managerTempPassword) : null
+
+    if (!team.managerName && newManager?.name) {
+      team.managerName = newManager.name
+    }
 
     return await prisma.$transaction(async (tx) => {
       const updated = await tx.team.update({
@@ -41,8 +59,24 @@ export default defineEventHandler(async (event) => {
         select: { id: true }
       })
 
-      if (managerUserIds) {
-        await syncTeamManagers(tx, updated.id, managerUserIds)
+      if (managerUserIds || newManager) {
+        const existingManagerAssignments = managerUserIds
+          ? []
+          : await tx.teamManager.findMany({
+              where: { teamId: updated.id },
+              select: { userId: true }
+            })
+        const assignedManagerUserIds = managerUserIds
+          ? [...managerUserIds]
+          : existingManagerAssignments.map(assignment => assignment.userId)
+
+        if (newManager && newManagerPasswordHash) {
+          const newManagerUserId = await createOrFindManagerUser(tx, newManager, newManagerPasswordHash)
+
+          assignedManagerUserIds.push(newManagerUserId)
+        }
+
+        await syncTeamManagers(tx, updated.id, [...new Set(assignedManagerUserIds)])
       }
 
       return tx.team.findUniqueOrThrow({

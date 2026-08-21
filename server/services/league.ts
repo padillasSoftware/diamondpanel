@@ -28,6 +28,8 @@ type TeamStanding = {
   streak: string
 }
 
+type MatrixCellState = 'SELF' | 'PENDING' | 'SCHEDULED' | 'POSTPONED' | 'WON' | 'TIED' | 'LOST' | 'DEFAULT' | 'CANCELLED'
+
 export async function getActiveSeason() {
   const activeSeason = await prisma.season.findFirst({
     where: { status: SeasonStatus.ACTIVE },
@@ -300,6 +302,110 @@ export async function getRecentResults(options: { seasonId?: string, category?: 
   })
 }
 
+export async function getMatchupMatrix(options: { seasonId?: string } = {}) {
+  const season = options.seasonId ? { id: options.seasonId } : await getActiveSeasonOrThrow()
+  const teams = await prisma.team.findMany({
+    where: {
+      seasons: {
+        some: {
+          seasonId: season.id
+        }
+      }
+    },
+    orderBy: [
+      { category: 'asc' },
+      { branch: 'asc' },
+      { name: 'asc' }
+    ],
+    select: teamSummarySelect
+  })
+  const teamIds = teams.map(team => team.id)
+
+  if (!teamIds.length) {
+    return {
+      season,
+      groups: []
+    }
+  }
+
+  const games = await prisma.game.findMany({
+    where: {
+      seasonId: season.id,
+      homeTeamId: { in: teamIds },
+      awayTeamId: { in: teamIds }
+    },
+    orderBy: [
+      { scheduledAt: 'asc' },
+      { round: 'asc' }
+    ],
+    select: {
+      id: true,
+      round: true,
+      scheduledAt: true,
+      status: true,
+      homeTeamId: true,
+      awayTeamId: true,
+      result: {
+        select: {
+          homeScore: true,
+          awayScore: true,
+          isForfeit: true
+        }
+      }
+    }
+  })
+  const gamesByPair = new Map<string, typeof games>()
+
+  for (const game of games) {
+    const key = matchupKey(game.homeTeamId, game.awayTeamId)
+    const pairGames = gamesByPair.get(key) ?? []
+
+    pairGames.push(game)
+    gamesByPair.set(key, pairGames)
+  }
+
+  const groups = new Map<string, typeof teams>()
+
+  for (const team of teams) {
+    const groupKey = `${team.category}:${team.branch}`
+    const groupTeams = groups.get(groupKey) ?? []
+
+    groupTeams.push(team)
+    groups.set(groupKey, groupTeams)
+  }
+
+  return {
+    season,
+    groups: [...groups.entries()]
+      .map(([id, groupTeams]) => {
+        const firstTeam = groupTeams[0]
+
+        return {
+          id,
+          label: firstTeam ? `${categoryText(firstTeam.category)} · ${branchText(firstTeam.branch)}` : id,
+          category: firstTeam?.category ?? TeamCategory.A,
+          branch: firstTeam?.branch ?? TeamBranch.VARONIL,
+          teams: groupTeams,
+          rows: groupTeams.map((team, rowIndex) => ({
+            team,
+            index: rowIndex + 1,
+            cells: groupTeams.map((opponent, columnIndex) => ({
+              ...buildMatchupCell({
+                rowTeamId: team.id,
+                opponentTeamId: opponent.id,
+                games: gamesByPair.get(matchupKey(team.id, opponent.id)) ?? []
+              }),
+              column: columnIndex + 1,
+              opponentId: opponent.id,
+              opponentName: opponent.name
+            }))
+          }))
+        }
+      })
+      .filter(group => group.teams.length > 1)
+  }
+}
+
 export async function getStandings(options: { seasonId?: string, category?: string, branch?: string } = {}) {
   const season = options.seasonId ? { id: options.seasonId } : await getActiveSeasonOrThrow()
   const category = getCategoryFilter(options.category)
@@ -426,6 +532,108 @@ const resultPlayerSelect = {
   position: true,
   teamId: true
 } as const
+
+function matchupKey(leftTeamId: string, rightTeamId: string) {
+  return [leftTeamId, rightTeamId].sort().join(':')
+}
+
+function buildMatchupCell(input: {
+  rowTeamId: string
+  opponentTeamId: string
+  games: {
+    id: string
+    round: number | null
+    scheduledAt: Date
+    status: (typeof GameStatus)[keyof typeof GameStatus]
+    homeTeamId: string
+    awayTeamId: string
+    result: {
+      homeScore: number
+      awayScore: number
+      isForfeit: boolean
+    } | null
+  }[]
+}): { state: MatrixCellState, label: string, gameId: string | null, title: string } {
+  if (input.rowTeamId === input.opponentTeamId) {
+    return {
+      state: 'SELF',
+      label: '',
+      gameId: null,
+      title: 'Mismo equipo'
+    }
+  }
+
+  const game = pickMatrixGame(input.games)
+
+  if (!game) {
+    return {
+      state: 'PENDING',
+      label: '-',
+      gameId: null,
+      title: 'Cruce pendiente'
+    }
+  }
+
+  if (game.status === GameStatus.CANCELLED) {
+    return {
+      state: 'CANCELLED',
+      label: 'Canc.',
+      gameId: game.id,
+      title: 'Partido cancelado'
+    }
+  }
+
+  if (game.status !== GameStatus.FINAL || !game.result) {
+    return {
+      state: game.status === GameStatus.POSTPONED ? 'POSTPONED' : 'SCHEDULED',
+      label: game.round ? `R${game.round}` : 'Prog.',
+      gameId: game.id,
+      title: game.status === GameStatus.POSTPONED ? 'Partido suspendido' : 'Partido programado'
+    }
+  }
+
+  const rowIsHome = input.rowTeamId === game.homeTeamId
+  const rowScore = rowIsHome ? game.result.homeScore : game.result.awayScore
+  const opponentScore = rowIsHome ? game.result.awayScore : game.result.homeScore
+  const state: MatrixCellState = game.result.isForfeit
+    ? 'DEFAULT'
+    : rowScore > opponentScore
+      ? 'WON'
+      : rowScore < opponentScore
+        ? 'LOST'
+        : 'TIED'
+
+  return {
+    state,
+    label: `${rowScore}-${opponentScore}`,
+    gameId: game.id,
+    title: game.result.isForfeit ? 'Resultado por default' : 'Resultado final'
+  }
+}
+
+function pickMatrixGame<T extends {
+  scheduledAt: Date
+  status: (typeof GameStatus)[keyof typeof GameStatus]
+  result: unknown
+}>(games: T[]) {
+  const finalGames = games.filter(game => game.status === GameStatus.FINAL && game.result)
+
+  if (finalGames.length) return finalGames.at(-1) ?? null
+
+  const scheduledGame = games.find(game => game.status === GameStatus.SCHEDULED || game.status === GameStatus.POSTPONED)
+
+  if (scheduledGame) return scheduledGame
+
+  return games[0] ?? null
+}
+
+function categoryText(category: TeamCategoryValue) {
+  return `Categoría ${category}`
+}
+
+function branchText(branch: TeamBranchValue) {
+  return branch === TeamBranch.FEMENIL ? 'Femenil' : 'Varonil'
+}
 
 function getCategoryFilter(category?: string) {
   const normalized = category?.trim().toUpperCase()

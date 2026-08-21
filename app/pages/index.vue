@@ -15,25 +15,100 @@ import {
   type Team
 } from '~/utils/league'
 
+type MatchupCellState = 'SELF' | 'PENDING' | 'SCHEDULED' | 'POSTPONED' | 'WON' | 'TIED' | 'LOST' | 'DEFAULT' | 'CANCELLED'
+
+type MatchupMatrixTeam = Pick<Team, 'id' | 'name' | 'shortName' | 'slug' | 'logoUrl' | 'primaryColor' | 'secondaryColor' | 'category' | 'branch'>
+
+type MatchupMatrixCell = {
+  state: MatchupCellState
+  label: string
+  gameId: string | null
+  title: string
+  column: number
+  opponentId: string
+  opponentName: string
+}
+
+type MatchupMatrixGroup = {
+  id: string
+  label: string
+  category: string
+  branch: string
+  teams: MatchupMatrixTeam[]
+  rows: {
+    team: MatchupMatrixTeam
+    index: number
+    cells: MatchupMatrixCell[]
+  }[]
+}
+
+type MatchupMatrixResponse = {
+  season: Season
+  groups: MatchupMatrixGroup[]
+}
+
 const [
   { data: season },
   { data: standings },
   { data: upcomingGames },
   { data: recentResults },
-  { data: teams }
+  { data: teams },
+  { data: matchupMatrix }
 ] = await Promise.all([
   useFetch<Season>('/api/seasons/active'),
   useFetch<Standing[]>('/api/standings'),
   useFetch<Game[]>('/api/games/upcoming', { query: { limit: 4 } }),
   useFetch<ResultGame[]>('/api/results/recent', { query: { limit: 4 } }),
-  useFetch<Team[]>('/api/teams')
+  useFetch<Team[]>('/api/teams'),
+  useFetch<MatchupMatrixResponse>('/api/matchups/matrix')
 ])
 
 const topStandings = computed(() => standings.value?.slice(0, 5) ?? [])
 const nextGame = computed(() => upcomingGames.value?.[0])
 const completedGames = computed(() => recentResults.value?.length ?? 0)
 const featuredTeams = computed(() => teams.value?.slice(0, 6) ?? [])
+const matchupGroups = computed(() => matchupMatrix.value?.groups ?? [])
+const selectedMatchupGroupId = ref('')
+const selectedMatchupGroup = computed(() =>
+  matchupGroups.value.find(group => group.id === selectedMatchupGroupId.value) ?? matchupGroups.value[0] ?? null
+)
 const { public: { leagueName } } = useRuntimeConfig()
+
+const matchupLegend = [
+  { label: 'pendiente', state: 'PENDING' },
+  { label: 'programado', state: 'SCHEDULED' },
+  { label: 'ganado', state: 'WON' },
+  { label: 'empatado', state: 'TIED' },
+  { label: 'perdido', state: 'LOST' },
+  { label: 'p. default', state: 'DEFAULT' }
+] satisfies { label: string, state: MatchupCellState }[]
+
+watch(matchupGroups, (groups) => {
+  if (!groups.length) {
+    selectedMatchupGroupId.value = ''
+    return
+  }
+
+  if (!groups.some(group => group.id === selectedMatchupGroupId.value)) {
+    selectedMatchupGroupId.value = groups[0]?.id ?? ''
+  }
+}, { immediate: true })
+
+function matchupCellClass(state: MatchupCellState) {
+  const classes: Record<MatchupCellState, string> = {
+    SELF: 'bg-neutral-300 text-transparent dark:bg-neutral-700',
+    PENDING: 'border border-default bg-default text-muted',
+    SCHEDULED: 'bg-cyan-100 text-cyan-900 dark:bg-cyan-900/40 dark:text-cyan-100',
+    POSTPONED: 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100',
+    WON: 'bg-lime-200 text-lime-950 dark:bg-lime-700 dark:text-lime-50',
+    TIED: 'bg-yellow-200 text-yellow-950 dark:bg-yellow-700 dark:text-yellow-50',
+    LOST: 'bg-red-300 text-red-950 dark:bg-red-800 dark:text-red-50',
+    DEFAULT: 'bg-orange-200 text-orange-950 dark:bg-orange-800 dark:text-orange-50',
+    CANCELLED: 'bg-neutral-200 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200'
+  }
+
+  return classes[state]
+}
 </script>
 
 <template>
@@ -92,6 +167,113 @@ const { public: { leagueName } } = useRuntimeConfig()
         </div>
       </div>
     </div>
+
+    <section class="mb-4 min-w-0 rounded-lg border border-default bg-default p-4 shadow-sm sm:p-5">
+      <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p class="text-sm font-semibold text-primary">
+            Etapa: Regular
+          </p>
+          <h2 class="text-xl font-bold text-highlighted">
+            Matriz de cruces
+          </h2>
+        </div>
+
+        <label
+          v-if="matchupGroups.length > 1"
+          class="grid gap-1.5 text-sm lg:min-w-56"
+        >
+          <span class="font-medium text-highlighted">Grupo</span>
+          <select
+            v-model="selectedMatchupGroupId"
+            class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
+          >
+            <option
+              v-for="group in matchupGroups"
+              :key="group.id"
+              :value="group.id"
+            >
+              {{ group.label }}
+            </option>
+          </select>
+        </label>
+      </div>
+
+      <div class="mb-4 grid gap-2 text-xs sm:grid-cols-3 lg:grid-cols-6">
+        <div
+          v-for="item in matchupLegend"
+          :key="item.state"
+          class="rounded-md border-t-4 bg-muted/20 px-2 py-1.5 text-center text-muted"
+          :class="{
+            'border-neutral-300': item.state === 'PENDING',
+            'border-cyan-400': item.state === 'SCHEDULED',
+            'border-lime-400': item.state === 'WON',
+            'border-yellow-400': item.state === 'TIED',
+            'border-red-400': item.state === 'LOST',
+            'border-orange-400': item.state === 'DEFAULT'
+          }"
+        >
+          {{ item.label }}
+        </div>
+      </div>
+
+      <div
+        v-if="selectedMatchupGroup"
+        class="max-w-full overflow-x-auto pb-1"
+      >
+        <table class="w-max border-separate border-spacing-1 text-xs">
+          <thead>
+            <tr class="text-muted">
+              <th class="sticky left-0 z-10 min-w-44 bg-default px-2 py-1 text-right font-bold">
+                Equipos
+              </th>
+              <th class="w-8 px-1 py-1 text-center font-bold">
+                #
+              </th>
+              <th
+                v-for="(team, index) in selectedMatchupGroup.teams"
+                :key="team.id"
+                class="w-16 px-1 py-1 text-center font-bold"
+                :title="team.name"
+              >
+                {{ index + 1 }}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="row in selectedMatchupGroup.rows"
+              :key="row.team.id"
+            >
+              <th class="sticky left-0 z-10 max-w-44 bg-default px-2 py-1 text-right font-semibold text-primary">
+                <span class="block truncate">
+                  {{ row.team.name }}
+                </span>
+              </th>
+              <td class="px-1 py-1 text-center font-semibold text-muted">
+                {{ row.index }}
+              </td>
+              <td
+                v-for="cell in row.cells"
+                :key="`${row.team.id}-${cell.opponentId}`"
+                class="h-8 w-16 rounded-md px-1 text-center text-[11px] font-semibold"
+                :class="matchupCellClass(cell.state)"
+                :title="`${row.team.name} vs ${cell.opponentName}: ${cell.title}`"
+              >
+                {{ cell.label }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div
+        v-else
+        class="rounded-lg border border-dashed border-default p-6 text-center text-sm text-muted"
+      >
+        Aún no hay equipos suficientes para mostrar cruces.
+      </div>
+    </section>
 
     <div class="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
       <section

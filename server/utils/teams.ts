@@ -2,6 +2,11 @@ import { SeasonStatus, TeamBranch, TeamCategory, TeamStatus, UserRole } from '..
 import type { Prisma } from '../generated/prisma/client'
 import { cleanEnum, cleanHexColor, cleanOptionalText, cleanRequiredText } from './validation'
 
+export type NewManagerInput = {
+  email: string
+  name: string | null
+}
+
 export const adminTeamSelect = {
   id: true,
   name: true,
@@ -74,6 +79,39 @@ export function cleanManagerUserIds(value: unknown) {
     .filter(Boolean)
 
   return [...new Set(userIds)]
+}
+
+export function cleanNewManagerInput(value: unknown) {
+  if (value === undefined || value === null) return null
+
+  if (typeof value !== 'object') {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'New manager must be an object'
+    })
+  }
+
+  const manager = value as Record<string, unknown>
+  const hasAnyValue = Boolean(
+    cleanOptionalText(manager.name, 120)
+    || cleanOptionalText(manager.email, 160)
+  )
+
+  if (!hasAnyValue) return null
+
+  const email = cleanRequiredText(manager.email, 'Manager email', 160).toLowerCase()
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'Manager email is invalid'
+    })
+  }
+
+  return {
+    email,
+    name: cleanOptionalText(manager.name, 120)
+  } satisfies NewManagerInput
 }
 
 export function buildTeamCreateData(body: Record<string, unknown>) {
@@ -162,6 +200,54 @@ export async function syncTeamManagers(
     data: managerUserIds.map(userId => ({ userId, teamId })),
     skipDuplicates: true
   })
+}
+
+export async function createOrFindManagerUser(
+  prisma: Prisma.TransactionClient,
+  manager: NewManagerInput,
+  passwordHash: string
+) {
+  const existingUser = await prisma.user.findUnique({
+    where: { email: manager.email },
+    select: {
+      id: true,
+      name: true,
+      role: true
+    }
+  })
+
+  if (existingUser) {
+    if (existingUser.role !== UserRole.USER) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: 'That email belongs to an admin user'
+      })
+    }
+
+    if (manager.name && !existingUser.name) {
+      await prisma.user.update({
+        where: { id: existingUser.id },
+        data: { name: manager.name }
+      })
+    }
+
+    return existingUser.id
+  }
+
+  const createdUser = await prisma.user.create({
+    data: {
+      email: manager.email,
+      name: manager.name,
+      passwordHash,
+      role: UserRole.USER,
+      mustChangePassword: true
+    },
+    select: {
+      id: true
+    }
+  })
+
+  return createdUser.id
 }
 
 export async function attachTeamToActiveSeason(prisma: Prisma.TransactionClient, teamId: string) {

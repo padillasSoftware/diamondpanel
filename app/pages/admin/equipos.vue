@@ -71,7 +71,9 @@ const teamForm = reactive({
   category: 'A' as TeamCategory,
   branch: 'VARONIL' as TeamBranch,
   status: 'ACTIVE' as TeamStatus,
-  managerUserIds: [] as string[]
+  managerUserIds: [] as string[],
+  newManagerName: '',
+  newManagerEmail: ''
 })
 
 const statusOptions = [
@@ -101,7 +103,14 @@ const managerOptions = computed(() => data.value?.managerOptions ?? [])
 const editingTeam = computed(() => teams.value.find(team => team.id === editingTeamId.value) ?? null)
 const activeTeams = computed(() => teams.value.filter(team => team.status === 'ACTIVE').length)
 const teamsWithManagers = computed(() => teams.value.filter(team => team.managerAssignments.length).length)
-const canSaveTeam = computed(() => Boolean(teamForm.name.trim() && teamForm.slug.trim()))
+const hasNewManagerData = computed(() => Boolean(
+  teamForm.newManagerName.trim()
+  || teamForm.newManagerEmail.trim()
+))
+const hasValidNewManager = computed(() => !hasNewManagerData.value || Boolean(
+  teamForm.newManagerEmail.trim()
+))
+const canSaveTeam = computed(() => Boolean(teamForm.name.trim() && teamForm.slug.trim() && hasValidNewManager.value))
 const filteredTeams = computed(() => {
   const term = search.value.trim().toLowerCase()
 
@@ -192,6 +201,8 @@ function resetTeamForm() {
   teamForm.branch = 'VARONIL'
   teamForm.status = 'ACTIVE'
   teamForm.managerUserIds = []
+  teamForm.newManagerName = ''
+  teamForm.newManagerEmail = ''
 }
 
 function editTeam(team: AdminTeam) {
@@ -208,9 +219,18 @@ function editTeam(team: AdminTeam) {
   teamForm.branch = team.branch
   teamForm.status = team.status
   teamForm.managerUserIds = managerIds(team)
+  teamForm.newManagerName = ''
+  teamForm.newManagerEmail = ''
 }
 
 function teamPayload() {
+  const newManager = hasNewManagerData.value
+    ? {
+        name: teamForm.newManagerName,
+        email: teamForm.newManagerEmail
+      }
+    : undefined
+
   return {
     name: teamForm.name,
     shortName: teamForm.shortName,
@@ -222,13 +242,16 @@ function teamPayload() {
     category: teamForm.category,
     branch: teamForm.branch,
     status: teamForm.status,
-    managerUserIds: teamForm.managerUserIds
+    managerUserIds: teamForm.managerUserIds,
+    newManager
   }
 }
 
 async function saveTeam() {
   if (!canSaveTeam.value) {
-    showError('Completa el nombre y el slug del equipo.')
+    showError(hasNewManagerData.value
+      ? 'Completa el correo del manejador.'
+      : 'Completa el nombre y el slug del equipo.')
 
     return
   }
@@ -527,6 +550,28 @@ async function confirmDeleteTeam() {
               Usa Cmd/Ctrl para seleccionar más de un manejador.
             </span>
           </label>
+
+          <div class="grid gap-2 border-t border-default pt-2 sm:col-span-2 sm:grid-cols-2">
+            <label class="grid gap-1.5 text-sm">
+              <span class="font-medium text-highlighted">Nuevo manejador</span>
+              <UInput
+                v-model="teamForm.newManagerName"
+                placeholder="Nombre"
+              />
+            </label>
+
+            <label class="grid gap-1.5 text-sm">
+              <span class="font-medium text-highlighted">Correo</span>
+              <UInput
+                v-model="teamForm.newManagerEmail"
+                type="email"
+                placeholder="manager@liga.com"
+              />
+            </label>
+            <p class="text-xs text-muted sm:col-span-2">
+              El sistema asigna la misma contraseña temporal a todos los manejadores nuevos.
+            </p>
+          </div>
         </div>
 
         <UButton
