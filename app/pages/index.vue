@@ -174,7 +174,7 @@ const { public: { leagueName } } = useRuntimeConfig()
                 {{ game.homeTeam.name }} vs {{ game.awayTeam.name }}
               </p>
               <p class="text-xs text-muted">
-                Jornada {{ game.round ?? '-' }} • {{ game.field?.name ?? 'Campo por definir' }}
+                Rol #{{ game.round ?? '-' }} • {{ game.field?.name ?? 'Campo por definir' }}
               </p>
             </div>
             <UBadge
@@ -303,7 +303,7 @@ const { public: { leagueName } } = useRuntimeConfig()
             class="rounded-md border border-default p-3"
           >
             <div class="mb-2 flex items-center justify-between text-xs text-muted">
-              <span>Jornada {{ game.round ?? '-' }}</span>
+              <span>Rol #{{ game.round ?? '-' }}</span>
               <span>{{ game.field?.name ?? 'Campo por definir' }}</span>
             </div>
             <div class="grid grid-cols-[1fr_auto] items-center gap-3">

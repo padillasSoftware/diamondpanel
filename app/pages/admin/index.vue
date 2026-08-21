@@ -83,7 +83,7 @@ const adminModules = [
     description: 'Crear clubes, asignar categoría, rama, colores y manager.',
     icon: 'i-lucide-shield-plus',
     to: '/admin/equipos',
-    status: 'Próximo'
+    status: 'Disponible'
   },
   {
     title: 'Jugadores',
@@ -94,10 +94,10 @@ const adminModules = [
   },
   {
     title: 'Rol de juegos',
-    description: 'Programar partidos en viernes, sábado o domingo.',
+    description: 'Programar partidos por semana y configurar vueltas por grupo.',
     icon: 'i-lucide-calendar-plus',
     to: '/admin/rol',
-    status: 'Próximo'
+    status: 'Disponible'
   },
   {
     title: 'Resultados',

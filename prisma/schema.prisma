@@ -100,8 +100,9 @@ model Season {
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
-  teams TeamSeason[]
-  games Game[]
+  teams                TeamSeason[]
+  games                Game[]
+  scheduleRoundConfigs ScheduleRoundConfig[]
 
   @@unique([name, year])
   @@index([status])
@@ -157,6 +158,21 @@ model TeamSeason {
 
   @@unique([seasonId, teamId])
   @@index([teamId])
+}
+
+model ScheduleRoundConfig {
+  id        String       @id @default(cuid())
+  seasonId  String
+  category  TeamCategory
+  branch    TeamBranch
+  rounds    Int          @default(1)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  @@unique([seasonId, category, branch])
+  @@index([seasonId])
 }
 
 model Player {

@@ -189,7 +189,7 @@ export function formatRunDifferential(value: number) {
 }
 
 export function roundLabel(round: number | null) {
-  return round ? `Jornada ${round}` : 'Jornada por definir'
+  return round ? `Rol #${round}` : 'Rol por definir'
 }
 
 export function teamInitials(team: TeamSummary) {

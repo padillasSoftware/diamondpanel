@@ -96,7 +96,7 @@ const gamesByDate = computed(() => {
           Próximos partidos
         </h1>
         <p class="mt-2 max-w-2xl text-base text-muted">
-          Consulta el calendario por jornada, campo, horario y estado del partido.
+          Consulta el calendario por rol, campo, horario y estado del partido.
         </p>
       </div>
 
