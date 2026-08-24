@@ -93,6 +93,13 @@ const adminModules = [
     status: 'Disponible'
   },
   {
+    title: 'Posiciones',
+    description: 'Consultar standings por categoría y rama.',
+    icon: 'i-lucide-trophy',
+    to: '/admin/posiciones',
+    status: 'Disponible'
+  },
+  {
     title: 'Temporadas',
     description: 'Crear temporadas, activar la vigente y archivar anteriores.',
     icon: 'i-lucide-calendar-range',

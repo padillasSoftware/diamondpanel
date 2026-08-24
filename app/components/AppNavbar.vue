@@ -13,8 +13,9 @@ const baseNavigation = [
 const adminNavigation = [
   { label: 'Resumen', to: '/admin', icon: 'i-lucide-layout-dashboard' },
   { label: 'Equipos', to: '/admin/equipos', icon: 'i-lucide-shield-plus' },
-  { label: 'Rol de juegos', to: '/admin/rol', icon: 'i-lucide-calendar-plus' },
+  { label: 'Rol', to: '/admin/rol', icon: 'i-lucide-calendar-plus' },
   { label: 'Resultados', to: '/admin/resultados', icon: 'i-lucide-clipboard-check' },
+  { label: 'Posiciones', to: '/admin/posiciones', icon: 'i-lucide-trophy' },
   { label: 'Temporadas', to: '/admin/temporadas', icon: 'i-lucide-calendar-range' }
 ]
 
