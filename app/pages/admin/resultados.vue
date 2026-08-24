@@ -186,6 +186,9 @@ const lineupForm = reactive({
 
 const games = computed(() => data.value?.games ?? [])
 const selectedGame = computed(() => games.value.find(game => game.id === selectedGameId.value) ?? null)
+const resultCardHref = computed(() =>
+  selectedGame.value?.result ? `/api/admin/results/${selectedGame.value.id}/card.svg` : ''
+)
 const showResultForm = computed(() => Boolean(
   selectedGame.value && (!selectedGame.value.result || editingResultId.value === selectedGame.value.id)
 ))
@@ -228,10 +231,8 @@ const canSaveResult = computed(() =>
     selectedGame.value
     && winnerTeam.value
     && loserTeam.value
-    && (
-      resultForm.isForfeit
-      || (resultForm.winningPitcherName.trim() && resultForm.losingPitcherName.trim())
-    )
+    && resultForm.winningPitcherName.trim()
+    && resultForm.losingPitcherName.trim()
   )
 )
 const filteredGames = computed(() => {
@@ -383,8 +384,8 @@ function hydrateResultForm(game: AdminResultGame | null) {
   resultForm.awayScore = game.result?.awayScore ?? 0
   resultForm.innings = game.result?.innings ?? 7
   resultForm.isForfeit = game.result?.isForfeit ?? false
-  resultForm.winningPitcherName = resultForm.isForfeit ? '' : savedPlayerName(game.result?.winningPitcherName, game.result?.winningPitcher)
-  resultForm.losingPitcherName = resultForm.isForfeit ? '' : savedPlayerName(game.result?.losingPitcherName, game.result?.losingPitcher)
+  resultForm.winningPitcherName = savedPlayerName(game.result?.winningPitcherName, game.result?.winningPitcher)
+  resultForm.losingPitcherName = savedPlayerName(game.result?.losingPitcherName, game.result?.losingPitcher)
   resultForm.notes = game.result?.notes ?? ''
   resultForm.winnerHighlights = resultForm.isForfeit ? emptyHighlights() : normalizeHighlights(game.result?.battingHighlights ?? [], 'WINNER')
   resultForm.loserHighlights = resultForm.isForfeit ? emptyHighlights() : normalizeHighlights(game.result?.battingHighlights ?? [], 'LOSER')
@@ -457,8 +458,8 @@ function resultPayload() {
     awayScore: resultForm.awayScore,
     innings: resultForm.innings,
     isForfeit: resultForm.isForfeit,
-    winningPitcherName: resultForm.isForfeit ? null : resultForm.winningPitcherName,
-    losingPitcherName: resultForm.isForfeit ? null : resultForm.losingPitcherName,
+    winningPitcherName: resultForm.winningPitcherName,
+    losingPitcherName: resultForm.losingPitcherName,
     notes: resultForm.notes,
     winnerHighlights: resultForm.isForfeit ? [] : resultForm.winnerHighlights,
     loserHighlights: resultForm.isForfeit ? [] : resultForm.loserHighlights
@@ -500,7 +501,7 @@ async function saveResult() {
 
   if (!game || !canSaveResult.value) {
     showError(resultForm.isForfeit
-      ? 'El resultado por default debe quedar 7-0 para el ganador.'
+      ? 'El resultado por default debe quedar 7-0 y llevar pitcher ganador y derrotado.'
       : 'Captura marcador, pitcher ganador y pitcher derrotado.')
 
     return
@@ -515,7 +516,7 @@ async function saveResult() {
     })
     await refresh()
     editingResultId.value = null
-    showFeedback('Resultado guardado.')
+    showFeedback('Resultado guardado. Imagen lista para compartir.')
   } catch (error) {
     const statusMessage = typeof error === 'object' && error && 'data' in error
       ? String((error as { data?: { statusMessage?: unknown } }).data?.statusMessage ?? '')
@@ -800,6 +801,17 @@ function editSelectedResult() {
 
             <div class="flex flex-wrap gap-2">
               <UButton
+                v-if="resultCardHref"
+                :href="resultCardHref"
+                target="_blank"
+                rel="noopener"
+                icon="i-lucide-image"
+                label="Imagen"
+                color="warning"
+                variant="subtle"
+                size="sm"
+              />
+              <UButton
                 type="button"
                 icon="i-lucide-pencil"
                 label="Editar resultado"
@@ -904,24 +916,22 @@ function editSelectedResult() {
                 {{ selectedGame.result.innings ?? 7 }}
               </p>
             </div>
-            <template v-if="!selectedGame.result.isForfeit">
-              <div>
-                <p class="text-xs font-semibold uppercase text-muted">
-                  Pitcher ganador
-                </p>
-                <p class="font-semibold text-highlighted">
-                  {{ savedPlayerName(selectedGame.result.winningPitcherName, selectedGame.result.winningPitcher) || 'Sin captura' }}
-                </p>
-              </div>
-              <div>
-                <p class="text-xs font-semibold uppercase text-muted">
-                  Pitcher derrotado
-                </p>
-                <p class="font-semibold text-highlighted">
-                  {{ savedPlayerName(selectedGame.result.losingPitcherName, selectedGame.result.losingPitcher) || 'Sin captura' }}
-                </p>
-              </div>
-            </template>
+            <div>
+              <p class="text-xs font-semibold uppercase text-muted">
+                Pitcher ganador
+              </p>
+              <p class="font-semibold text-highlighted">
+                {{ savedPlayerName(selectedGame.result.winningPitcherName, selectedGame.result.winningPitcher) || 'Sin captura' }}
+              </p>
+            </div>
+            <div>
+              <p class="text-xs font-semibold uppercase text-muted">
+                Pitcher derrotado
+              </p>
+              <p class="font-semibold text-highlighted">
+                {{ savedPlayerName(selectedGame.result.losingPitcherName, selectedGame.result.losingPitcher) || 'Sin captura' }}
+              </p>
+            </div>
           </div>
 
           <div
@@ -1138,11 +1148,11 @@ function editSelectedResult() {
             v-if="resultForm.isForfeit && winnerTeam && loserTeam"
             class="mb-3 rounded-lg border border-primary/30 bg-primary/10 p-3 text-sm text-highlighted"
           >
-            Se guardará {{ winnerTeam.name }} 7, {{ loserTeam.name }} 0. No se capturan estadísticas individuales.
+            Se guardará {{ winnerTeam.name }} 7, {{ loserTeam.name }} 0. Captura únicamente pitchers; sin bateadores destacados.
           </div>
 
           <div
-            v-else-if="winnerTeam && loserTeam"
+            v-if="winnerTeam && loserTeam"
             class="mb-3 grid gap-2 lg:grid-cols-2"
           >
             <label class="grid gap-1.5 text-sm">

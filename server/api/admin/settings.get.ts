@@ -5,6 +5,13 @@ import { requireAdmin } from '../../utils/session'
 
 export default defineEventHandler(async (event) => {
   await requireAdmin(event)
+  const league = await prisma.leagueSettings.findUnique({
+    where: { id: 'default' },
+    select: {
+      primaryLogoUrl: true,
+      secondaryLogoUrl: true
+    }
+  })
 
   const season = await prisma.season.findFirst({
     where: { status: SeasonStatus.ACTIVE },
@@ -23,12 +30,20 @@ export default defineEventHandler(async (event) => {
 
   if (!season) {
     return {
+      league: league ?? {
+        primaryLogoUrl: null,
+        secondaryLogoUrl: null
+      },
       season: null,
       configs: []
     }
   }
 
   return {
+    league: league ?? {
+      primaryLogoUrl: null,
+      secondaryLogoUrl: null
+    },
     season,
     configs: await getScheduleConfigs(prisma, season.id)
   }

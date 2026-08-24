@@ -358,6 +358,8 @@ export function buildResultPayload(body: Record<string, unknown>, game: ResultGa
   const innings = cleanNumber(body.innings, { min: 1, max: 20, field: 'Innings' })
   const winnerTeamId = homeScore > awayScore ? game.homeTeamId : game.awayTeamId
   const loserTeamId = homeScore > awayScore ? game.awayTeamId : game.homeTeamId
+  const winningPitcherName = cleanRequiredText(body.winningPitcherName, 'Winning pitcher', 80)
+  const losingPitcherName = cleanRequiredText(body.losingPitcherName, 'Losing pitcher', 80)
 
   if (isForfeit) {
     const hasDefaultScore = (homeScore === 7 && awayScore === 0) || (awayScore === 7 && homeScore === 0)
@@ -377,16 +379,13 @@ export function buildResultPayload(body: Record<string, unknown>, game: ResultGa
         isForfeit,
         winningPitcherId: null,
         losingPitcherId: null,
-        winningPitcherName: null,
-        losingPitcherName: null,
+        winningPitcherName,
+        losingPitcherName,
         notes: cleanOptionalText(body.notes, 300)
       },
       highlights: []
     }
   }
-
-  const winningPitcherName = cleanRequiredText(body.winningPitcherName, 'Winning pitcher', 80)
-  const losingPitcherName = cleanRequiredText(body.losingPitcherName, 'Losing pitcher', 80)
 
   const highlights = [
     ...cleanHighlightRows({

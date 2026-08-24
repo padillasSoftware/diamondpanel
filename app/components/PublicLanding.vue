@@ -69,7 +69,7 @@ function matrixCellClass(state: string) {
         class="absolute inset-0 -z-20 size-full object-cover"
       >
       <div class="absolute inset-0 -z-10 bg-[#04140f]/72" />
-      <div class="absolute inset-y-0 left-0 -z-10 w-full bg-[linear-gradient(90deg,rgb(4_20_15_/_0.95),rgb(4_20_15_/_0.72),rgb(4_20_15_/_0.18))]" />
+      <div class="absolute inset-y-0 left-0 -z-10 w-full bg-[linear-gradient(90deg,rgb(4_20_15/0.95),rgb(4_20_15/0.72),rgb(4_20_15/0.18))]" />
 
       <UContainer class="flex min-h-[88svh] flex-col py-5 sm:py-6">
         <header class="flex items-center justify-between gap-4">

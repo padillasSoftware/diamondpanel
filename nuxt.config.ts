@@ -19,7 +19,8 @@ export default defineNuxtConfig({
     authSecret: process.env.AUTH_SECRET,
     managerTempPassword: process.env.MANAGER_TEMP_PASSWORD || 'Softball2026!',
     public: {
-      leagueName: process.env.NUXT_PUBLIC_LEAGUE_NAME || 'Liga de Softball'
+      leagueName: process.env.NUXT_PUBLIC_LEAGUE_NAME || 'Liga de Softball',
+      leagueLogoUrl: process.env.NUXT_PUBLIC_LEAGUE_LOGO_URL || ''
     }
   },
 
