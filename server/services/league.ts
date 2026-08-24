@@ -217,17 +217,26 @@ export async function getUpcomingGames(options: { seasonId?: string, category?: 
   })
 }
 
-export async function getRecentResults(options: { seasonId?: string, category?: string, branch?: string, limit?: number } = {}) {
+export async function getRecentResults(options: { seasonId?: string, category?: string, branch?: string, teamId?: string, limit?: number } = {}) {
   const season = options.seasonId ? { id: options.seasonId } : await getActiveSeasonOrThrow()
   const category = getCategoryFilter(options.category)
   const branch = getBranchFilter(options.branch)
   const teamRelationFilter = getTeamRelationFilter(category, branch)
+  const teamId = options.teamId?.trim()
   const limit = options.limit ?? 10
 
   return prisma.game.findMany({
     where: {
       seasonId: season.id,
       status: GameStatus.FINAL,
+      ...(teamId
+        ? {
+            OR: [
+              { homeTeamId: teamId },
+              { awayTeamId: teamId }
+            ]
+          }
+        : {}),
       ...(teamRelationFilter
         ? {
             homeTeam: { is: teamRelationFilter },

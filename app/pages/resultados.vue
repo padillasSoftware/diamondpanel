@@ -17,23 +17,52 @@ import {
   type Season
 } from '~/utils/league'
 
+type ResultScope = 'TEAM' | 'GROUP'
+
 useSeoMeta({
   title: 'Resultados | DiamondPanel',
   description: 'Resultados recientes de la temporada activa de DiamondPanel.'
 })
 
+const { user } = useAuth()
+const selectedScope = ref<ResultScope>('TEAM')
+const managedTeam = computed(() => user.value?.role === 'ADMIN' ? null : user.value?.activeTeam ?? null)
+const canFilterByManagedTeam = computed(() => Boolean(managedTeam.value))
+const resultsQuery = computed(() => {
+  const query: Record<string, string | number> = { limit: 50 }
+  const team = managedTeam.value
+
+  if (!team) return query
+
+  if (selectedScope.value === 'TEAM') {
+    query.scope = 'mine'
+  } else {
+    query.category = team.category
+    query.branch = team.branch
+  }
+
+  return query
+})
 const [
   { data: season },
-  { data: results }
+  { data: results, pending }
 ] = await Promise.all([
   useFetch<Season>('/api/seasons/active'),
-  useFetch<ResultGame[]>('/api/results/recent', { query: { limit: 50 } })
+  useFetch<ResultGame[]>('/api/results/recent', { query: resultsQuery })
 ])
 
 const resultRows = computed(() => results.value ?? [])
 const totalRuns = computed(() => resultRows.value.reduce((total, game) => total + game.result.homeScore + game.result.awayScore, 0))
 const averageRuns = computed(() => resultRows.value.length ? (totalRuns.value / resultRows.value.length).toFixed(1) : '0.0')
 const latestResult = computed(() => resultRows.value[0])
+const scopeDescription = computed(() => {
+  const team = managedTeam.value
+
+  if (!team) return 'Ordenados del más reciente al más antiguo.'
+  if (selectedScope.value === 'TEAM') return `Solo partidos de ${team.name}.`
+
+  return `${categoryLabel(team.category)} • ${branchLabel(team.branch)}.`
+})
 
 function battingHighlightsBySide(game: ResultGame, side: GameBattingHighlightSide) {
   return game.result.battingHighlights.filter(highlight => highlight.side === side)
@@ -123,23 +152,61 @@ function loserTeamName(game: ResultGame) {
     </div>
 
     <section class="rounded-lg border border-default bg-default p-5 shadow-sm">
-      <div class="mb-4 flex items-center justify-between gap-3">
+      <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h2 class="text-xl font-bold text-highlighted">
             Juegos completados
           </h2>
           <p class="text-sm text-muted">
-            Ordenados del más reciente al más antiguo.
+            {{ scopeDescription }}
           </p>
         </div>
-        <UIcon
-          name="i-lucide-clipboard-check"
-          class="size-5 text-muted"
-        />
+        <div
+          v-if="canFilterByManagedTeam"
+          class="grid grid-cols-2 gap-1 rounded-md bg-muted/40 p-1 text-sm"
+        >
+          <button
+            type="button"
+            class="inline-flex h-9 items-center justify-center gap-1.5 rounded-md px-3 font-medium transition"
+            :class="selectedScope === 'TEAM' ? 'bg-default text-highlighted shadow-sm' : 'text-muted hover:text-highlighted'"
+            @click="selectedScope = 'TEAM'"
+          >
+            <UIcon
+              name="i-lucide-shield"
+              class="size-4"
+            />
+            Mi equipo
+          </button>
+          <button
+            type="button"
+            class="inline-flex h-9 items-center justify-center gap-1.5 rounded-md px-3 font-medium transition"
+            :class="selectedScope === 'GROUP' ? 'bg-default text-highlighted shadow-sm' : 'text-muted hover:text-highlighted'"
+            @click="selectedScope = 'GROUP'"
+          >
+            <UIcon
+              name="i-lucide-users"
+              class="size-4"
+            />
+            Mi categoría
+          </button>
+        </div>
       </div>
 
       <div
-        v-if="resultRows.length"
+        v-if="pending"
+        class="rounded-lg border border-dashed border-default p-8 text-center"
+      >
+        <UIcon
+          name="i-lucide-loader-circle"
+          class="mx-auto mb-3 size-8 animate-spin text-muted"
+        />
+        <p class="font-semibold text-highlighted">
+          Cargando resultados...
+        </p>
+      </div>
+
+      <div
+        v-else-if="resultRows.length"
         class="grid gap-3"
       >
         <article

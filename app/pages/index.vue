@@ -51,6 +51,10 @@ const { user } = useAuth()
 const { public: { leagueName } } = useRuntimeConfig()
 const isPublicLanding = computed(() => !user.value)
 const shouldLoadDashboard = Boolean(user.value)
+const recentResultsQuery = computed(() => ({
+  limit: 4,
+  ...(user.value?.role !== 'ADMIN' && user.value?.activeTeam ? { scope: 'mine' } : {})
+}))
 
 const [
   { data: season },
@@ -63,7 +67,7 @@ const [
   useFetch<Season>('/api/seasons/active', { immediate: shouldLoadDashboard }),
   useFetch<Standing[]>('/api/standings', { immediate: shouldLoadDashboard }),
   useFetch<Game[]>('/api/games/upcoming', { immediate: shouldLoadDashboard, query: { limit: 4 } }),
-  useFetch<ResultGame[]>('/api/results/recent', { immediate: shouldLoadDashboard, query: { limit: 4 } }),
+  useFetch<ResultGame[]>('/api/results/recent', { immediate: shouldLoadDashboard, query: recentResultsQuery }),
   useFetch<Team[]>('/api/teams', { immediate: shouldLoadDashboard }),
   useFetch<MatchupMatrixResponse>('/api/matchups/matrix', { immediate: shouldLoadDashboard })
 ])
