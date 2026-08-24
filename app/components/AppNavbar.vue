@@ -12,12 +12,10 @@ const baseNavigation = [
 
 const adminNavigation = [
   { label: 'Resumen', to: '/admin', icon: 'i-lucide-layout-dashboard' },
-  { label: 'Temporadas', to: '/admin/temporadas', icon: 'i-lucide-calendar-range' },
   { label: 'Equipos', to: '/admin/equipos', icon: 'i-lucide-shield-plus' },
-  { label: 'Jugadores', to: '/admin/jugadores', icon: 'i-lucide-list-plus' },
   { label: 'Rol de juegos', to: '/admin/rol', icon: 'i-lucide-calendar-plus' },
   { label: 'Resultados', to: '/admin/resultados', icon: 'i-lucide-clipboard-check' },
-  { label: 'Campos', to: '/admin/campos', icon: 'i-lucide-map-pin' }
+  { label: 'Temporadas', to: '/admin/temporadas', icon: 'i-lucide-calendar-range' }
 ]
 
 const route = useRoute()
@@ -30,6 +28,9 @@ const navigation = computed(() => [
   ...baseNavigation,
   ...(managedTeams.value.length
     ? [{ label: 'Mi equipo', to: '/mi-equipo', icon: 'i-lucide-clipboard-pen' }]
+    : []),
+  ...(isAdmin.value
+    ? [{ label: 'Admin', to: '/admin', icon: 'i-lucide-layout-dashboard' }]
     : [])
 ])
 
@@ -38,10 +39,11 @@ const isActive = (to: string) => to === '/'
   : route.path === to || route.path.startsWith(`${to}/`)
 
 const isAdminSection = computed(() => route.path === '/admin' || route.path.startsWith('/admin/'))
+const visibleNavigation = computed(() => isAdminSection.value ? adminNavigation : navigation.value)
 
-const isAdminNavItemActive = (to: string) => to === '/admin'
+const isNavigationItemActive = (to: string) => to === '/admin'
   ? route.path === '/admin'
-  : route.path === to || route.path.startsWith(`${to}/`)
+  : isActive(to)
 
 const handleLogout = async () => {
   await logout()
@@ -93,10 +95,10 @@ const handleActiveTeamChange = (event: Event) => {
       <template #right>
         <nav class="hidden items-center gap-1 lg:flex">
           <NuxtLink
-            v-for="item in navigation"
+            v-for="item in visibleNavigation"
             :key="item.to"
             :to="item.to"
-            :class="['league-nav-link', { 'is-active': isActive(item.to) }]"
+            :class="['league-nav-link', { 'is-active': isNavigationItemActive(item.to) }]"
           >
             <UIcon
               :name="item.icon"
@@ -134,19 +136,6 @@ const handleActiveTeamChange = (event: Event) => {
         <ColorModeButton tone="navbar" />
 
         <UButton
-          v-if="isAdmin"
-          to="/admin"
-          icon="i-lucide-layout-dashboard"
-          label="Admin"
-          :color="isAdminSection ? 'primary' : 'neutral'"
-          variant="ghost"
-          size="sm"
-          :class="[
-            'hidden ring-1 ring-white/30 sm:inline-flex',
-            isAdminSection ? 'bg-white text-primary' : 'bg-white/95 text-green-700 hover:bg-white'
-          ]"
-        />
-        <UButton
           to="/mi-perfil"
           icon="i-lucide-user-round"
           aria-label="Mi perfil"
@@ -167,7 +156,10 @@ const handleActiveTeamChange = (event: Event) => {
       </template>
     </UHeader>
 
-    <div class="league-mobile-nav max-w-full overflow-hidden lg:hidden">
+    <div
+      v-if="visibleNavigation.length || hasMultipleManagedTeams"
+      class="league-mobile-nav max-w-full overflow-hidden lg:hidden"
+    >
       <UContainer class="min-w-0 py-2">
         <label
           v-if="hasMultipleManagedTeams"
@@ -196,45 +188,12 @@ const handleActiveTeamChange = (event: Event) => {
           </select>
         </label>
 
-        <UButton
-          v-if="isAdmin"
-          to="/admin"
-          icon="i-lucide-layout-dashboard"
-          label="Admin"
-          :color="isAdminSection ? 'primary' : 'neutral'"
-          :variant="isAdminSection ? 'solid' : 'subtle'"
-          size="sm"
-          class="mb-2 w-full justify-center sm:hidden"
-        />
-
         <nav class="flex max-w-full gap-1 overflow-x-auto pb-1 scrollbar-none [&::-webkit-scrollbar]:hidden">
           <NuxtLink
-            v-for="item in navigation"
+            v-for="item in visibleNavigation"
             :key="item.to"
             :to="item.to"
-            :class="['league-nav-link league-nav-link--mobile shrink-0', { 'is-active': isActive(item.to) }]"
-          >
-            <UIcon
-              :name="item.icon"
-              class="size-4 shrink-0"
-            />
-            <span>{{ item.label }}</span>
-          </NuxtLink>
-        </nav>
-      </UContainer>
-    </div>
-
-    <div
-      v-if="isAdmin && isAdminSection"
-      class="border-b border-default bg-muted/40 max-w-full overflow-hidden"
-    >
-      <UContainer class="min-w-0 py-2">
-        <nav class="flex max-w-full gap-1 overflow-x-auto pb-1 scrollbar-none [&::-webkit-scrollbar]:hidden">
-          <NuxtLink
-            v-for="item in adminNavigation"
-            :key="item.to"
-            :to="item.to"
-            :class="['admin-nav-link shrink-0', { 'is-active': isAdminNavItemActive(item.to) }]"
+            :class="['league-nav-link league-nav-link--mobile shrink-0', { 'is-active': isNavigationItemActive(item.to) }]"
           >
             <UIcon
               :name="item.icon"

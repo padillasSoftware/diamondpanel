@@ -117,8 +117,10 @@ const { data, pending, refresh } = await useFetch<ResultsResponse>('/api/admin/r
 const selectedGameId = ref<string | null>(null)
 const isSavingResult = ref(false)
 const isDeletingResult = ref(false)
+const editingResultId = ref<string | null>(null)
 const search = ref('')
 const selectedStatus = ref<'ALL' | 'PENDING' | 'FINAL'>('ALL')
+const showBattingHighlights = ref(false)
 
 const resultForm = reactive({
   homeScore: 0,
@@ -134,6 +136,9 @@ const resultForm = reactive({
 
 const games = computed(() => data.value?.games ?? [])
 const selectedGame = computed(() => games.value.find(game => game.id === selectedGameId.value) ?? null)
+const showResultForm = computed(() => Boolean(
+  selectedGame.value && (!selectedGame.value.result || editingResultId.value === selectedGame.value.id)
+))
 const finalGames = computed(() => games.value.filter(game => game.result).length)
 const pendingGames = computed(() => games.value.filter(game => !game.result).length)
 const winnerSide = computed<'home' | 'away' | null>(() => {
@@ -189,13 +194,16 @@ watch(games, (availableGames) => {
 }, { immediate: true })
 
 watch(selectedGame, (game) => {
+  editingResultId.value = null
   hydrateResultForm(game)
+  showBattingHighlights.value = Boolean(game?.result?.battingHighlights.length)
 }, { immediate: true })
 
 watch(() => resultForm.isForfeit, (isForfeit) => {
   if (!isForfeit) return
 
   setForfeitWinner(winnerSide.value ?? 'home')
+  showBattingHighlights.value = false
 })
 
 function playerLabel(player: AdminResultPlayer) {
@@ -226,10 +234,19 @@ function scoreText(game: AdminResultGame) {
 
 function resultWinner(game: AdminResultGame) {
   if (!game.result) return 'Sin resultado'
+  if (game.result.homeScore === game.result.awayScore) return 'Empate'
 
   return game.result.homeScore > game.result.awayScore
     ? game.homeTeam.name
     : game.awayTeam.name
+}
+
+function resultLoser(game: AdminResultGame) {
+  if (!game.result || game.result.homeScore === game.result.awayScore) return ''
+
+  return game.result.homeScore > game.result.awayScore
+    ? game.awayTeam.name
+    : game.homeTeam.name
 }
 
 function normalizeHighlights(highlights: AdminResultHighlight[], side: 'WINNER' | 'LOSER') {
@@ -329,6 +346,7 @@ async function saveResult() {
       body: resultPayload()
     })
     await refresh()
+    editingResultId.value = null
     showFeedback('Resultado guardado.')
   } catch (error) {
     const statusMessage = typeof error === 'object' && error && 'data' in error
@@ -353,6 +371,7 @@ async function deleteResult() {
       method: 'DELETE'
     })
     await refresh()
+    editingResultId.value = null
     showFeedback('Captura eliminada.')
   } catch (error) {
     const statusMessage = typeof error === 'object' && error && 'data' in error
@@ -363,6 +382,14 @@ async function deleteResult() {
   } finally {
     isDeletingResult.value = false
   }
+}
+
+function editSelectedResult() {
+  const game = selectedGame.value
+
+  if (!game?.result) return
+
+  editingResultId.value = game.id
 }
 </script>
 
@@ -526,8 +553,218 @@ async function deleteResult() {
         </div>
       </section>
 
+      <section
+        v-if="selectedGame && selectedGame.result && !showResultForm"
+        class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3"
+      >
+        <div class="mb-3 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <div class="mb-2 flex flex-wrap gap-1.5">
+              <UBadge
+                color="success"
+                variant="subtle"
+                icon="i-lucide-check-circle-2"
+              >
+                Resultado capturado
+              </UBadge>
+              <UBadge
+                :color="categoryColor(selectedGame.homeTeam.category)"
+                variant="subtle"
+              >
+                {{ categoryLabel(selectedGame.homeTeam.category) }}
+              </UBadge>
+              <UBadge
+                :color="branchColor(selectedGame.homeTeam.branch)"
+                variant="subtle"
+              >
+                {{ branchLabel(selectedGame.homeTeam.branch) }}
+              </UBadge>
+              <UBadge
+                color="primary"
+                variant="outline"
+              >
+                {{ roundLabel(selectedGame.round) }}
+              </UBadge>
+            </div>
+            <h2 class="text-base font-bold text-highlighted">
+              {{ selectedGame.homeTeam.name }} vs {{ selectedGame.awayTeam.name }}
+            </h2>
+            <p class="text-xs text-muted">
+              {{ formatGameDate(selectedGame.scheduledAt) }} · {{ selectedGame.field?.name ?? 'Campo por definir' }}
+            </p>
+          </div>
+
+          <div class="flex flex-wrap gap-2">
+            <UButton
+              type="button"
+              icon="i-lucide-pencil"
+              label="Editar resultado"
+              color="primary"
+              variant="subtle"
+              size="sm"
+              @click="editSelectedResult"
+            />
+            <UButton
+              type="button"
+              icon="i-lucide-trash-2"
+              label="Quitar resultado"
+              color="error"
+              variant="subtle"
+              size="sm"
+              :loading="isDeletingResult"
+              @click="deleteResult"
+            />
+          </div>
+        </div>
+
+        <div class="mb-3 grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+          <div class="rounded-lg border border-default p-3">
+            <div class="mb-3 flex items-center gap-2">
+              <span
+                class="flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+                :style="{ backgroundColor: selectedGame.homeTeam.primaryColor ?? '#047857' }"
+              >
+                {{ adminTeamInitials(selectedGame.homeTeam) }}
+              </span>
+              <div class="min-w-0">
+                <p class="truncate font-semibold text-highlighted">
+                  {{ selectedGame.homeTeam.name }}
+                </p>
+                <p class="text-xs text-muted">
+                  Local
+                </p>
+              </div>
+            </div>
+            <p class="text-4xl font-bold text-highlighted">
+              {{ selectedGame.result.homeScore }}
+            </p>
+          </div>
+
+          <div class="hidden text-center text-xs font-bold text-muted sm:block">
+            VS
+          </div>
+
+          <div class="rounded-lg border border-default p-3">
+            <div class="mb-3 flex items-center gap-2">
+              <span
+                class="flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+                :style="{ backgroundColor: selectedGame.awayTeam.primaryColor ?? '#f97316' }"
+              >
+                {{ adminTeamInitials(selectedGame.awayTeam) }}
+              </span>
+              <div class="min-w-0">
+                <p class="truncate font-semibold text-highlighted">
+                  {{ selectedGame.awayTeam.name }}
+                </p>
+                <p class="text-xs text-muted">
+                  Visitante
+                </p>
+              </div>
+            </div>
+            <p class="text-4xl font-bold text-highlighted">
+              {{ selectedGame.result.awayScore }}
+            </p>
+          </div>
+        </div>
+
+        <div class="grid gap-2 rounded-lg border border-default p-3 text-sm sm:grid-cols-2">
+          <div>
+            <p class="text-xs font-semibold uppercase text-muted">
+              Ganador
+            </p>
+            <p class="font-semibold text-highlighted">
+              {{ resultWinner(selectedGame) }}
+            </p>
+          </div>
+          <div v-if="resultLoser(selectedGame)">
+            <p class="text-xs font-semibold uppercase text-muted">
+              Derrotado
+            </p>
+            <p class="font-semibold text-highlighted">
+              {{ resultLoser(selectedGame) }}
+            </p>
+          </div>
+          <div>
+            <p class="text-xs font-semibold uppercase text-muted">
+              Tipo
+            </p>
+            <p class="font-semibold text-highlighted">
+              {{ selectedGame.result.isForfeit ? 'Resultado por default' : 'Resultado regular' }}
+            </p>
+          </div>
+          <div>
+            <p class="text-xs font-semibold uppercase text-muted">
+              Innings
+            </p>
+            <p class="font-semibold text-highlighted">
+              {{ selectedGame.result.innings ?? 7 }}
+            </p>
+          </div>
+          <template v-if="!selectedGame.result.isForfeit">
+            <div>
+              <p class="text-xs font-semibold uppercase text-muted">
+                Pitcher ganador
+              </p>
+              <p class="font-semibold text-highlighted">
+                {{ savedPlayerName(selectedGame.result.winningPitcherName, selectedGame.result.winningPitcher) || 'Sin captura' }}
+              </p>
+            </div>
+            <div>
+              <p class="text-xs font-semibold uppercase text-muted">
+                Pitcher derrotado
+              </p>
+              <p class="font-semibold text-highlighted">
+                {{ savedPlayerName(selectedGame.result.losingPitcherName, selectedGame.result.losingPitcher) || 'Sin captura' }}
+              </p>
+            </div>
+          </template>
+        </div>
+
+        <div
+          v-if="!selectedGame.result.isForfeit && selectedGame.result.battingHighlights.length"
+          class="mt-3 grid gap-2 rounded-lg border border-default p-3 text-sm sm:grid-cols-2"
+        >
+          <div>
+            <p class="mb-1 font-semibold text-highlighted">
+              Bateadores · ganador
+            </p>
+            <p
+              v-for="highlight in selectedGame.result.battingHighlights.filter(item => item.side === 'WINNER')"
+              :key="highlight.id"
+              class="text-muted"
+            >
+              {{ battingLine(highlight) }}
+            </p>
+          </div>
+          <div>
+            <p class="mb-1 font-semibold text-highlighted">
+              Bateadores · derrotado
+            </p>
+            <p
+              v-for="highlight in selectedGame.result.battingHighlights.filter(item => item.side === 'LOSER')"
+              :key="highlight.id"
+              class="text-muted"
+            >
+              {{ battingLine(highlight) }}
+            </p>
+          </div>
+        </div>
+
+        <div
+          v-if="selectedGame.result.notes"
+          class="mt-3 rounded-lg border border-default p-3 text-sm"
+        >
+          <p class="mb-1 text-xs font-semibold uppercase text-muted">
+            Notas
+          </p>
+          <p class="text-highlighted">
+            {{ selectedGame.result.notes }}
+          </p>
+        </div>
+      </section>
+
       <form
-        v-if="selectedGame"
+        v-else-if="selectedGame && showResultForm"
         class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3"
         @submit.prevent="saveResult"
       >
@@ -561,17 +798,30 @@ async function deleteResult() {
             </p>
           </div>
 
-          <UButton
+          <div
             v-if="selectedGame.result"
-            type="button"
-            icon="i-lucide-trash-2"
-            label="Quitar resultado"
-            color="error"
-            variant="subtle"
-            size="sm"
-            :loading="isDeletingResult"
-            @click="deleteResult"
-          />
+            class="flex flex-wrap gap-2"
+          >
+            <UButton
+              type="button"
+              icon="i-lucide-x"
+              label="Cancelar edición"
+              color="neutral"
+              variant="subtle"
+              size="sm"
+              @click="editingResultId = null"
+            />
+            <UButton
+              type="button"
+              icon="i-lucide-trash-2"
+              label="Quitar resultado"
+              color="error"
+              variant="subtle"
+              size="sm"
+              :loading="isDeletingResult"
+              @click="deleteResult"
+            />
+          </div>
         </div>
 
         <div class="mb-3 grid gap-2 sm:grid-cols-2">
@@ -720,7 +970,31 @@ async function deleteResult() {
         </div>
 
         <div
-          v-if="!resultForm.isForfeit"
+          v-if="!resultForm.isForfeit && winnerTeam && loserTeam"
+          class="mb-3 flex flex-col gap-2 rounded-lg border border-default p-2 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div>
+            <h3 class="text-sm font-bold text-highlighted">
+              Bateadores destacados
+            </h3>
+            <p class="text-xs text-muted">
+              Máximo 3 por equipo.
+            </p>
+          </div>
+          <UButton
+            type="button"
+            :icon="showBattingHighlights ? 'i-lucide-chevron-up' : 'i-lucide-plus'"
+            :label="showBattingHighlights ? 'Ocultar bateadores' : 'Agregar bateadores'"
+            color="neutral"
+            variant="outline"
+            size="sm"
+            class="w-fit"
+            @click="showBattingHighlights = !showBattingHighlights"
+          />
+        </div>
+
+        <div
+          v-if="!resultForm.isForfeit && showBattingHighlights"
           class="mb-3 grid gap-3 lg:grid-cols-2"
         >
           <section class="rounded-lg border border-default p-2">

@@ -47,7 +47,12 @@ export default defineEventHandler(async (event) => {
         notes: true,
         fieldId: true,
         homeTeamId: true,
-        awayTeamId: true
+        awayTeamId: true,
+        result: {
+          select: {
+            id: true
+          }
+        }
       }
     })
 
@@ -71,6 +76,13 @@ export default defineEventHandler(async (event) => {
     const status = cleanScheduleStatus(body.status, current.status)
     const weekRange = getWeekRange(body.weekStart ?? formatLeagueDate(scheduledAt))
     const pair = await getScheduleTeamPair(tx, season.id, homeTeamId, awayTeamId)
+
+    if ((current.result || current.status === GameStatus.FINAL) && status === GameStatus.CANCELLED) {
+      throw createError({
+        statusCode: 409,
+        statusMessage: 'No puedes cancelar un partido que ya tiene resultado capturado.'
+      })
+    }
 
     assertScheduledInsideWeek(scheduledAt, weekRange.startsAt, weekRange.endsAt)
     await assertFieldAvailable(tx, fieldId)

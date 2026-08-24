@@ -72,25 +72,11 @@ const metricCards = computed(() => [
 
 const adminModules = [
   {
-    title: 'Temporadas',
-    description: 'Crear temporadas, activar la vigente y archivar anteriores.',
-    icon: 'i-lucide-calendar-range',
-    to: '/admin/temporadas',
-    status: 'Disponible'
-  },
-  {
     title: 'Equipos',
     description: 'Crear clubes, asignar categoría, rama, colores y manager.',
     icon: 'i-lucide-shield-plus',
     to: '/admin/equipos',
     status: 'Disponible'
-  },
-  {
-    title: 'Jugadores',
-    description: 'Administrar roster, números, posiciones y estatus.',
-    icon: 'i-lucide-list-plus',
-    to: '/admin/jugadores',
-    status: 'Próximo'
   },
   {
     title: 'Rol de juegos',
@@ -104,6 +90,13 @@ const adminModules = [
     description: 'Capturar marcadores, pitchers y bateadores destacados.',
     icon: 'i-lucide-clipboard-check',
     to: '/admin/resultados',
+    status: 'Disponible'
+  },
+  {
+    title: 'Temporadas',
+    description: 'Crear temporadas, activar la vigente y archivar anteriores.',
+    icon: 'i-lucide-calendar-range',
+    to: '/admin/temporadas',
     status: 'Disponible'
   }
 ]
@@ -166,16 +159,9 @@ const adminModules = [
             Módulos administrativos
           </h2>
           <p class="text-sm text-muted">
-            Base lista para conectar las pantallas de captura.
+            Accesos principales para operar la temporada.
           </p>
         </div>
-        <UBadge
-          color="warning"
-          variant="subtle"
-          icon="i-lucide-hammer"
-        >
-          En construcción
-        </UBadge>
       </div>
 
       <div class="grid gap-3 md:grid-cols-2">

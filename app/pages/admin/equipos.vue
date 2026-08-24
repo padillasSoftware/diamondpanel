@@ -93,6 +93,7 @@ const isSavingTeam = ref(false)
 const isDeletingTeam = ref(false)
 const teamPendingDelete = ref<AdminTeam | null>(null)
 const isSlugDirty = ref(false)
+const showAdvancedTeamOptions = ref(false)
 const search = ref('')
 const selectedStatus = ref<'ALL' | TeamStatus>('ALL')
 const selectedCategory = ref<'ALL' | TeamCategory>('ALL')
@@ -162,6 +163,22 @@ function managerIds(team: AdminTeam) {
   return team.managerAssignments.map(assignment => assignment.user.id)
 }
 
+function handleManagerSelection(managerId: string, event: Event) {
+  const target = event.target
+
+  if (!(target instanceof HTMLInputElement)) return
+
+  if (target.checked) {
+    if (!teamForm.managerUserIds.includes(managerId)) {
+      teamForm.managerUserIds.push(managerId)
+    }
+
+    return
+  }
+
+  teamForm.managerUserIds = teamForm.managerUserIds.filter(id => id !== managerId)
+}
+
 function gameCount(team: AdminTeam) {
   return team._count.homeGames + team._count.awayGames
 }
@@ -203,6 +220,7 @@ function resetTeamForm() {
   teamForm.managerUserIds = []
   teamForm.newManagerName = ''
   teamForm.newManagerEmail = ''
+  showAdvancedTeamOptions.value = false
 }
 
 function editTeam(team: AdminTeam) {
@@ -434,17 +452,7 @@ async function confirmDeleteTeam() {
           </label>
 
           <label class="grid gap-1.5 text-sm">
-            <span class="font-medium text-highlighted">Slug</span>
-            <UInput
-              v-model="teamForm.slug"
-              placeholder="tigres"
-              required
-              @input="isSlugDirty = true"
-            />
-          </label>
-
-          <label class="grid gap-1.5 text-sm">
-            <span class="font-medium text-highlighted">Manejador visible</span>
+            <span class="font-medium text-highlighted">Nombre público del manejador</span>
             <UInput
               v-model="teamForm.managerName"
               placeholder="Nombre para mostrar"
@@ -499,57 +507,38 @@ async function confirmDeleteTeam() {
             </select>
           </label>
 
-          <label class="grid gap-1.5 text-sm">
-            <span class="font-medium text-highlighted">Logo URL</span>
-            <UInput
-              v-model="teamForm.logoUrl"
-              placeholder="https://..."
-            />
-          </label>
-
-          <label class="grid gap-1.5 text-sm">
-            <span class="font-medium text-highlighted">Color primario</span>
-            <div class="grid grid-cols-[3rem_1fr] gap-2">
-              <input
-                v-model="teamForm.primaryColor"
-                type="color"
-                class="h-10 w-12 rounded-md border border-default bg-default"
-              >
-              <UInput v-model="teamForm.primaryColor" />
-            </div>
-          </label>
-
-          <label class="grid gap-1.5 text-sm">
-            <span class="font-medium text-highlighted">Color secundario</span>
-            <div class="grid grid-cols-[3rem_1fr] gap-2">
-              <input
-                v-model="teamForm.secondaryColor"
-                type="color"
-                class="h-10 w-12 rounded-md border border-default bg-default"
-              >
-              <UInput v-model="teamForm.secondaryColor" />
-            </div>
-          </label>
-
-          <label class="grid gap-1.5 text-sm sm:col-span-2">
+          <div class="grid gap-1.5 text-sm sm:col-span-2">
             <span class="font-medium text-highlighted">Manejadores con acceso</span>
-            <select
-              v-model="teamForm.managerUserIds"
-              multiple
-              class="min-h-28 w-full rounded-md border border-default bg-default px-3 py-2 text-sm text-highlighted outline-none focus:border-primary"
-            >
-              <option
+            <div class="grid max-h-40 gap-2 overflow-y-auto rounded-md border border-default bg-default p-2">
+              <label
                 v-for="manager in managerOptions"
                 :key="manager.id"
-                :value="manager.id"
+                class="flex items-center gap-2 rounded-md bg-muted/30 px-2 py-2"
               >
-                {{ manager.name ?? manager.email }} · {{ manager.email }}
-              </option>
-            </select>
-            <span class="text-xs text-muted">
-              Usa Cmd/Ctrl para seleccionar más de un manejador.
-            </span>
-          </label>
+                <input
+                  type="checkbox"
+                  class="size-4"
+                  :checked="teamForm.managerUserIds.includes(manager.id)"
+                  @change="handleManagerSelection(manager.id, $event)"
+                >
+                <span class="min-w-0">
+                  <span class="block truncate font-medium text-highlighted">
+                    {{ manager.name ?? manager.email }}
+                  </span>
+                  <span class="block truncate text-xs text-muted">
+                    {{ manager.email }}
+                  </span>
+                </span>
+              </label>
+
+              <p
+                v-if="!managerOptions.length"
+                class="px-2 py-3 text-sm text-muted"
+              >
+                Aún no hay manejadores registrados.
+              </p>
+            </div>
+          </div>
 
           <div class="grid gap-2 border-t border-default pt-2 sm:col-span-2 sm:grid-cols-2">
             <label class="grid gap-1.5 text-sm">
@@ -571,6 +560,65 @@ async function confirmDeleteTeam() {
             <p class="text-xs text-muted sm:col-span-2">
               El sistema asigna la misma contraseña temporal a todos los manejadores nuevos.
             </p>
+          </div>
+
+          <div class="grid gap-2 border-t border-default pt-2 sm:col-span-2">
+            <UButton
+              type="button"
+              :icon="showAdvancedTeamOptions ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
+              :label="showAdvancedTeamOptions ? 'Ocultar opciones avanzadas' : 'Opciones avanzadas'"
+              color="neutral"
+              variant="ghost"
+              class="w-fit"
+              @click="showAdvancedTeamOptions = !showAdvancedTeamOptions"
+            />
+
+            <div
+              v-if="showAdvancedTeamOptions"
+              class="grid gap-2 sm:grid-cols-2"
+            >
+              <label class="grid gap-1.5 text-sm">
+                <span class="font-medium text-highlighted">Slug</span>
+                <UInput
+                  v-model="teamForm.slug"
+                  placeholder="tigres"
+                  required
+                  @input="isSlugDirty = true"
+                />
+              </label>
+
+              <label class="grid gap-1.5 text-sm">
+                <span class="font-medium text-highlighted">Logo URL</span>
+                <UInput
+                  v-model="teamForm.logoUrl"
+                  placeholder="https://..."
+                />
+              </label>
+
+              <label class="grid gap-1.5 text-sm">
+                <span class="font-medium text-highlighted">Color primario</span>
+                <div class="grid grid-cols-[3rem_1fr] gap-2">
+                  <input
+                    v-model="teamForm.primaryColor"
+                    type="color"
+                    class="h-10 w-12 rounded-md border border-default bg-default"
+                  >
+                  <UInput v-model="teamForm.primaryColor" />
+                </div>
+              </label>
+
+              <label class="grid gap-1.5 text-sm">
+                <span class="font-medium text-highlighted">Color secundario</span>
+                <div class="grid grid-cols-[3rem_1fr] gap-2">
+                  <input
+                    v-model="teamForm.secondaryColor"
+                    type="color"
+                    class="h-10 w-12 rounded-md border border-default bg-default"
+                  >
+                  <UInput v-model="teamForm.secondaryColor" />
+                </div>
+              </label>
+            </div>
           </div>
         </div>
 

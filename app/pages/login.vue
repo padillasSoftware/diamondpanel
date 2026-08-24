@@ -5,7 +5,7 @@ definePageMeta({
 
 useSeoMeta({
   title: 'Login | DiamondPanel',
-  description: 'Acceso administrativo de DiamondPanel.'
+  description: 'Acceso de administradores y manejadores de DiamondPanel.'
 })
 
 const route = useRoute()
@@ -99,13 +99,13 @@ async function handleLogin() {
           variant="subtle"
           icon="i-lucide-shield-check"
         >
-          Administrador
+          Liga y manejadores
         </UBadge>
         <h1 class="mt-3 text-3xl font-bold tracking-normal text-highlighted">
           Acceso a DiamondPanel
         </h1>
         <p class="mt-2 text-sm text-muted">
-          Ingresa con tu cuenta para administrar la liga.
+          Ingresa con tu cuenta para entrar al panel de la liga.
         </p>
       </div>
 
@@ -118,6 +118,7 @@ async function handleLogin() {
           <UInput
             v-model="email"
             type="email"
+            aria-label="Email"
             autocomplete="email"
             placeholder="admin@diamondpanel.app"
             :color="emailError ? 'error' : 'neutral'"
@@ -136,6 +137,7 @@ async function handleLogin() {
           <UInput
             v-model="password"
             type="password"
+            aria-label="Contraseña"
             autocomplete="current-password"
             placeholder="Tu contraseña"
             :color="passwordError ? 'error' : 'neutral'"

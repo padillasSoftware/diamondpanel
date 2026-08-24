@@ -117,7 +117,10 @@ const isSavingGame = ref(false)
 const isSavingConfigs = ref(false)
 const isGeneratingSchedule = ref(false)
 const isDeletingGame = ref(false)
+const isReleasingGame = ref(false)
+const showRoundConfigs = ref(false)
 const gamePendingDelete = ref<ScheduleGame | null>(null)
+const gamePendingRelease = ref<ScheduleGame | null>(null)
 
 const categoryOptions = TEAM_CATEGORY_OPTIONS.filter(
   (option): option is { label: string, value: TeamCategory } => option.value !== 'ALL'
@@ -128,7 +131,7 @@ const branchOptions = TEAM_BRANCH_OPTIONS.filter(
 const statusOptions = [
   { label: 'Programado', value: 'SCHEDULED' },
   { label: 'Suspendido', value: 'POSTPONED' },
-  { label: 'Cancelado', value: 'CANCELLED' },
+  { label: 'Cancelado / pendiente', value: 'CANCELLED' },
   { label: 'Final', value: 'FINAL' }
 ] satisfies { label: string, value: GameStatus }[]
 
@@ -187,6 +190,12 @@ const isDeleteModalOpen = computed({
   get: () => gamePendingDelete.value !== null,
   set: (value) => {
     if (!value) gamePendingDelete.value = null
+  }
+})
+const isReleaseModalOpen = computed({
+  get: () => gamePendingRelease.value !== null,
+  set: (value) => {
+    if (!value) gamePendingRelease.value = null
   }
 })
 
@@ -459,6 +468,74 @@ function deleteGame(game: ScheduleGame) {
   }
 
   gamePendingDelete.value = game
+}
+
+function canReleaseGame(game: ScheduleGame) {
+  return game.status !== 'CANCELLED' && game.status !== 'FINAL' && !game.result
+}
+
+function releaseGame(game: ScheduleGame) {
+  if (!canReleaseGame(game)) {
+    showError(
+      game.status === 'CANCELLED'
+        ? 'Este partido ya está cancelado y el cruce quedó pendiente.'
+        : 'Este partido ya tiene resultado capturado.'
+    )
+
+    return
+  }
+
+  gamePendingRelease.value = game
+}
+
+function releasedGameNotes(game: ScheduleGame) {
+  const note = 'Cancelado. Cruce pendiente para reprogramar.'
+  const currentNotes = game.notes?.trim()
+
+  if (!currentNotes) return note
+  if (currentNotes.includes(note)) return currentNotes
+
+  return `${currentNotes}\n${note}`
+}
+
+async function confirmReleaseGame() {
+  const game = gamePendingRelease.value
+
+  if (!game) return
+
+  isReleasingGame.value = true
+
+  try {
+    await $fetch(`/api/admin/schedule/games/${game.id}`, {
+      method: 'PATCH',
+      body: {
+        weekStart: weekStart.value,
+        round: game.round ?? data.value?.suggestedRound ?? 1,
+        scheduledAt: toLeagueDateTimeInput(game.scheduledAt),
+        homeTeamId: game.homeTeam.id,
+        awayTeamId: game.awayTeam.id,
+        fieldId: game.field?.id ?? null,
+        status: 'CANCELLED',
+        notes: releasedGameNotes(game)
+      }
+    })
+    await refresh()
+
+    if (editingGameId.value === game.id) {
+      resetGameForm()
+    }
+
+    gamePendingRelease.value = null
+    showFeedback('Juego cancelado. El cruce quedó pendiente para otro rol.')
+  } catch (error) {
+    const statusMessage = typeof error === 'object' && error && 'data' in error
+      ? String((error as { data?: { statusMessage?: unknown } }).data?.statusMessage ?? '')
+      : ''
+
+    showError(statusMessage || 'No se pudo cancelar el partido.')
+  } finally {
+    isReleasingGame.value = false
+  }
 }
 
 async function confirmDeleteGame() {
@@ -764,7 +841,20 @@ async function confirmDeleteGame() {
           />
         </form>
 
-        <section class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3">
+        <UButton
+          type="button"
+          :icon="showRoundConfigs ? 'i-lucide-chevron-up' : 'i-lucide-settings'"
+          :label="showRoundConfigs ? 'Ocultar vueltas' : 'Configurar vueltas'"
+          color="neutral"
+          variant="outline"
+          class="w-fit"
+          @click="showRoundConfigs = !showRoundConfigs"
+        />
+
+        <section
+          v-if="showRoundConfigs"
+          class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3"
+        >
           <div class="mb-2.5 flex items-center justify-between gap-2">
             <div>
               <h2 class="text-base font-bold text-highlighted">
@@ -891,6 +981,16 @@ async function confirmDeleteGame() {
                   <div class="flex shrink-0 gap-1.5">
                     <UButton
                       type="button"
+                      icon="i-lucide-calendar-x"
+                      aria-label="Cancelar y dejar pendiente"
+                      color="warning"
+                      variant="subtle"
+                      size="sm"
+                      :disabled="isReleasingGame || !canReleaseGame(game)"
+                      @click="releaseGame(game)"
+                    />
+                    <UButton
+                      type="button"
                       icon="i-lucide-pencil"
                       aria-label="Editar partido"
                       color="neutral"
@@ -981,6 +1081,31 @@ async function confirmDeleteGame() {
         </div>
       </section>
     </section>
+
+    <UModal
+      v-model:open="isReleaseModalOpen"
+      title="Cancelar juego"
+      :description="gamePendingRelease ? `¿Deseas cancelar ${gamePendingRelease.homeTeam.name} vs ${gamePendingRelease.awayTeam.name}? El cruce quedará pendiente para generarse en otro rol.` : ''"
+    >
+      <template #footer="{ close }">
+        <UButton
+          type="button"
+          label="Mantener"
+          color="neutral"
+          variant="ghost"
+          :disabled="isReleasingGame"
+          @click="close"
+        />
+        <UButton
+          type="button"
+          label="Cancelar y liberar"
+          color="warning"
+          icon="i-lucide-calendar-x"
+          :loading="isReleasingGame"
+          @click="confirmReleaseGame"
+        />
+      </template>
+    </UModal>
 
     <UModal
       v-model:open="isDeleteModalOpen"

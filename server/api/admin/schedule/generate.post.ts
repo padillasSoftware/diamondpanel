@@ -27,6 +27,12 @@ type PlannedMatchup = {
   homeTeam: GenerationTeam
   awayTeam: GenerationTeam
   pairKey: string
+  priority: number
+}
+
+type CancelledMatchupSeed = {
+  homeTeamId: string
+  awayTeamId: string
 }
 
 const weekendSlots = [
@@ -215,15 +221,15 @@ export default defineEventHandler(async (event) => {
       }),
       tx.game.findMany({
         where: {
-          seasonId: season.id,
-          status: { not: GameStatus.CANCELLED }
+          seasonId: season.id
         },
         select: {
           round: true,
           scheduledAt: true,
           fieldId: true,
           homeTeamId: true,
-          awayTeamId: true
+          awayTeamId: true,
+          status: true
         }
       })
     ])
@@ -236,6 +242,8 @@ export default defineEventHandler(async (event) => {
     const occupiedSlots = new Set<string>()
     const pairCounts = new Map<string, number>()
     const existingRoundPairs = new Set<string>()
+    const plannedPairKeys = new Set<string>()
+    const cancelledPairSeeds = new Map<string, CancelledMatchupSeed>()
 
     for (const team of teams) {
       const key = groupKey(team.category, team.branch)
@@ -247,6 +255,17 @@ export default defineEventHandler(async (event) => {
 
     for (const game of seasonGames) {
       const currentPairKey = pairKey(game.homeTeamId, game.awayTeamId)
+
+      if (game.status === GameStatus.CANCELLED) {
+        if (!cancelledPairSeeds.has(currentPairKey)) {
+          cancelledPairSeeds.set(currentPairKey, {
+            homeTeamId: game.homeTeamId,
+            awayTeamId: game.awayTeamId
+          })
+        }
+
+        continue
+      }
 
       pairCounts.set(currentPairKey, (pairCounts.get(currentPairKey) ?? 0) + 1)
 
@@ -276,26 +295,47 @@ export default defineEventHandler(async (event) => {
 
     for (const group of groups) {
       const roundRobin = buildRoundRobinPairs(group.teams, round, group.turns)
+      let groupPlannedMatchups = 0
 
       if (!roundRobin.pairs.length) {
         groupsOutsideConfiguredTurns += 1
-        continue
+      } else {
+        for (const pair of roundRobin.pairs) {
+          const currentPairKey = pairKey(pair.homeTeam.id, pair.awayTeam.id)
+
+          if (existingRoundPairs.has(currentPairKey)) continue
+          if (plannedPairKeys.has(currentPairKey)) continue
+          if ((pairCounts.get(currentPairKey) ?? 0) >= group.turns) continue
+
+          plannedMatchups.push({
+            groupKey: group.key,
+            homeTeam: pair.homeTeam,
+            awayTeam: pair.awayTeam,
+            pairKey: currentPairKey,
+            priority: 0
+          })
+          plannedPairKeys.add(currentPairKey)
+          groupPlannedMatchups += 1
+        }
       }
 
-      let groupPlannedMatchups = 0
+      for (const [currentPairKey, seed] of cancelledPairSeeds) {
+        const homeTeam = group.teams.find(team => team.id === seed.homeTeamId)
+        const awayTeam = group.teams.find(team => team.id === seed.awayTeamId)
 
-      for (const pair of roundRobin.pairs) {
-        const currentPairKey = pairKey(pair.homeTeam.id, pair.awayTeam.id)
-
+        if (!homeTeam || !awayTeam) continue
         if (existingRoundPairs.has(currentPairKey)) continue
+        if (plannedPairKeys.has(currentPairKey)) continue
         if ((pairCounts.get(currentPairKey) ?? 0) >= group.turns) continue
 
         plannedMatchups.push({
           groupKey: group.key,
-          homeTeam: pair.homeTeam,
-          awayTeam: pair.awayTeam,
-          pairKey: currentPairKey
+          homeTeam,
+          awayTeam,
+          pairKey: currentPairKey,
+          priority: 1
         })
+        plannedPairKeys.add(currentPairKey)
         groupPlannedMatchups += 1
       }
 
@@ -329,7 +369,8 @@ export default defineEventHandler(async (event) => {
     const createdIds: string[] = []
 
     for (const matchup of plannedMatchups.sort((left, right) =>
-      left.groupKey.localeCompare(right.groupKey)
+      left.priority - right.priority
+      || left.groupKey.localeCompare(right.groupKey)
       || left.homeTeam.name.localeCompare(right.homeTeam.name)
       || left.awayTeam.name.localeCompare(right.awayTeam.name)
     )) {

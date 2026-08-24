@@ -624,7 +624,7 @@ function pickMatrixGame<T extends {
 
   if (scheduledGame) return scheduledGame
 
-  return games[0] ?? null
+  return null
 }
 
 function categoryText(category: TeamCategoryValue) {

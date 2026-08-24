@@ -69,6 +69,7 @@ const completedGames = computed(() => recentResults.value?.length ?? 0)
 const featuredTeams = computed(() => teams.value?.slice(0, 6) ?? [])
 const matchupGroups = computed(() => matchupMatrix.value?.groups ?? [])
 const selectedMatchupGroupId = ref('')
+const showMatchupMatrix = ref(false)
 const selectedMatchupGroup = computed(() =>
   matchupGroups.value.find(group => group.id === selectedMatchupGroupId.value) ?? matchupGroups.value[0] ?? null
 )
@@ -179,100 +180,113 @@ function matchupCellClass(state: MatchupCellState) {
           </h2>
         </div>
 
-        <label
-          v-if="matchupGroups.length > 1"
-          class="grid gap-1.5 text-sm lg:min-w-56"
-        >
-          <span class="font-medium text-highlighted">Grupo</span>
-          <select
-            v-model="selectedMatchupGroupId"
-            class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-end">
+          <label
+            v-if="showMatchupMatrix && matchupGroups.length > 1"
+            class="grid gap-1.5 text-sm sm:min-w-56"
           >
-            <option
-              v-for="group in matchupGroups"
-              :key="group.id"
-              :value="group.id"
+            <span class="font-medium text-highlighted">Grupo</span>
+            <select
+              v-model="selectedMatchupGroupId"
+              class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
             >
-              {{ group.label }}
-            </option>
-          </select>
-        </label>
-      </div>
+              <option
+                v-for="group in matchupGroups"
+                :key="group.id"
+                :value="group.id"
+              >
+                {{ group.label }}
+              </option>
+            </select>
+          </label>
 
-      <div class="mb-4 grid gap-2 text-xs sm:grid-cols-3 lg:grid-cols-6">
-        <div
-          v-for="item in matchupLegend"
-          :key="item.state"
-          class="rounded-md border-t-4 bg-muted/20 px-2 py-1.5 text-center text-muted"
-          :class="{
-            'border-neutral-300': item.state === 'PENDING',
-            'border-cyan-400': item.state === 'SCHEDULED',
-            'border-lime-400': item.state === 'WON',
-            'border-yellow-400': item.state === 'TIED',
-            'border-red-400': item.state === 'LOST',
-            'border-orange-400': item.state === 'DEFAULT'
-          }"
-        >
-          {{ item.label }}
+          <UButton
+            type="button"
+            :icon="showMatchupMatrix ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
+            :label="showMatchupMatrix ? 'Ocultar cruces' : 'Ver cruces'"
+            color="neutral"
+            variant="outline"
+            @click="showMatchupMatrix = !showMatchupMatrix"
+          />
         </div>
       </div>
 
-      <div
-        v-if="selectedMatchupGroup"
-        class="max-w-full overflow-x-auto pb-1"
-      >
-        <table class="w-max border-separate border-spacing-1 text-xs">
-          <thead>
-            <tr class="text-muted">
-              <th class="sticky left-0 z-10 min-w-44 bg-default px-2 py-1 text-right font-bold">
-                Equipos
-              </th>
-              <th class="w-8 px-1 py-1 text-center font-bold">
-                #
-              </th>
-              <th
-                v-for="(team, index) in selectedMatchupGroup.teams"
-                :key="team.id"
-                class="w-16 px-1 py-1 text-center font-bold"
-                :title="team.name"
-              >
-                {{ index + 1 }}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="row in selectedMatchupGroup.rows"
-              :key="row.team.id"
-            >
-              <th class="sticky left-0 z-10 max-w-44 bg-default px-2 py-1 text-right font-semibold text-primary">
-                <span class="block truncate">
-                  {{ row.team.name }}
-                </span>
-              </th>
-              <td class="px-1 py-1 text-center font-semibold text-muted">
-                {{ row.index }}
-              </td>
-              <td
-                v-for="cell in row.cells"
-                :key="`${row.team.id}-${cell.opponentId}`"
-                class="h-8 w-16 rounded-md px-1 text-center text-[11px] font-semibold"
-                :class="matchupCellClass(cell.state)"
-                :title="`${row.team.name} vs ${cell.opponentName}: ${cell.title}`"
-              >
-                {{ cell.label }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <template v-if="showMatchupMatrix">
+        <div class="mb-4 grid gap-2 text-xs sm:grid-cols-3 lg:grid-cols-6">
+          <div
+            v-for="item in matchupLegend"
+            :key="item.state"
+            class="rounded-md border-t-4 bg-muted/20 px-2 py-1.5 text-center text-muted"
+            :class="{
+              'border-neutral-300': item.state === 'PENDING',
+              'border-cyan-400': item.state === 'SCHEDULED',
+              'border-lime-400': item.state === 'WON',
+              'border-yellow-400': item.state === 'TIED',
+              'border-red-400': item.state === 'LOST',
+              'border-orange-400': item.state === 'DEFAULT'
+            }"
+          >
+            {{ item.label }}
+          </div>
+        </div>
 
-      <div
-        v-else
-        class="rounded-lg border border-dashed border-default p-6 text-center text-sm text-muted"
-      >
-        Aún no hay equipos suficientes para mostrar cruces.
-      </div>
+        <div
+          v-if="selectedMatchupGroup"
+          class="max-w-full overflow-x-auto pb-1"
+        >
+          <table class="w-max border-separate border-spacing-1 text-xs">
+            <thead>
+              <tr class="text-muted">
+                <th class="sticky left-0 z-10 min-w-44 bg-default px-2 py-1 text-right font-bold">
+                  Equipos
+                </th>
+                <th class="w-8 px-1 py-1 text-center font-bold">
+                  #
+                </th>
+                <th
+                  v-for="(team, index) in selectedMatchupGroup.teams"
+                  :key="team.id"
+                  class="w-16 px-1 py-1 text-center font-bold"
+                  :title="team.name"
+                >
+                  {{ index + 1 }}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="row in selectedMatchupGroup.rows"
+                :key="row.team.id"
+              >
+                <th class="sticky left-0 z-10 max-w-44 bg-default px-2 py-1 text-right font-semibold text-primary">
+                  <span class="block truncate">
+                    {{ row.team.name }}
+                  </span>
+                </th>
+                <td class="px-1 py-1 text-center font-semibold text-muted">
+                  {{ row.index }}
+                </td>
+                <td
+                  v-for="cell in row.cells"
+                  :key="`${row.team.id}-${cell.opponentId}`"
+                  class="h-8 w-16 rounded-md px-1 text-center text-[11px] font-semibold"
+                  :class="matchupCellClass(cell.state)"
+                  :title="`${row.team.name} vs ${cell.opponentName}: ${cell.title}`"
+                >
+                  {{ cell.label }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div
+          v-else
+          class="rounded-lg border border-dashed border-default p-6 text-center text-sm text-muted"
+        >
+          Aún no hay equipos suficientes para mostrar cruces.
+        </div>
+      </template>
     </section>
 
     <div class="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
