@@ -719,7 +719,7 @@ async function confirmDeleteTeam() {
         />
       </form>
 
-      <section class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 xl:flex xl:max-h-[42rem] xl:flex-col">
+      <section class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 xl:flex xl:max-h-168 xl:flex-col">
         <div class="mb-2.5 grid gap-2 lg:grid-cols-[1fr_auto] lg:items-end">
           <div>
             <h2 class="text-base font-bold text-highlighted">
