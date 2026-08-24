@@ -47,6 +47,11 @@ type MatchupMatrixResponse = {
   groups: MatchupMatrixGroup[]
 }
 
+const { user } = useAuth()
+const { public: { leagueName } } = useRuntimeConfig()
+const isPublicLanding = computed(() => !user.value)
+const shouldLoadDashboard = Boolean(user.value)
+
 const [
   { data: season },
   { data: standings },
@@ -55,12 +60,12 @@ const [
   { data: teams },
   { data: matchupMatrix }
 ] = await Promise.all([
-  useFetch<Season>('/api/seasons/active'),
-  useFetch<Standing[]>('/api/standings'),
-  useFetch<Game[]>('/api/games/upcoming', { query: { limit: 4 } }),
-  useFetch<ResultGame[]>('/api/results/recent', { query: { limit: 4 } }),
-  useFetch<Team[]>('/api/teams'),
-  useFetch<MatchupMatrixResponse>('/api/matchups/matrix')
+  useFetch<Season>('/api/seasons/active', { immediate: shouldLoadDashboard }),
+  useFetch<Standing[]>('/api/standings', { immediate: shouldLoadDashboard }),
+  useFetch<Game[]>('/api/games/upcoming', { immediate: shouldLoadDashboard, query: { limit: 4 } }),
+  useFetch<ResultGame[]>('/api/results/recent', { immediate: shouldLoadDashboard, query: { limit: 4 } }),
+  useFetch<Team[]>('/api/teams', { immediate: shouldLoadDashboard }),
+  useFetch<MatchupMatrixResponse>('/api/matchups/matrix', { immediate: shouldLoadDashboard })
 ])
 
 const topStandings = computed(() => standings.value?.slice(0, 5) ?? [])
@@ -73,8 +78,6 @@ const showMatchupMatrix = ref(false)
 const selectedMatchupGroup = computed(() =>
   matchupGroups.value.find(group => group.id === selectedMatchupGroupId.value) ?? matchupGroups.value[0] ?? null
 )
-const { public: { leagueName } } = useRuntimeConfig()
-
 const matchupLegend = [
   { label: 'pendiente', state: 'PENDING' },
   { label: 'programado', state: 'SCHEDULED' },
@@ -113,7 +116,12 @@ function matchupCellClass(state: MatchupCellState) {
 </script>
 
 <template>
-  <UContainer class="min-w-0 py-5 sm:py-8">
+  <PublicLanding v-if="isPublicLanding" />
+
+  <UContainer
+    v-else
+    class="min-w-0 py-5 sm:py-8"
+  >
     <div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
       <div class="min-w-0">
         <div class="mb-3 flex flex-wrap items-center gap-2">

@@ -37,7 +37,8 @@ const route = useRoute()
 const { user, isAdmin, logout } = useAuth()
 const { public: { leagueName } } = useRuntimeConfig()
 const { data: activeSeason } = await useFetch<NavigationSeason>('/api/seasons/active', {
-  key: 'navbar-active-season'
+  key: 'navbar-active-season',
+  immediate: Boolean(user.value)
 })
 const managedTeams = computed(() => isAdmin.value ? [] : (user.value?.managedTeams ?? []))
 const hasMultipleManagedTeams = computed(() => managedTeams.value.length > 1)
