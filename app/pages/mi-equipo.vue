@@ -53,6 +53,7 @@ const memberForm = reactive({
 
 const editingMemberId = ref<string | null>(null)
 const isSavingTeam = ref(false)
+const isUploadingTeamLogo = ref(false)
 const isSavingMember = ref(false)
 const isDeletingMember = ref(false)
 const memberPendingDelete = ref<Player | null>(null)
@@ -150,6 +151,10 @@ function resetMemberForm() {
   memberForm.status = 'ACTIVE'
 }
 
+function teamFormInitials() {
+  return teamForm.shortName.trim() || teamForm.name.trim().slice(0, 2).toUpperCase() || 'DP'
+}
+
 function editMember(member: Player) {
   editingMemberId.value = member.id
   memberForm.firstName = member.firstName
@@ -192,6 +197,56 @@ async function saveTeam() {
     showError('No se pudo actualizar el equipo. Revisa que el nombre no esté repetido y que los colores usen formato válido.')
   } finally {
     isSavingTeam.value = false
+  }
+}
+
+async function uploadTeamLogo(event: Event) {
+  const input = event.target
+
+  if (!(input instanceof HTMLInputElement)) return
+
+  const file = input.files?.[0]
+
+  if (!file) return
+
+  if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+    showError('El logo debe ser PNG, JPG o WebP.')
+    input.value = ''
+
+    return
+  }
+
+  if (file.size > 3 * 1024 * 1024) {
+    showError('El logo debe pesar máximo 3 MB.')
+    input.value = ''
+
+    return
+  }
+
+  isUploadingTeamLogo.value = true
+
+  try {
+    const formData = new FormData()
+
+    formData.append('logo', file)
+
+    const response = await $fetch<{ logoUrl: string, team: ManagerTeam }>('/api/manager/team/logo', {
+      method: 'POST',
+      body: formData
+    })
+
+    team.value = response.team
+    teamForm.logoUrl = response.logoUrl
+    showFeedback('Logo actualizado.')
+  } catch (error) {
+    const statusMessage = typeof error === 'object' && error && 'data' in error
+      ? String((error as { data?: { statusMessage?: unknown } }).data?.statusMessage ?? '')
+      : ''
+
+    showError(statusMessage || 'No se pudo subir el logo del equipo.')
+  } finally {
+    isUploadingTeamLogo.value = false
+    input.value = ''
   }
 }
 
@@ -352,7 +407,14 @@ async function confirmDeleteMember() {
       <section class="rounded-lg border border-default bg-default p-4 shadow-sm sm:p-5">
         <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div class="flex min-w-0 items-center gap-3">
+            <img
+              v-if="teamForm.logoUrl"
+              :src="teamForm.logoUrl"
+              :alt="`Logo de ${team.name}`"
+              class="size-12 shrink-0 object-contain"
+            >
             <span
+              v-else
               class="flex size-12 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
               :style="{ backgroundColor: teamForm.primaryColor || '#047857' }"
             >
@@ -402,13 +464,36 @@ async function confirmDeleteMember() {
             />
           </label>
 
-          <label class="grid gap-1.5 text-sm">
-            <span class="font-medium text-highlighted">Logo URL</span>
-            <UInput
-              v-model="teamForm.logoUrl"
-              placeholder="https://..."
-            />
-          </label>
+          <div class="grid gap-2 rounded-md border border-default bg-muted/20 p-2 text-sm md:col-span-2">
+            <span class="font-medium text-highlighted">Logo del equipo</span>
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <img
+                v-if="teamForm.logoUrl"
+                :src="teamForm.logoUrl"
+                :alt="`Logo de ${teamForm.name}`"
+                class="size-20 shrink-0 object-contain"
+              >
+              <span
+                v-else
+                class="flex size-16 shrink-0 items-center justify-center rounded-md text-sm font-bold text-white"
+                :style="{ backgroundColor: teamForm.primaryColor || '#047857' }"
+              >
+                {{ teamFormInitials() }}
+              </span>
+              <div class="min-w-0 flex-1">
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  class="block w-full text-sm text-muted file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-2 file:text-sm file:font-medium file:text-white disabled:opacity-60"
+                  :disabled="isUploadingTeamLogo"
+                  @change="uploadTeamLogo"
+                >
+                <p class="mt-1 text-xs text-muted">
+                  PNG, JPG o WebP. Máximo 3 MB.
+                </p>
+              </div>
+            </div>
+          </div>
 
           <label class="grid gap-1.5 text-sm">
             <span class="font-medium text-highlighted">Color primario</span>
