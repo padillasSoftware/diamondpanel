@@ -22,16 +22,13 @@ const adminNavigation = [
 const route = useRoute()
 const { user, isAdmin, logout } = useAuth()
 const { public: { leagueName } } = useRuntimeConfig()
-const managedTeams = computed(() => user.value?.managedTeams ?? [])
+const managedTeams = computed(() => isAdmin.value ? [] : (user.value?.managedTeams ?? []))
 const hasMultipleManagedTeams = computed(() => managedTeams.value.length > 1)
 const isSwitchingTeam = ref(false)
 const navigation = computed(() => [
   ...baseNavigation,
   ...(managedTeams.value.length
     ? [{ label: 'Mi equipo', to: '/mi-equipo', icon: 'i-lucide-clipboard-pen' }]
-    : []),
-  ...(isAdmin.value
-    ? [{ label: 'Admin', to: '/admin', icon: 'i-lucide-layout-dashboard' }]
     : [])
 ])
 
@@ -40,7 +37,7 @@ const isActive = (to: string) => to === '/'
   : route.path === to || route.path.startsWith(`${to}/`)
 
 const isAdminSection = computed(() => route.path === '/admin' || route.path.startsWith('/admin/'))
-const visibleNavigation = computed(() => isAdminSection.value ? adminNavigation : navigation.value)
+const visibleNavigation = computed(() => isAdmin.value || isAdminSection.value ? adminNavigation : navigation.value)
 
 const isNavigationItemActive = (to: string) => to === '/admin'
   ? route.path === '/admin'

@@ -40,7 +40,7 @@ export function useAuth() {
   const initialized = useState('auth:initialized', () => false)
   const isAuthenticated = computed(() => Boolean(user.value))
   const isAdmin = computed(() => user.value?.role === 'ADMIN')
-  const isTeamManager = computed(() => Boolean(user.value?.managedTeams.length))
+  const isTeamManager = computed(() => user.value?.role !== 'ADMIN' && Boolean(user.value?.managedTeams.length))
 
   const fetchSession = async () => {
     const fetcher = import.meta.server ? useRequestFetch() : $fetch

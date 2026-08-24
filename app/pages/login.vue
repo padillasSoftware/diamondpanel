@@ -28,9 +28,10 @@ const redirectPath = computed(() => {
     ? redirect
     : '/admin'
 })
+const adminRedirectPath = computed(() => getAdminRedirectPath(redirectPath.value))
 
 if (user.value) {
-  await navigateTo(user.value.role === 'ADMIN' ? redirectPath.value : '/')
+  await navigateTo(user.value.role === 'ADMIN' ? adminRedirectPath.value : '/')
 }
 
 const emailError = computed(() => {
@@ -72,7 +73,7 @@ async function handleLogin() {
     })
 
     showSplash.value = true
-    await navigateTo(loggedInUser?.role === 'ADMIN' ? redirectPath.value : '/')
+    await navigateTo(loggedInUser?.role === 'ADMIN' ? adminRedirectPath.value : '/')
   } catch {
     toast.add({
       title: 'No se pudo iniciar sesión',
@@ -83,6 +84,18 @@ async function handleLogin() {
   } finally {
     isSubmitting.value = false
   }
+}
+
+function getAdminRedirectPath(path: string) {
+  if (path === '/mi-perfil') return path
+  if (path === '/admin' || path.startsWith('/admin/')) return path
+  if (path === '/posiciones') return '/admin/posiciones'
+  if (path === '/rol') return '/admin/rol'
+  if (path === '/resultados') return '/admin/resultados'
+  if (path === '/equipos' || path.startsWith('/equipos/')) return '/admin/equipos'
+  if (path === '/mi-equipo') return '/admin/equipos'
+
+  return '/admin'
 }
 </script>
 

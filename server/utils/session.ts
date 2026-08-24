@@ -287,6 +287,13 @@ export async function requireAdmin(event: H3Event) {
 export async function requireTeamManager(event: H3Event) {
   const user = await requireUser(event)
 
+  if (user.role === UserRole.ADMIN) {
+    throw createError({
+      statusCode: 403,
+      statusMessage: 'Manager access required'
+    })
+  }
+
   if (!user.activeTeamId || !user.activeTeam) {
     throw createError({
       statusCode: 403,
@@ -303,6 +310,14 @@ export async function requireTeamManager(event: H3Event) {
 
 export async function setActiveManagedTeam(event: H3Event, teamId: string) {
   const user = await requireUser(event)
+
+  if (user.role === UserRole.ADMIN) {
+    throw createError({
+      statusCode: 403,
+      statusMessage: 'Manager access required'
+    })
+  }
+
   const activeTeam = user.managedTeams.find(team => team.id === teamId)
 
   if (!activeTeam) {

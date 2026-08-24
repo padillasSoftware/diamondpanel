@@ -12,6 +12,10 @@ export default defineNuxtRouteMiddleware(async (to) => {
     })
   }
 
+  if (user.value.role === 'ADMIN') {
+    return navigateTo('/admin')
+  }
+
   if (!user.value.managedTeams.length) {
     return navigateTo('/sin-equipo')
   }
