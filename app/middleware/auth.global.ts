@@ -36,6 +36,7 @@ function getAdminTarget(path: string) {
   if (path === '/posiciones') return '/admin/posiciones'
   if (path === '/rol') return '/admin/rol'
   if (path === '/resultados') return '/admin/resultados'
+  if (path === '/elegibles') return '/admin/elegibles'
   if (path === '/equipos' || path.startsWith('/equipos/')) return '/admin/equipos'
   if (path === '/mi-equipo') return '/admin/equipos'
 

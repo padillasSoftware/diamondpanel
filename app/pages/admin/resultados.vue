@@ -8,6 +8,7 @@ import {
   gameStatusColor,
   gameStatusLabel,
   roundLabel,
+  type PlayoffEligibilityMode,
   type TeamBranch,
   type TeamCategory
 } from '~/utils/league'
@@ -58,6 +59,14 @@ type AdminResultHighlight = {
   player: AdminResultPlayer | null
 }
 
+type AdminResultLineupEntry = {
+  id: string
+  teamId: string
+  playerId: string
+  battingOrder: number | null
+  player: AdminResultPlayer
+}
+
 type AdminResultGame = {
   id: string
   round: number | null
@@ -86,6 +95,7 @@ type AdminResultGame = {
     losingPitcher: AdminResultPlayer | null
     battingHighlights: AdminResultHighlight[]
   } | null
+  lineupEntries: AdminResultLineupEntry[]
 }
 
 type ResultsResponse = {
@@ -97,11 +107,44 @@ type ResultsResponse = {
   games: AdminResultGame[]
 }
 
+type PlayoffEligibilityPlayer = AdminResultPlayer & {
+  lineupGames: number
+  isPlayoffEligible: boolean
+}
+
+type PlayoffEligibilityTeam = {
+  id: string
+  name: string
+  shortName: string | null
+  slug: string
+  category: TeamCategory
+  branch: TeamBranch
+  players: PlayoffEligibilityPlayer[]
+}
+
+type PlayoffEligibilityResponse = {
+  season: {
+    id: string
+    name: string
+    year: number
+  } | null
+  eligibilityMode: PlayoffEligibilityMode
+  isOpenRoster: boolean
+  minimumGames: number
+  teams: PlayoffEligibilityTeam[]
+}
+
 type HighlightForm = {
   playerName: string
   atBats: number
   hits: number
   homeRuns: number
+}
+
+type LineupPlayerForm = {
+  playerId: string
+  selected: boolean
+  battingOrder: number | null
 }
 
 const emptyHighlight = (): HighlightForm => ({
@@ -113,14 +156,17 @@ const emptyHighlight = (): HighlightForm => ({
 
 const toast = useToast()
 const { data, pending, refresh } = await useFetch<ResultsResponse>('/api/admin/results')
+const { data: eligibilityData, refresh: refreshEligibility } = await useFetch<PlayoffEligibilityResponse>('/api/admin/playoff-eligibility')
 
 const selectedGameId = ref<string | null>(null)
 const isSavingResult = ref(false)
 const isDeletingResult = ref(false)
+const isSavingLineup = ref(false)
 const editingResultId = ref<string | null>(null)
 const search = ref('')
 const selectedStatus = ref<'ALL' | 'PENDING' | 'FINAL'>('ALL')
 const showBattingHighlights = ref(false)
+const showLineupEditor = ref(false)
 
 const resultForm = reactive({
   homeScore: 0,
@@ -133,6 +179,10 @@ const resultForm = reactive({
   winnerHighlights: [emptyHighlight(), emptyHighlight(), emptyHighlight()],
   loserHighlights: [emptyHighlight(), emptyHighlight(), emptyHighlight()]
 })
+const lineupForm = reactive({
+  home: [] as LineupPlayerForm[],
+  away: [] as LineupPlayerForm[]
+})
 
 const games = computed(() => data.value?.games ?? [])
 const selectedGame = computed(() => games.value.find(game => game.id === selectedGameId.value) ?? null)
@@ -141,6 +191,19 @@ const showResultForm = computed(() => Boolean(
 ))
 const finalGames = computed(() => games.value.filter(game => game.result).length)
 const pendingGames = computed(() => games.value.filter(game => !game.result).length)
+const minimumLineupGames = computed(() => eligibilityData.value?.minimumGames ?? 5)
+const isOpenRoster = computed(() => eligibilityData.value?.isOpenRoster ?? false)
+const playoffPlayerMap = computed(() => {
+  const map = new Map<string, PlayoffEligibilityPlayer>()
+
+  for (const team of eligibilityData.value?.teams ?? []) {
+    for (const player of team.players) {
+      map.set(player.id, player)
+    }
+  }
+
+  return map
+})
 const winnerSide = computed<'home' | 'away' | null>(() => {
   if (resultForm.homeScore === resultForm.awayScore) return null
 
@@ -196,7 +259,9 @@ watch(games, (availableGames) => {
 watch(selectedGame, (game) => {
   editingResultId.value = null
   hydrateResultForm(game)
+  hydrateLineupForm(game)
   showBattingHighlights.value = Boolean(game?.result?.battingHighlights.length)
+  showLineupEditor.value = !game?.lineupEntries.length
 }, { immediate: true })
 
 watch(() => resultForm.isForfeit, (isForfeit) => {
@@ -224,6 +289,49 @@ function battingLine(highlight: AdminResultHighlight) {
   const hrText = highlight.homeRuns ? `, ${highlight.homeRuns} HR` : ''
 
   return `${savedPlayerName(highlight.playerName, highlight.player)} ${highlight.hits}-${highlight.atBats}${hrText}`
+}
+
+function lineupText(entry: AdminResultLineupEntry) {
+  const order = entry.battingOrder ? `${entry.battingOrder}. ` : ''
+
+  return `${order}${playerLabel(entry.player)}`
+}
+
+function lineupFormPlayerLabel(team: AdminResultTeam, playerId: string) {
+  const player = team.players.find(item => item.id === playerId)
+
+  return player ? playerLabel(player) : 'Jugador'
+}
+
+function lineupRowsForTeam(game: AdminResultGame, teamId: string) {
+  return game.lineupEntries
+    .filter(entry => entry.teamId === teamId)
+    .sort((left, right) => {
+      const leftOrder = left.battingOrder ?? 999
+      const rightOrder = right.battingOrder ?? 999
+
+      return leftOrder - rightOrder || playerLabel(left.player).localeCompare(playerLabel(right.player))
+    })
+}
+
+function selectedLineupCount(side: 'home' | 'away') {
+  return lineupForm[side].filter(player => player.selected).length
+}
+
+function playoffStatus(playerId: string) {
+  const player = playoffPlayerMap.value.get(playerId)
+  const lineupGames = player?.lineupGames ?? 0
+  const missingGames = Math.max(minimumLineupGames.value - lineupGames, 0)
+
+  return {
+    lineupGames,
+    missingGames,
+    isEligible: isOpenRoster.value || lineupGames >= minimumLineupGames.value
+  }
+}
+
+function eligibilityRowsForTeam(teamId: string) {
+  return eligibilityData.value?.teams.find(team => team.id === teamId)?.players ?? []
 }
 
 function scoreText(game: AdminResultGame) {
@@ -282,6 +390,36 @@ function hydrateResultForm(game: AdminResultGame | null) {
   resultForm.loserHighlights = resultForm.isForfeit ? emptyHighlights() : normalizeHighlights(game.result?.battingHighlights ?? [], 'LOSER')
 }
 
+function hydrateLineupForm(game: AdminResultGame | null) {
+  if (!game) {
+    lineupForm.home = []
+    lineupForm.away = []
+
+    return
+  }
+
+  const entriesByPlayerId = new Map(game.lineupEntries.map(entry => [entry.playerId, entry]))
+
+  lineupForm.home = game.homeTeam.players.map((player) => {
+    const entry = entriesByPlayerId.get(player.id)
+
+    return {
+      playerId: player.id,
+      selected: Boolean(entry),
+      battingOrder: entry?.battingOrder ?? null
+    }
+  })
+  lineupForm.away = game.awayTeam.players.map((player) => {
+    const entry = entriesByPlayerId.get(player.id)
+
+    return {
+      playerId: player.id,
+      selected: Boolean(entry),
+      battingOrder: entry?.battingOrder ?? null
+    }
+  })
+}
+
 function emptyHighlights() {
   return [emptyHighlight(), emptyHighlight(), emptyHighlight()]
 }
@@ -324,6 +462,36 @@ function resultPayload() {
     notes: resultForm.notes,
     winnerHighlights: resultForm.isForfeit ? [] : resultForm.winnerHighlights,
     loserHighlights: resultForm.isForfeit ? [] : resultForm.loserHighlights
+  }
+}
+
+function normalizedLineupRows(rows: LineupPlayerForm[]) {
+  return rows
+    .filter(row => row.selected)
+    .map(row => ({
+      playerId: row.playerId,
+      battingOrder: normalizeLineupOrder(row.battingOrder)
+    }))
+}
+
+function normalizeLineupOrder(value: unknown) {
+  const order = Number(value)
+
+  return Number.isInteger(order) && order > 0 ? order : null
+}
+
+function hasDuplicateLineupOrders(rows: LineupPlayerForm[]) {
+  const orders = rows
+    .filter(row => row.selected)
+    .map(row => normalizeLineupOrder(row.battingOrder))
+    .filter((order): order is number => order !== null)
+
+  return new Set(orders).size !== orders.length
+}
+
+function handleLineupSelectionChange(row: LineupPlayerForm) {
+  if (!row.selected) {
+    row.battingOrder = null
   }
 }
 
@@ -381,6 +549,41 @@ async function deleteResult() {
     showError(statusMessage || 'No se pudo eliminar la captura.')
   } finally {
     isDeletingResult.value = false
+  }
+}
+
+async function saveLineup() {
+  const game = selectedGame.value
+
+  if (!game) return
+
+  if (hasDuplicateLineupOrders(lineupForm.home) || hasDuplicateLineupOrders(lineupForm.away)) {
+    showError('El orden al bat no se puede repetir dentro del mismo equipo.')
+
+    return
+  }
+
+  isSavingLineup.value = true
+
+  try {
+    await $fetch(`/api/admin/results/${game.id}/lineup`, {
+      method: 'PATCH',
+      body: {
+        homeLineup: normalizedLineupRows(lineupForm.home),
+        awayLineup: normalizedLineupRows(lineupForm.away)
+      }
+    })
+    await Promise.all([refresh(), refreshEligibility()])
+    showLineupEditor.value = false
+    showFeedback('Lineups guardados.')
+  } catch (error) {
+    const statusMessage = typeof error === 'object' && error && 'data' in error
+      ? String((error as { data?: { statusMessage?: unknown } }).data?.statusMessage ?? '')
+      : ''
+
+    showError(statusMessage || 'Revisa los jugadores seleccionados.')
+  } finally {
+    isSavingLineup.value = false
   }
 }
 
@@ -457,7 +660,7 @@ function editSelectedResult() {
       v-else
       class="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]"
     >
-      <section class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 xl:flex xl:max-h-[48rem] xl:flex-col">
+      <section class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 xl:flex xl:max-h-192 xl:flex-col">
         <div class="mb-2.5 grid gap-2 lg:grid-cols-[1fr_auto] lg:items-end">
           <div>
             <h2 class="text-base font-bold text-highlighted">
@@ -553,607 +756,891 @@ function editSelectedResult() {
         </div>
       </section>
 
-      <section
-        v-if="selectedGame && selectedGame.result && !showResultForm"
-        class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3"
-      >
-        <div class="mb-3 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <div class="mb-2 flex flex-wrap gap-1.5">
-              <UBadge
-                color="success"
-                variant="subtle"
-                icon="i-lucide-check-circle-2"
-              >
-                Resultado capturado
-              </UBadge>
-              <UBadge
-                :color="categoryColor(selectedGame.homeTeam.category)"
-                variant="subtle"
-              >
-                {{ categoryLabel(selectedGame.homeTeam.category) }}
-              </UBadge>
-              <UBadge
-                :color="branchColor(selectedGame.homeTeam.branch)"
-                variant="subtle"
-              >
-                {{ branchLabel(selectedGame.homeTeam.branch) }}
-              </UBadge>
-              <UBadge
+      <div class="grid gap-4">
+        <section
+          v-if="selectedGame && selectedGame.result && !showResultForm"
+          class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3"
+        >
+          <div class="mb-3 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div class="mb-2 flex flex-wrap gap-1.5">
+                <UBadge
+                  color="success"
+                  variant="subtle"
+                  icon="i-lucide-check-circle-2"
+                >
+                  Resultado capturado
+                </UBadge>
+                <UBadge
+                  :color="categoryColor(selectedGame.homeTeam.category)"
+                  variant="subtle"
+                >
+                  {{ categoryLabel(selectedGame.homeTeam.category) }}
+                </UBadge>
+                <UBadge
+                  :color="branchColor(selectedGame.homeTeam.branch)"
+                  variant="subtle"
+                >
+                  {{ branchLabel(selectedGame.homeTeam.branch) }}
+                </UBadge>
+                <UBadge
+                  color="primary"
+                  variant="outline"
+                >
+                  {{ roundLabel(selectedGame.round) }}
+                </UBadge>
+              </div>
+              <h2 class="text-base font-bold text-highlighted">
+                {{ selectedGame.homeTeam.name }} vs {{ selectedGame.awayTeam.name }}
+              </h2>
+              <p class="text-xs text-muted">
+                {{ formatGameDate(selectedGame.scheduledAt) }} · {{ selectedGame.field?.name ?? 'Campo por definir' }}
+              </p>
+            </div>
+
+            <div class="flex flex-wrap gap-2">
+              <UButton
+                type="button"
+                icon="i-lucide-pencil"
+                label="Editar resultado"
                 color="primary"
-                variant="outline"
-              >
-                {{ roundLabel(selectedGame.round) }}
-              </UBadge>
+                variant="subtle"
+                size="sm"
+                @click="editSelectedResult"
+              />
+              <UButton
+                type="button"
+                icon="i-lucide-trash-2"
+                label="Quitar resultado"
+                color="error"
+                variant="subtle"
+                size="sm"
+                :loading="isDeletingResult"
+                @click="deleteResult"
+              />
             </div>
-            <h2 class="text-base font-bold text-highlighted">
-              {{ selectedGame.homeTeam.name }} vs {{ selectedGame.awayTeam.name }}
-            </h2>
-            <p class="text-xs text-muted">
-              {{ formatGameDate(selectedGame.scheduledAt) }} · {{ selectedGame.field?.name ?? 'Campo por definir' }}
-            </p>
           </div>
 
-          <div class="flex flex-wrap gap-2">
-            <UButton
-              type="button"
-              icon="i-lucide-pencil"
-              label="Editar resultado"
-              color="primary"
-              variant="subtle"
-              size="sm"
-              @click="editSelectedResult"
-            />
-            <UButton
-              type="button"
-              icon="i-lucide-trash-2"
-              label="Quitar resultado"
-              color="error"
-              variant="subtle"
-              size="sm"
-              :loading="isDeletingResult"
-              @click="deleteResult"
-            />
-          </div>
-        </div>
-
-        <div class="mb-3 grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
-          <div class="rounded-lg border border-default p-3">
-            <div class="mb-3 flex items-center gap-2">
-              <span
-                class="flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                :style="{ backgroundColor: selectedGame.homeTeam.primaryColor ?? '#047857' }"
-              >
-                {{ adminTeamInitials(selectedGame.homeTeam) }}
-              </span>
-              <div class="min-w-0">
-                <p class="truncate font-semibold text-highlighted">
-                  {{ selectedGame.homeTeam.name }}
-                </p>
-                <p class="text-xs text-muted">
-                  Local
-                </p>
+          <div class="mb-3 grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+            <div class="rounded-lg border border-default p-3">
+              <div class="mb-3 flex items-center gap-2">
+                <span
+                  class="flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+                  :style="{ backgroundColor: selectedGame.homeTeam.primaryColor ?? '#047857' }"
+                >
+                  {{ adminTeamInitials(selectedGame.homeTeam) }}
+                </span>
+                <div class="min-w-0">
+                  <p class="truncate font-semibold text-highlighted">
+                    {{ selectedGame.homeTeam.name }}
+                  </p>
+                  <p class="text-xs text-muted">
+                    Local
+                  </p>
+                </div>
               </div>
+              <p class="text-4xl font-bold text-highlighted">
+                {{ selectedGame.result.homeScore }}
+              </p>
             </div>
-            <p class="text-4xl font-bold text-highlighted">
-              {{ selectedGame.result.homeScore }}
-            </p>
-          </div>
 
-          <div class="hidden text-center text-xs font-bold text-muted sm:block">
-            VS
-          </div>
+            <div class="hidden text-center text-xs font-bold text-muted sm:block">
+              VS
+            </div>
 
-          <div class="rounded-lg border border-default p-3">
-            <div class="mb-3 flex items-center gap-2">
-              <span
-                class="flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                :style="{ backgroundColor: selectedGame.awayTeam.primaryColor ?? '#f97316' }"
-              >
-                {{ adminTeamInitials(selectedGame.awayTeam) }}
-              </span>
-              <div class="min-w-0">
-                <p class="truncate font-semibold text-highlighted">
-                  {{ selectedGame.awayTeam.name }}
-                </p>
-                <p class="text-xs text-muted">
-                  Visitante
-                </p>
+            <div class="rounded-lg border border-default p-3">
+              <div class="mb-3 flex items-center gap-2">
+                <span
+                  class="flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+                  :style="{ backgroundColor: selectedGame.awayTeam.primaryColor ?? '#f97316' }"
+                >
+                  {{ adminTeamInitials(selectedGame.awayTeam) }}
+                </span>
+                <div class="min-w-0">
+                  <p class="truncate font-semibold text-highlighted">
+                    {{ selectedGame.awayTeam.name }}
+                  </p>
+                  <p class="text-xs text-muted">
+                    Visitante
+                  </p>
+                </div>
               </div>
+              <p class="text-4xl font-bold text-highlighted">
+                {{ selectedGame.result.awayScore }}
+              </p>
             </div>
-            <p class="text-4xl font-bold text-highlighted">
-              {{ selectedGame.result.awayScore }}
-            </p>
           </div>
-        </div>
 
-        <div class="grid gap-2 rounded-lg border border-default p-3 text-sm sm:grid-cols-2">
-          <div>
-            <p class="text-xs font-semibold uppercase text-muted">
-              Ganador
-            </p>
-            <p class="font-semibold text-highlighted">
-              {{ resultWinner(selectedGame) }}
-            </p>
-          </div>
-          <div v-if="resultLoser(selectedGame)">
-            <p class="text-xs font-semibold uppercase text-muted">
-              Derrotado
-            </p>
-            <p class="font-semibold text-highlighted">
-              {{ resultLoser(selectedGame) }}
-            </p>
-          </div>
-          <div>
-            <p class="text-xs font-semibold uppercase text-muted">
-              Tipo
-            </p>
-            <p class="font-semibold text-highlighted">
-              {{ selectedGame.result.isForfeit ? 'Resultado por default' : 'Resultado regular' }}
-            </p>
-          </div>
-          <div>
-            <p class="text-xs font-semibold uppercase text-muted">
-              Innings
-            </p>
-            <p class="font-semibold text-highlighted">
-              {{ selectedGame.result.innings ?? 7 }}
-            </p>
-          </div>
-          <template v-if="!selectedGame.result.isForfeit">
+          <div class="grid gap-2 rounded-lg border border-default p-3 text-sm sm:grid-cols-2">
             <div>
               <p class="text-xs font-semibold uppercase text-muted">
-                Pitcher ganador
+                Ganador
               </p>
               <p class="font-semibold text-highlighted">
-                {{ savedPlayerName(selectedGame.result.winningPitcherName, selectedGame.result.winningPitcher) || 'Sin captura' }}
+                {{ resultWinner(selectedGame) }}
+              </p>
+            </div>
+            <div v-if="resultLoser(selectedGame)">
+              <p class="text-xs font-semibold uppercase text-muted">
+                Derrotado
+              </p>
+              <p class="font-semibold text-highlighted">
+                {{ resultLoser(selectedGame) }}
               </p>
             </div>
             <div>
               <p class="text-xs font-semibold uppercase text-muted">
-                Pitcher derrotado
+                Tipo
               </p>
               <p class="font-semibold text-highlighted">
-                {{ savedPlayerName(selectedGame.result.losingPitcherName, selectedGame.result.losingPitcher) || 'Sin captura' }}
+                {{ selectedGame.result.isForfeit ? 'Resultado por default' : 'Resultado regular' }}
               </p>
             </div>
-          </template>
-        </div>
-
-        <div
-          v-if="!selectedGame.result.isForfeit && selectedGame.result.battingHighlights.length"
-          class="mt-3 grid gap-2 rounded-lg border border-default p-3 text-sm sm:grid-cols-2"
-        >
-          <div>
-            <p class="mb-1 font-semibold text-highlighted">
-              Bateadores · ganador
-            </p>
-            <p
-              v-for="highlight in selectedGame.result.battingHighlights.filter(item => item.side === 'WINNER')"
-              :key="highlight.id"
-              class="text-muted"
-            >
-              {{ battingLine(highlight) }}
-            </p>
-          </div>
-          <div>
-            <p class="mb-1 font-semibold text-highlighted">
-              Bateadores · derrotado
-            </p>
-            <p
-              v-for="highlight in selectedGame.result.battingHighlights.filter(item => item.side === 'LOSER')"
-              :key="highlight.id"
-              class="text-muted"
-            >
-              {{ battingLine(highlight) }}
-            </p>
-          </div>
-        </div>
-
-        <div
-          v-if="selectedGame.result.notes"
-          class="mt-3 rounded-lg border border-default p-3 text-sm"
-        >
-          <p class="mb-1 text-xs font-semibold uppercase text-muted">
-            Notas
-          </p>
-          <p class="text-highlighted">
-            {{ selectedGame.result.notes }}
-          </p>
-        </div>
-      </section>
-
-      <form
-        v-else-if="selectedGame && showResultForm"
-        class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3"
-        @submit.prevent="saveResult"
-      >
-        <div class="mb-3 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <div class="mb-2 flex flex-wrap gap-1.5">
-              <UBadge
-                :color="categoryColor(selectedGame.homeTeam.category)"
-                variant="subtle"
-              >
-                {{ categoryLabel(selectedGame.homeTeam.category) }}
-              </UBadge>
-              <UBadge
-                :color="branchColor(selectedGame.homeTeam.branch)"
-                variant="subtle"
-              >
-                {{ branchLabel(selectedGame.homeTeam.branch) }}
-              </UBadge>
-              <UBadge
-                color="primary"
-                variant="outline"
-              >
-                {{ roundLabel(selectedGame.round) }}
-              </UBadge>
+            <div>
+              <p class="text-xs font-semibold uppercase text-muted">
+                Innings
+              </p>
+              <p class="font-semibold text-highlighted">
+                {{ selectedGame.result.innings ?? 7 }}
+              </p>
             </div>
-            <h2 class="text-base font-bold text-highlighted">
-              {{ selectedGame.homeTeam.name }} vs {{ selectedGame.awayTeam.name }}
-            </h2>
-            <p class="text-xs text-muted">
-              {{ formatGameDate(selectedGame.scheduledAt) }} · {{ selectedGame.field?.name ?? 'Campo por definir' }}
-            </p>
+            <template v-if="!selectedGame.result.isForfeit">
+              <div>
+                <p class="text-xs font-semibold uppercase text-muted">
+                  Pitcher ganador
+                </p>
+                <p class="font-semibold text-highlighted">
+                  {{ savedPlayerName(selectedGame.result.winningPitcherName, selectedGame.result.winningPitcher) || 'Sin captura' }}
+                </p>
+              </div>
+              <div>
+                <p class="text-xs font-semibold uppercase text-muted">
+                  Pitcher derrotado
+                </p>
+                <p class="font-semibold text-highlighted">
+                  {{ savedPlayerName(selectedGame.result.losingPitcherName, selectedGame.result.losingPitcher) || 'Sin captura' }}
+                </p>
+              </div>
+            </template>
           </div>
 
           <div
-            v-if="selectedGame.result"
-            class="flex flex-wrap gap-2"
+            v-if="!selectedGame.result.isForfeit && selectedGame.result.battingHighlights.length"
+            class="mt-3 grid gap-2 rounded-lg border border-default p-3 text-sm sm:grid-cols-2"
           >
+            <div>
+              <p class="mb-1 font-semibold text-highlighted">
+                Bateadores · ganador
+              </p>
+              <p
+                v-for="highlight in selectedGame.result.battingHighlights.filter(item => item.side === 'WINNER')"
+                :key="highlight.id"
+                class="text-muted"
+              >
+                {{ battingLine(highlight) }}
+              </p>
+            </div>
+            <div>
+              <p class="mb-1 font-semibold text-highlighted">
+                Bateadores · derrotado
+              </p>
+              <p
+                v-for="highlight in selectedGame.result.battingHighlights.filter(item => item.side === 'LOSER')"
+                :key="highlight.id"
+                class="text-muted"
+              >
+                {{ battingLine(highlight) }}
+              </p>
+            </div>
+          </div>
+
+          <div
+            v-if="selectedGame.result.notes"
+            class="mt-3 rounded-lg border border-default p-3 text-sm"
+          >
+            <p class="mb-1 text-xs font-semibold uppercase text-muted">
+              Notas
+            </p>
+            <p class="text-highlighted">
+              {{ selectedGame.result.notes }}
+            </p>
+          </div>
+        </section>
+
+        <form
+          v-else-if="selectedGame && showResultForm"
+          class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3"
+          @submit.prevent="saveResult"
+        >
+          <div class="mb-3 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div class="mb-2 flex flex-wrap gap-1.5">
+                <UBadge
+                  :color="categoryColor(selectedGame.homeTeam.category)"
+                  variant="subtle"
+                >
+                  {{ categoryLabel(selectedGame.homeTeam.category) }}
+                </UBadge>
+                <UBadge
+                  :color="branchColor(selectedGame.homeTeam.branch)"
+                  variant="subtle"
+                >
+                  {{ branchLabel(selectedGame.homeTeam.branch) }}
+                </UBadge>
+                <UBadge
+                  color="primary"
+                  variant="outline"
+                >
+                  {{ roundLabel(selectedGame.round) }}
+                </UBadge>
+              </div>
+              <h2 class="text-base font-bold text-highlighted">
+                {{ selectedGame.homeTeam.name }} vs {{ selectedGame.awayTeam.name }}
+              </h2>
+              <p class="text-xs text-muted">
+                {{ formatGameDate(selectedGame.scheduledAt) }} · {{ selectedGame.field?.name ?? 'Campo por definir' }}
+              </p>
+            </div>
+
+            <div
+              v-if="selectedGame.result"
+              class="flex flex-wrap gap-2"
+            >
+              <UButton
+                type="button"
+                icon="i-lucide-x"
+                label="Cancelar edición"
+                color="neutral"
+                variant="subtle"
+                size="sm"
+                @click="editingResultId = null"
+              />
+              <UButton
+                type="button"
+                icon="i-lucide-trash-2"
+                label="Quitar resultado"
+                color="error"
+                variant="subtle"
+                size="sm"
+                :loading="isDeletingResult"
+                @click="deleteResult"
+              />
+            </div>
+          </div>
+
+          <div class="mb-3 grid gap-2 sm:grid-cols-2">
+            <div class="rounded-lg border border-default p-2">
+              <div class="mb-2 flex items-center gap-2">
+                <span
+                  class="flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+                  :style="{ backgroundColor: selectedGame.homeTeam.primaryColor ?? '#047857' }"
+                >
+                  {{ adminTeamInitials(selectedGame.homeTeam) }}
+                </span>
+                <div class="min-w-0">
+                  <p class="truncate font-semibold text-highlighted">
+                    {{ selectedGame.homeTeam.name }}
+                  </p>
+                  <p class="text-xs text-muted">
+                    Local
+                  </p>
+                </div>
+              </div>
+              <UInput
+                v-model.number="resultForm.homeScore"
+                type="number"
+                min="0"
+                max="999"
+                required
+                :disabled="resultForm.isForfeit"
+                aria-label="Carreras local"
+              />
+              <UButton
+                v-if="resultForm.isForfeit"
+                type="button"
+                icon="i-lucide-check"
+                label="Gana por default"
+                :color="winnerSide === 'home' ? 'primary' : 'neutral'"
+                :variant="winnerSide === 'home' ? 'solid' : 'subtle'"
+                size="sm"
+                class="mt-2 w-full justify-center"
+                @click="setForfeitWinner('home')"
+              />
+            </div>
+
+            <div class="rounded-lg border border-default p-2">
+              <div class="mb-2 flex items-center gap-2">
+                <span
+                  class="flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+                  :style="{ backgroundColor: selectedGame.awayTeam.primaryColor ?? '#f97316' }"
+                >
+                  {{ adminTeamInitials(selectedGame.awayTeam) }}
+                </span>
+                <div class="min-w-0">
+                  <p class="truncate font-semibold text-highlighted">
+                    {{ selectedGame.awayTeam.name }}
+                  </p>
+                  <p class="text-xs text-muted">
+                    Visitante
+                  </p>
+                </div>
+              </div>
+              <UInput
+                v-model.number="resultForm.awayScore"
+                type="number"
+                min="0"
+                max="999"
+                required
+                :disabled="resultForm.isForfeit"
+                aria-label="Carreras visitante"
+              />
+              <UButton
+                v-if="resultForm.isForfeit"
+                type="button"
+                icon="i-lucide-check"
+                label="Gana por default"
+                :color="winnerSide === 'away' ? 'primary' : 'neutral'"
+                :variant="winnerSide === 'away' ? 'solid' : 'subtle'"
+                size="sm"
+                class="mt-2 w-full justify-center"
+                @click="setForfeitWinner('away')"
+              />
+            </div>
+          </div>
+
+          <div class="mb-3 grid gap-2 sm:grid-cols-3">
+            <label class="grid gap-1.5 text-sm">
+              <span class="font-medium text-highlighted">Innings</span>
+              <UInput
+                v-model.number="resultForm.innings"
+                type="number"
+                min="1"
+                max="20"
+                required
+                :disabled="resultForm.isForfeit"
+              />
+            </label>
+
+            <label class="grid gap-1.5 text-sm sm:col-span-2">
+              <span class="font-medium text-highlighted">Forfeit</span>
+              <label class="flex h-10 items-center gap-2 rounded-md border border-default px-3 text-sm">
+                <input
+                  v-model="resultForm.isForfeit"
+                  type="checkbox"
+                  class="size-4"
+                >
+                <span class="text-highlighted">Resultado por default</span>
+              </label>
+            </label>
+          </div>
+
+          <div
+            v-if="resultForm.isForfeit && winnerTeam && loserTeam"
+            class="mb-3 rounded-lg border border-primary/30 bg-primary/10 p-3 text-sm text-highlighted"
+          >
+            Se guardará {{ winnerTeam.name }} 7, {{ loserTeam.name }} 0. No se capturan estadísticas individuales.
+          </div>
+
+          <div
+            v-else-if="winnerTeam && loserTeam"
+            class="mb-3 grid gap-2 lg:grid-cols-2"
+          >
+            <label class="grid gap-1.5 text-sm">
+              <span class="font-medium text-highlighted">Pitcher ganador · {{ winnerTeam.name }}</span>
+              <UInput
+                v-model="resultForm.winningPitcherName"
+                required
+                maxlength="80"
+                placeholder="Nombre del pitcher ganador"
+              />
+            </label>
+
+            <label class="grid gap-1.5 text-sm">
+              <span class="font-medium text-highlighted">Pitcher derrotado · {{ loserTeam.name }}</span>
+              <UInput
+                v-model="resultForm.losingPitcherName"
+                required
+                maxlength="80"
+                placeholder="Nombre del pitcher derrotado"
+              />
+            </label>
+          </div>
+
+          <div
+            v-else
+            class="mb-3 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-highlighted"
+          >
+            Define un marcador con ganador para capturar pitchers y bateadores.
+          </div>
+
+          <div
+            v-if="!resultForm.isForfeit && winnerTeam && loserTeam"
+            class="mb-3 flex flex-col gap-2 rounded-lg border border-default p-2 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div>
+              <h3 class="text-sm font-bold text-highlighted">
+                Bateadores destacados
+              </h3>
+              <p class="text-xs text-muted">
+                Máximo 3 por equipo.
+              </p>
+            </div>
             <UButton
               type="button"
-              icon="i-lucide-x"
-              label="Cancelar edición"
+              :icon="showBattingHighlights ? 'i-lucide-chevron-up' : 'i-lucide-plus'"
+              :label="showBattingHighlights ? 'Ocultar bateadores' : 'Agregar bateadores'"
               color="neutral"
-              variant="subtle"
+              variant="outline"
               size="sm"
-              @click="editingResultId = null"
-            />
-            <UButton
-              type="button"
-              icon="i-lucide-trash-2"
-              label="Quitar resultado"
-              color="error"
-              variant="subtle"
-              size="sm"
-              :loading="isDeletingResult"
-              @click="deleteResult"
+              class="w-fit"
+              @click="showBattingHighlights = !showBattingHighlights"
             />
           </div>
-        </div>
 
-        <div class="mb-3 grid gap-2 sm:grid-cols-2">
-          <div class="rounded-lg border border-default p-2">
-            <div class="mb-2 flex items-center gap-2">
-              <span
-                class="flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                :style="{ backgroundColor: selectedGame.homeTeam.primaryColor ?? '#047857' }"
+          <div
+            v-if="!resultForm.isForfeit && showBattingHighlights"
+            class="mb-3 grid gap-3 lg:grid-cols-2"
+          >
+            <section class="rounded-lg border border-default p-2">
+              <h3 class="mb-2 text-sm font-bold text-highlighted">
+                Bateadores destacados · {{ winnerTeam?.name ?? 'Ganador' }}
+              </h3>
+              <div class="grid gap-2">
+                <div class="hidden grid-cols-[1fr_4rem_4rem_4rem] gap-2 px-2 text-xs font-semibold text-muted sm:grid">
+                  <span>Jugador</span>
+                  <span>Turnos</span>
+                  <span>Hits</span>
+                  <span>HR</span>
+                </div>
+                <div
+                  v-for="(highlight, index) in resultForm.winnerHighlights"
+                  :key="`winner-${index}`"
+                  class="grid gap-2 rounded-md bg-muted/30 p-2 sm:grid-cols-[1fr_4rem_4rem_4rem]"
+                >
+                  <UInput
+                    v-model="highlight.playerName"
+                    maxlength="80"
+                    :placeholder="`Bateador ${index + 1}`"
+                    aria-label="Bateador ganador"
+                  />
+                  <UInput
+                    v-model.number="highlight.atBats"
+                    type="number"
+                    min="0"
+                    max="20"
+                    aria-label="Turnos"
+                  />
+                  <UInput
+                    v-model.number="highlight.hits"
+                    type="number"
+                    min="0"
+                    max="20"
+                    aria-label="Hits"
+                  />
+                  <UInput
+                    v-model.number="highlight.homeRuns"
+                    type="number"
+                    min="0"
+                    max="20"
+                    aria-label="Home runs"
+                  />
+                </div>
+              </div>
+            </section>
+
+            <section class="rounded-lg border border-default p-2">
+              <h3 class="mb-2 text-sm font-bold text-highlighted">
+                Bateadores destacados · {{ loserTeam?.name ?? 'Derrotado' }}
+              </h3>
+              <div class="grid gap-2">
+                <div class="hidden grid-cols-[1fr_4rem_4rem_4rem] gap-2 px-2 text-xs font-semibold text-muted sm:grid">
+                  <span>Jugador</span>
+                  <span>Turnos</span>
+                  <span>Hits</span>
+                  <span>HR</span>
+                </div>
+                <div
+                  v-for="(highlight, index) in resultForm.loserHighlights"
+                  :key="`loser-${index}`"
+                  class="grid gap-2 rounded-md bg-muted/30 p-2 sm:grid-cols-[1fr_4rem_4rem_4rem]"
+                >
+                  <UInput
+                    v-model="highlight.playerName"
+                    maxlength="80"
+                    :placeholder="`Bateador ${index + 1}`"
+                    aria-label="Bateador derrotado"
+                  />
+                  <UInput
+                    v-model.number="highlight.atBats"
+                    type="number"
+                    min="0"
+                    max="20"
+                    aria-label="Turnos"
+                  />
+                  <UInput
+                    v-model.number="highlight.hits"
+                    type="number"
+                    min="0"
+                    max="20"
+                    aria-label="Hits"
+                  />
+                  <UInput
+                    v-model.number="highlight.homeRuns"
+                    type="number"
+                    min="0"
+                    max="20"
+                    aria-label="Home runs"
+                  />
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <label class="grid gap-1.5 text-sm">
+            <span class="font-medium text-highlighted">Notas</span>
+            <textarea
+              v-model="resultForm.notes"
+              rows="3"
+              class="w-full rounded-md border border-default bg-default px-3 py-2 text-sm text-highlighted outline-none focus:border-primary"
+              placeholder="Opcional"
+            />
+          </label>
+
+          <div
+            v-if="!resultForm.isForfeit && selectedGame.result?.battingHighlights.length"
+            class="mt-3 grid gap-2 rounded-lg border border-default p-2 text-xs text-muted sm:grid-cols-2"
+          >
+            <div>
+              <p class="mb-1 font-semibold text-highlighted">
+                Ganador: {{ resultWinner(selectedGame) }}
+              </p>
+              <p
+                v-for="highlight in selectedGame.result.battingHighlights.filter(item => item.side === 'WINNER')"
+                :key="highlight.id"
               >
-                {{ adminTeamInitials(selectedGame.homeTeam) }}
-              </span>
-              <div class="min-w-0">
-                <p class="truncate font-semibold text-highlighted">
+                {{ battingLine(highlight) }}
+              </p>
+            </div>
+            <div>
+              <p class="mb-1 font-semibold text-highlighted">
+                Derrotado
+              </p>
+              <p
+                v-for="highlight in selectedGame.result.battingHighlights.filter(item => item.side === 'LOSER')"
+                :key="highlight.id"
+              >
+                {{ battingLine(highlight) }}
+              </p>
+            </div>
+          </div>
+
+          <UButton
+            type="submit"
+            icon="i-lucide-save"
+            label="Guardar resultado"
+            color="primary"
+            class="mt-3"
+            :disabled="!canSaveResult"
+            :loading="isSavingResult"
+            block
+          />
+        </form>
+
+        <section
+          v-else
+          class="rounded-lg border border-dashed border-default p-8 text-center"
+        >
+          <UIcon
+            name="i-lucide-clipboard-x"
+            class="mx-auto mb-3 size-8 text-muted"
+          />
+          <p class="font-semibold text-highlighted">
+            No hay partidos disponibles para capturar.
+          </p>
+        </section>
+
+        <section
+          v-if="selectedGame"
+          class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3"
+        >
+          <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 class="text-base font-bold text-highlighted">
+                Lineups del partido
+              </h2>
+              <p class="text-xs text-muted">
+                {{ isOpenRoster ? 'Lineups registrados como parte del partido.' : 'Cada jugador registrado aquí suma un juego para elegibilidad de playoffs.' }}
+              </p>
+            </div>
+            <UButton
+              type="button"
+              :icon="showLineupEditor ? 'i-lucide-chevron-up' : 'i-lucide-list-plus'"
+              :label="showLineupEditor ? 'Ocultar captura' : 'Editar lineups'"
+              color="neutral"
+              variant="outline"
+              size="sm"
+              class="w-fit"
+              @click="showLineupEditor = !showLineupEditor"
+            />
+          </div>
+
+          <div class="mb-3 grid gap-2 lg:grid-cols-2">
+            <div class="rounded-lg border border-default p-2">
+              <div class="mb-2 flex items-center justify-between gap-2">
+                <p class="font-semibold text-highlighted">
                   {{ selectedGame.homeTeam.name }}
                 </p>
-                <p class="text-xs text-muted">
-                  Local
-                </p>
+                <UBadge
+                  color="neutral"
+                  variant="outline"
+                >
+                  {{ lineupRowsForTeam(selectedGame, selectedGame.homeTeam.id).length }} jugadores
+                </UBadge>
               </div>
-            </div>
-            <UInput
-              v-model.number="resultForm.homeScore"
-              type="number"
-              min="0"
-              max="999"
-              required
-              :disabled="resultForm.isForfeit"
-              aria-label="Carreras local"
-            />
-            <UButton
-              v-if="resultForm.isForfeit"
-              type="button"
-              icon="i-lucide-check"
-              label="Gana por default"
-              :color="winnerSide === 'home' ? 'primary' : 'neutral'"
-              :variant="winnerSide === 'home' ? 'solid' : 'subtle'"
-              size="sm"
-              class="mt-2 w-full justify-center"
-              @click="setForfeitWinner('home')"
-            />
-          </div>
 
-          <div class="rounded-lg border border-default p-2">
-            <div class="mb-2 flex items-center gap-2">
-              <span
-                class="flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                :style="{ backgroundColor: selectedGame.awayTeam.primaryColor ?? '#f97316' }"
+              <div
+                v-if="lineupRowsForTeam(selectedGame, selectedGame.homeTeam.id).length"
+                class="grid gap-1.5 text-sm"
               >
-                {{ adminTeamInitials(selectedGame.awayTeam) }}
-              </span>
-              <div class="min-w-0">
-                <p class="truncate font-semibold text-highlighted">
+                <div
+                  v-for="entry in lineupRowsForTeam(selectedGame, selectedGame.homeTeam.id)"
+                  :key="entry.id"
+                  class="flex items-center justify-between gap-2 rounded-md bg-muted/30 px-2 py-1.5"
+                >
+                  <span class="min-w-0 truncate text-highlighted">{{ lineupText(entry) }}</span>
+                  <UBadge
+                    v-if="!isOpenRoster"
+                    :color="playoffStatus(entry.playerId).isEligible ? 'success' : 'neutral'"
+                    variant="subtle"
+                    size="sm"
+                    class="shrink-0"
+                  >
+                    {{ playoffStatus(entry.playerId).lineupGames }}/{{ minimumLineupGames }}
+                  </UBadge>
+                </div>
+              </div>
+              <p
+                v-else
+                class="rounded-md bg-muted/30 p-3 text-sm text-muted"
+              >
+                Sin lineup capturado.
+              </p>
+            </div>
+
+            <div class="rounded-lg border border-default p-2">
+              <div class="mb-2 flex items-center justify-between gap-2">
+                <p class="font-semibold text-highlighted">
                   {{ selectedGame.awayTeam.name }}
                 </p>
-                <p class="text-xs text-muted">
-                  Visitante
-                </p>
+                <UBadge
+                  color="neutral"
+                  variant="outline"
+                >
+                  {{ lineupRowsForTeam(selectedGame, selectedGame.awayTeam.id).length }} jugadores
+                </UBadge>
               </div>
+
+              <div
+                v-if="lineupRowsForTeam(selectedGame, selectedGame.awayTeam.id).length"
+                class="grid gap-1.5 text-sm"
+              >
+                <div
+                  v-for="entry in lineupRowsForTeam(selectedGame, selectedGame.awayTeam.id)"
+                  :key="entry.id"
+                  class="flex items-center justify-between gap-2 rounded-md bg-muted/30 px-2 py-1.5"
+                >
+                  <span class="min-w-0 truncate text-highlighted">{{ lineupText(entry) }}</span>
+                  <UBadge
+                    v-if="!isOpenRoster"
+                    :color="playoffStatus(entry.playerId).isEligible ? 'success' : 'neutral'"
+                    variant="subtle"
+                    size="sm"
+                    class="shrink-0"
+                  >
+                    {{ playoffStatus(entry.playerId).lineupGames }}/{{ minimumLineupGames }}
+                  </UBadge>
+                </div>
+              </div>
+              <p
+                v-else
+                class="rounded-md bg-muted/30 p-3 text-sm text-muted"
+              >
+                Sin lineup capturado.
+              </p>
             </div>
-            <UInput
-              v-model.number="resultForm.awayScore"
-              type="number"
-              min="0"
-              max="999"
-              required
-              :disabled="resultForm.isForfeit"
-              aria-label="Carreras visitante"
-            />
+          </div>
+
+          <div
+            v-if="showLineupEditor"
+            class="grid gap-3 border-t border-default pt-3"
+          >
+            <div class="grid gap-3 lg:grid-cols-2">
+              <section class="rounded-lg border border-default p-2">
+                <div class="mb-2 flex items-center justify-between gap-2">
+                  <h3 class="text-sm font-bold text-highlighted">
+                    Capturar lineup · {{ selectedGame.homeTeam.name }}
+                  </h3>
+                  <UBadge
+                    color="primary"
+                    variant="subtle"
+                  >
+                    {{ selectedLineupCount('home') }}
+                  </UBadge>
+                </div>
+
+                <div class="grid gap-2">
+                  <label
+                    v-for="row in lineupForm.home"
+                    :key="row.playerId"
+                    class="grid gap-2 rounded-md border border-default p-2 sm:grid-cols-[1fr_5rem] sm:items-center"
+                  >
+                    <span class="flex min-w-0 items-center gap-2">
+                      <input
+                        v-model="row.selected"
+                        type="checkbox"
+                        class="size-4 shrink-0"
+                        @change="handleLineupSelectionChange(row)"
+                      >
+                      <span class="min-w-0">
+                        <span class="block truncate text-sm font-medium text-highlighted">
+                          {{ lineupFormPlayerLabel(selectedGame.homeTeam, row.playerId) }}
+                        </span>
+                        <span
+                          v-if="!isOpenRoster"
+                          class="text-xs text-muted"
+                        >
+                          {{ playoffStatus(row.playerId).lineupGames }}/{{ minimumLineupGames }} juegos
+                        </span>
+                      </span>
+                    </span>
+                    <UInput
+                      v-model.number="row.battingOrder"
+                      type="number"
+                      min="1"
+                      max="10"
+                      placeholder="Orden"
+                      aria-label="Orden al bat"
+                      :disabled="!row.selected"
+                    />
+                  </label>
+                </div>
+              </section>
+
+              <section class="rounded-lg border border-default p-2">
+                <div class="mb-2 flex items-center justify-between gap-2">
+                  <h3 class="text-sm font-bold text-highlighted">
+                    Capturar lineup · {{ selectedGame.awayTeam.name }}
+                  </h3>
+                  <UBadge
+                    color="primary"
+                    variant="subtle"
+                  >
+                    {{ selectedLineupCount('away') }}
+                  </UBadge>
+                </div>
+
+                <div class="grid gap-2">
+                  <label
+                    v-for="row in lineupForm.away"
+                    :key="row.playerId"
+                    class="grid gap-2 rounded-md border border-default p-2 sm:grid-cols-[1fr_5rem] sm:items-center"
+                  >
+                    <span class="flex min-w-0 items-center gap-2">
+                      <input
+                        v-model="row.selected"
+                        type="checkbox"
+                        class="size-4 shrink-0"
+                        @change="handleLineupSelectionChange(row)"
+                      >
+                      <span class="min-w-0">
+                        <span class="block truncate text-sm font-medium text-highlighted">
+                          {{ lineupFormPlayerLabel(selectedGame.awayTeam, row.playerId) }}
+                        </span>
+                        <span
+                          v-if="!isOpenRoster"
+                          class="text-xs text-muted"
+                        >
+                          {{ playoffStatus(row.playerId).lineupGames }}/{{ minimumLineupGames }} juegos
+                        </span>
+                      </span>
+                    </span>
+                    <UInput
+                      v-model.number="row.battingOrder"
+                      type="number"
+                      min="1"
+                      max="99"
+                      placeholder="Orden"
+                      aria-label="Orden al bat"
+                      :disabled="!row.selected"
+                    />
+                  </label>
+                </div>
+              </section>
+            </div>
+
             <UButton
-              v-if="resultForm.isForfeit"
               type="button"
-              icon="i-lucide-check"
-              label="Gana por default"
-              :color="winnerSide === 'away' ? 'primary' : 'neutral'"
-              :variant="winnerSide === 'away' ? 'solid' : 'subtle'"
-              size="sm"
-              class="mt-2 w-full justify-center"
-              @click="setForfeitWinner('away')"
+              icon="i-lucide-save"
+              label="Guardar lineups"
+              color="primary"
+              :loading="isSavingLineup"
+              block
+              @click="saveLineup"
             />
           </div>
-        </div>
 
-        <div class="mb-3 grid gap-2 sm:grid-cols-3">
-          <label class="grid gap-1.5 text-sm">
-            <span class="font-medium text-highlighted">Innings</span>
-            <UInput
-              v-model.number="resultForm.innings"
-              type="number"
-              min="1"
-              max="20"
-              required
-              :disabled="resultForm.isForfeit"
-            />
-          </label>
+          <div
+            v-if="!isOpenRoster"
+            class="mt-3 grid gap-2 border-t border-default pt-3 lg:grid-cols-2"
+          >
+            <section class="rounded-lg bg-muted/30 p-2">
+              <h3 class="mb-2 text-sm font-bold text-highlighted">
+                Elegibilidad · {{ selectedGame.homeTeam.name }}
+              </h3>
+              <div class="grid gap-1 text-xs">
+                <div
+                  v-for="player in eligibilityRowsForTeam(selectedGame.homeTeam.id)"
+                  :key="player.id"
+                  class="flex items-center justify-between gap-2"
+                >
+                  <span class="min-w-0 truncate text-muted">{{ playerLabel(player) }}</span>
+                  <UBadge
+                    :color="player.isPlayoffEligible ? 'success' : 'neutral'"
+                    variant="subtle"
+                    size="sm"
+                    class="shrink-0"
+                  >
+                    {{ player.isPlayoffEligible ? 'Elegible' : `${Math.max(minimumLineupGames - player.lineupGames, 0)} faltan` }}
+                  </UBadge>
+                </div>
+              </div>
+            </section>
 
-          <label class="grid gap-1.5 text-sm sm:col-span-2">
-            <span class="font-medium text-highlighted">Forfeit</span>
-            <label class="flex h-10 items-center gap-2 rounded-md border border-default px-3 text-sm">
-              <input
-                v-model="resultForm.isForfeit"
-                type="checkbox"
-                class="size-4"
-              >
-              <span class="text-highlighted">Resultado por default</span>
-            </label>
-          </label>
-        </div>
-
-        <div
-          v-if="resultForm.isForfeit && winnerTeam && loserTeam"
-          class="mb-3 rounded-lg border border-primary/30 bg-primary/10 p-3 text-sm text-highlighted"
-        >
-          Se guardará {{ winnerTeam.name }} 7, {{ loserTeam.name }} 0. No se capturan estadísticas individuales.
-        </div>
-
-        <div
-          v-else-if="winnerTeam && loserTeam"
-          class="mb-3 grid gap-2 lg:grid-cols-2"
-        >
-          <label class="grid gap-1.5 text-sm">
-            <span class="font-medium text-highlighted">Pitcher ganador · {{ winnerTeam.name }}</span>
-            <UInput
-              v-model="resultForm.winningPitcherName"
-              required
-              maxlength="80"
-              placeholder="Nombre del pitcher ganador"
-            />
-          </label>
-
-          <label class="grid gap-1.5 text-sm">
-            <span class="font-medium text-highlighted">Pitcher derrotado · {{ loserTeam.name }}</span>
-            <UInput
-              v-model="resultForm.losingPitcherName"
-              required
-              maxlength="80"
-              placeholder="Nombre del pitcher derrotado"
-            />
-          </label>
-        </div>
-
-        <div
-          v-else
-          class="mb-3 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-highlighted"
-        >
-          Define un marcador con ganador para capturar pitchers y bateadores.
-        </div>
-
-        <div
-          v-if="!resultForm.isForfeit && winnerTeam && loserTeam"
-          class="mb-3 flex flex-col gap-2 rounded-lg border border-default p-2 sm:flex-row sm:items-center sm:justify-between"
-        >
-          <div>
-            <h3 class="text-sm font-bold text-highlighted">
-              Bateadores destacados
-            </h3>
-            <p class="text-xs text-muted">
-              Máximo 3 por equipo.
-            </p>
+            <section class="rounded-lg bg-muted/30 p-2">
+              <h3 class="mb-2 text-sm font-bold text-highlighted">
+                Elegibilidad · {{ selectedGame.awayTeam.name }}
+              </h3>
+              <div class="grid gap-1 text-xs">
+                <div
+                  v-for="player in eligibilityRowsForTeam(selectedGame.awayTeam.id)"
+                  :key="player.id"
+                  class="flex items-center justify-between gap-2"
+                >
+                  <span class="min-w-0 truncate text-muted">{{ playerLabel(player) }}</span>
+                  <UBadge
+                    :color="player.isPlayoffEligible ? 'success' : 'neutral'"
+                    variant="subtle"
+                    size="sm"
+                    class="shrink-0"
+                  >
+                    {{ player.isPlayoffEligible ? 'Elegible' : `${Math.max(minimumLineupGames - player.lineupGames, 0)} faltan` }}
+                  </UBadge>
+                </div>
+              </div>
+            </section>
           </div>
-          <UButton
-            type="button"
-            :icon="showBattingHighlights ? 'i-lucide-chevron-up' : 'i-lucide-plus'"
-            :label="showBattingHighlights ? 'Ocultar bateadores' : 'Agregar bateadores'"
-            color="neutral"
-            variant="outline"
-            size="sm"
-            class="w-fit"
-            @click="showBattingHighlights = !showBattingHighlights"
-          />
-        </div>
-
-        <div
-          v-if="!resultForm.isForfeit && showBattingHighlights"
-          class="mb-3 grid gap-3 lg:grid-cols-2"
-        >
-          <section class="rounded-lg border border-default p-2">
-            <h3 class="mb-2 text-sm font-bold text-highlighted">
-              Bateadores destacados · {{ winnerTeam?.name ?? 'Ganador' }}
-            </h3>
-            <div class="grid gap-2">
-              <div class="hidden grid-cols-[1fr_4rem_4rem_4rem] gap-2 px-2 text-xs font-semibold text-muted sm:grid">
-                <span>Jugador</span>
-                <span>Turnos</span>
-                <span>Hits</span>
-                <span>HR</span>
-              </div>
-              <div
-                v-for="(highlight, index) in resultForm.winnerHighlights"
-                :key="`winner-${index}`"
-                class="grid gap-2 rounded-md bg-muted/30 p-2 sm:grid-cols-[1fr_4rem_4rem_4rem]"
-              >
-                <UInput
-                  v-model="highlight.playerName"
-                  maxlength="80"
-                  :placeholder="`Bateador ${index + 1}`"
-                  aria-label="Bateador ganador"
-                />
-                <UInput
-                  v-model.number="highlight.atBats"
-                  type="number"
-                  min="0"
-                  max="20"
-                  aria-label="Turnos"
-                />
-                <UInput
-                  v-model.number="highlight.hits"
-                  type="number"
-                  min="0"
-                  max="20"
-                  aria-label="Hits"
-                />
-                <UInput
-                  v-model.number="highlight.homeRuns"
-                  type="number"
-                  min="0"
-                  max="20"
-                  aria-label="Home runs"
-                />
-              </div>
-            </div>
-          </section>
-
-          <section class="rounded-lg border border-default p-2">
-            <h3 class="mb-2 text-sm font-bold text-highlighted">
-              Bateadores destacados · {{ loserTeam?.name ?? 'Derrotado' }}
-            </h3>
-            <div class="grid gap-2">
-              <div class="hidden grid-cols-[1fr_4rem_4rem_4rem] gap-2 px-2 text-xs font-semibold text-muted sm:grid">
-                <span>Jugador</span>
-                <span>Turnos</span>
-                <span>Hits</span>
-                <span>HR</span>
-              </div>
-              <div
-                v-for="(highlight, index) in resultForm.loserHighlights"
-                :key="`loser-${index}`"
-                class="grid gap-2 rounded-md bg-muted/30 p-2 sm:grid-cols-[1fr_4rem_4rem_4rem]"
-              >
-                <UInput
-                  v-model="highlight.playerName"
-                  maxlength="80"
-                  :placeholder="`Bateador ${index + 1}`"
-                  aria-label="Bateador derrotado"
-                />
-                <UInput
-                  v-model.number="highlight.atBats"
-                  type="number"
-                  min="0"
-                  max="20"
-                  aria-label="Turnos"
-                />
-                <UInput
-                  v-model.number="highlight.hits"
-                  type="number"
-                  min="0"
-                  max="20"
-                  aria-label="Hits"
-                />
-                <UInput
-                  v-model.number="highlight.homeRuns"
-                  type="number"
-                  min="0"
-                  max="20"
-                  aria-label="Home runs"
-                />
-              </div>
-            </div>
-          </section>
-        </div>
-
-        <label class="grid gap-1.5 text-sm">
-          <span class="font-medium text-highlighted">Notas</span>
-          <textarea
-            v-model="resultForm.notes"
-            rows="3"
-            class="w-full rounded-md border border-default bg-default px-3 py-2 text-sm text-highlighted outline-none focus:border-primary"
-            placeholder="Opcional"
-          />
-        </label>
-
-        <div
-          v-if="!resultForm.isForfeit && selectedGame.result?.battingHighlights.length"
-          class="mt-3 grid gap-2 rounded-lg border border-default p-2 text-xs text-muted sm:grid-cols-2"
-        >
-          <div>
-            <p class="mb-1 font-semibold text-highlighted">
-              Ganador: {{ resultWinner(selectedGame) }}
-            </p>
-            <p
-              v-for="highlight in selectedGame.result.battingHighlights.filter(item => item.side === 'WINNER')"
-              :key="highlight.id"
-            >
-              {{ battingLine(highlight) }}
-            </p>
-          </div>
-          <div>
-            <p class="mb-1 font-semibold text-highlighted">
-              Derrotado
-            </p>
-            <p
-              v-for="highlight in selectedGame.result.battingHighlights.filter(item => item.side === 'LOSER')"
-              :key="highlight.id"
-            >
-              {{ battingLine(highlight) }}
-            </p>
-          </div>
-        </div>
-
-        <UButton
-          type="submit"
-          icon="i-lucide-save"
-          label="Guardar resultado"
-          color="primary"
-          class="mt-3"
-          :disabled="!canSaveResult"
-          :loading="isSavingResult"
-          block
-        />
-      </form>
-
-      <section
-        v-else
-        class="rounded-lg border border-dashed border-default p-8 text-center"
-      >
-        <UIcon
-          name="i-lucide-clipboard-x"
-          class="mx-auto mb-3 size-8 text-muted"
-        />
-        <p class="font-semibold text-highlighted">
-          No hay partidos disponibles para capturar.
-        </p>
-      </section>
+        </section>
+      </div>
     </section>
   </UContainer>
 </template>

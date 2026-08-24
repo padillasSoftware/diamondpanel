@@ -14,7 +14,9 @@ export default defineEventHandler(async (event) => {
     select: {
       id: true,
       name: true,
-      year: true
+      year: true,
+      playoffEligibilityMode: true,
+      playoffMinimumLineupGames: true
     }
   })
 

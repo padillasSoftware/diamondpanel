@@ -308,7 +308,9 @@ export async function getActiveSeasonForSchedule(prisma: Prisma.TransactionClien
       name: true,
       year: true,
       startsAt: true,
-      endsAt: true
+      endsAt: true,
+      playoffEligibilityMode: true,
+      playoffMinimumLineupGames: true
     }
   })
 

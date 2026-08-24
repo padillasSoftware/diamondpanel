@@ -35,6 +35,8 @@ type AdminSummary = {
     id: string
     name: string
     year: number
+    playoffEligibilityMode: 'LINEUP_GAMES' | 'OPEN_ROSTER'
+    playoffMinimumLineupGames: number
   } | null
   metrics: {
     activeTeams: number
@@ -70,7 +72,7 @@ const metricCards = computed(() => [
   }
 ])
 
-const adminModules = [
+const adminModules = computed(() => [
   {
     title: 'Equipos',
     description: 'Crear clubes, asignar categoría, rama, colores y manager.',
@@ -80,7 +82,7 @@ const adminModules = [
   },
   {
     title: 'Rol de juegos',
-    description: 'Programar partidos por semana y configurar vueltas por grupo.',
+    description: 'Programar partidos por semana y generar el rol automático.',
     icon: 'i-lucide-calendar-plus',
     to: '/admin/rol',
     status: 'Disponible'
@@ -92,6 +94,15 @@ const adminModules = [
     to: '/admin/resultados',
     status: 'Disponible'
   },
+  ...(summary.value?.activeSeason?.playoffEligibilityMode === 'OPEN_ROSTER'
+    ? []
+    : [{
+        title: 'Elegibles',
+        description: `Revisar jugadores con ${summary.value?.activeSeason?.playoffMinimumLineupGames ?? 5} juegos de lineup para playoffs.`,
+        icon: 'i-lucide-badge-check',
+        to: '/admin/elegibles',
+        status: 'Disponible'
+      }]),
   {
     title: 'Posiciones',
     description: 'Consultar standings por categoría y rama.',
@@ -105,8 +116,15 @@ const adminModules = [
     icon: 'i-lucide-calendar-range',
     to: '/admin/temporadas',
     status: 'Disponible'
+  },
+  {
+    title: 'Configuración',
+    description: 'Ajustar vueltas, elegibilidad y reglas de playoffs.',
+    icon: 'i-lucide-settings',
+    to: '/admin/configuracion',
+    status: 'Disponible'
   }
-]
+])
 </script>
 
 <template>

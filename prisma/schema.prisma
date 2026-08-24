@@ -22,6 +22,11 @@ enum SeasonStatus {
   ARCHIVED
 }
 
+enum PlayoffEligibilityMode {
+  LINEUP_GAMES
+  OPEN_ROSTER
+}
+
 enum TeamStatus {
   ACTIVE
   INACTIVE
@@ -96,14 +101,16 @@ model User {
 }
 
 model Season {
-  id        String       @id @default(cuid())
-  name      String
-  year      Int
-  startsAt  DateTime?
-  endsAt    DateTime?
-  status    SeasonStatus @default(DRAFT)
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  id                        String                 @id @default(cuid())
+  name                      String
+  year                      Int
+  startsAt                  DateTime?
+  endsAt                    DateTime?
+  status                    SeasonStatus           @default(DRAFT)
+  playoffEligibilityMode    PlayoffEligibilityMode @default(LINEUP_GAMES)
+  playoffMinimumLineupGames Int                    @default(5)
+  createdAt                 DateTime               @default(now())
+  updatedAt                 DateTime               @updatedAt
 
   teams                TeamSeason[]
   games                Game[]
@@ -135,6 +142,7 @@ model Team {
   managerUsers       User[]                 @relation("TeamManagers")
   managerAssignments TeamManager[]
   battingHighlights  GameBattingHighlight[]
+  lineupEntries      GameLineupEntry[]
 
   @@index([category, branch, status])
 }
@@ -202,6 +210,7 @@ model Player {
   winningPitchingResults GameResult[]           @relation("WinningPitcher")
   losingPitchingResults  GameResult[]           @relation("LosingPitcher")
   battingHighlights      GameBattingHighlight[]
+  lineupEntries          GameLineupEntry[]
 
   @@unique([teamId, number])
   @@index([curp])
@@ -234,11 +243,12 @@ model Game {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
-  season   Season      @relation(fields: [seasonId], references: [id], onDelete: Cascade)
-  homeTeam Team        @relation("HomeTeam", fields: [homeTeamId], references: [id], onDelete: Restrict)
-  awayTeam Team        @relation("AwayTeam", fields: [awayTeamId], references: [id], onDelete: Restrict)
-  field    Field?      @relation(fields: [fieldId], references: [id], onDelete: SetNull)
-  result   GameResult?
+  season        Season            @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  homeTeam      Team              @relation("HomeTeam", fields: [homeTeamId], references: [id], onDelete: Restrict)
+  awayTeam      Team              @relation("AwayTeam", fields: [awayTeamId], references: [id], onDelete: Restrict)
+  field         Field?            @relation(fields: [fieldId], references: [id], onDelete: SetNull)
+  result        GameResult?
+  lineupEntries GameLineupEntry[]
 
   @@index([seasonId, scheduledAt])
   @@index([homeTeamId])
@@ -299,4 +309,25 @@ model GameBattingHighlight {
   @@index([teamId])
   @@index([playerId])
   @@index([side])
+}
+
+model GameLineupEntry {
+  id           String   @id @default(cuid())
+  gameId       String
+  teamId       String
+  playerId     String
+  battingOrder Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  game   Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, playerId])
+  @@unique([gameId, teamId, battingOrder])
+  @@index([gameId])
+  @@index([teamId])
+  @@index([playerId])
+  @@index([teamId, playerId])
 }

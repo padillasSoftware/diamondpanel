@@ -114,11 +114,9 @@ const gameForm = reactive({
 
 const editingGameId = ref<string | null>(null)
 const isSavingGame = ref(false)
-const isSavingConfigs = ref(false)
 const isGeneratingSchedule = ref(false)
 const isDeletingGame = ref(false)
 const isReleasingGame = ref(false)
-const showRoundConfigs = ref(false)
 const gamePendingDelete = ref<ScheduleGame | null>(null)
 const gamePendingRelease = ref<ScheduleGame | null>(null)
 
@@ -402,33 +400,6 @@ async function saveGame() {
   }
 }
 
-async function saveConfigs() {
-  isSavingConfigs.value = true
-
-  try {
-    await $fetch('/api/admin/schedule/configs', {
-      method: 'PATCH',
-      body: {
-        configs: editableConfigs.value.map(config => ({
-          category: config.category,
-          branch: config.branch,
-          rounds: Number(config.rounds)
-        }))
-      }
-    })
-    await refresh()
-    showFeedback('Configuración actualizada.')
-  } catch (error) {
-    const statusMessage = typeof error === 'object' && error && 'data' in error
-      ? String((error as { data?: { statusMessage?: unknown } }).data?.statusMessage ?? '')
-      : ''
-
-    showError(statusMessage || 'No se pudo guardar la configuración.')
-  } finally {
-    isSavingConfigs.value = false
-  }
-}
-
 async function generateSchedule() {
   isGeneratingSchedule.value = true
 
@@ -616,7 +587,7 @@ async function confirmDeleteGame() {
       </div>
     </div>
 
-    <section class="mb-4 grid gap-3 rounded-lg border border-default bg-default p-3 shadow-sm lg:grid-cols-[auto_1fr_auto_auto] lg:items-end">
+    <section class="mb-4 grid gap-3 rounded-lg border border-default bg-default p-3 shadow-sm lg:grid-cols-[auto_1fr_auto_auto_auto] lg:items-end">
       <div class="flex items-center gap-1.5">
         <UButton
           type="button"
@@ -658,6 +629,14 @@ async function confirmDeleteGame() {
         :loading="isGeneratingSchedule"
         :disabled="pending"
         @click="generateSchedule"
+      />
+
+      <UButton
+        to="/admin/configuracion"
+        icon="i-lucide-settings"
+        label="Ajustes"
+        color="neutral"
+        variant="outline"
       />
     </section>
 
@@ -840,80 +819,6 @@ async function confirmDeleteGame() {
             block
           />
         </form>
-
-        <UButton
-          type="button"
-          :icon="showRoundConfigs ? 'i-lucide-chevron-up' : 'i-lucide-settings'"
-          :label="showRoundConfigs ? 'Ocultar vueltas' : 'Configurar vueltas'"
-          color="neutral"
-          variant="outline"
-          class="w-fit"
-          @click="showRoundConfigs = !showRoundConfigs"
-        />
-
-        <section
-          v-if="showRoundConfigs"
-          class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3"
-        >
-          <div class="mb-2.5 flex items-center justify-between gap-2">
-            <div>
-              <h2 class="text-base font-bold text-highlighted">
-                Vueltas por grupo
-              </h2>
-              <p class="text-xs text-muted">
-                Cada vuelta hace que todos los equipos del grupo se enfrenten entre sí.
-              </p>
-            </div>
-            <UButton
-              type="button"
-              icon="i-lucide-settings"
-              label="Guardar"
-              color="neutral"
-              variant="outline"
-              size="sm"
-              :loading="isSavingConfigs"
-              @click="saveConfigs"
-            />
-          </div>
-
-          <div class="grid gap-2 sm:grid-cols-2">
-            <div
-              v-for="config in editableConfigs"
-              :key="`${config.category}-${config.branch}`"
-              class="grid grid-cols-[1fr_5.5rem] items-center gap-2 rounded-lg border border-default p-2"
-            >
-              <div class="min-w-0">
-                <div class="mb-1 flex flex-wrap gap-1">
-                  <UBadge
-                    :color="categoryColor(config.category)"
-                    variant="subtle"
-                    size="sm"
-                  >
-                    {{ categoryLabel(config.category) }}
-                  </UBadge>
-                  <UBadge
-                    :color="branchColor(config.branch)"
-                    variant="subtle"
-                    size="sm"
-                  >
-                    {{ branchLabel(config.branch) }}
-                  </UBadge>
-                </div>
-                <p class="text-xs text-muted">
-                  {{ config.teamCount }} equipos
-                </p>
-              </div>
-
-              <UInput
-                v-model.number="config.rounds"
-                type="number"
-                min="1"
-                max="12"
-                aria-label="Vueltas"
-              />
-            </div>
-          </div>
-        </section>
       </div>
 
       <section class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 xl:flex xl:max-h-[48rem] xl:flex-col">

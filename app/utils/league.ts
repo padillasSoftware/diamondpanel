@@ -3,6 +3,7 @@ export type TeamBranch = 'VARONIL' | 'FEMENIL'
 export type TeamCategory = 'A' | 'B' | 'C' | 'D' | 'E' | 'R'
 export type TeamMemberRole = 'PLAYER' | 'MANAGER' | 'COACH'
 export type GameBattingHighlightSide = 'WINNER' | 'LOSER'
+export type PlayoffEligibilityMode = 'LINEUP_GAMES' | 'OPEN_ROSTER'
 
 export const TEAM_CATEGORY_OPTIONS: { label: string, value: 'ALL' | TeamCategory }[] = [
   { label: 'Todas', value: 'ALL' },
@@ -41,6 +42,8 @@ export type Season = {
   status: string
   startsAt?: string | null
   endsAt?: string | null
+  playoffEligibilityMode?: PlayoffEligibilityMode
+  playoffMinimumLineupGames?: number
 }
 
 export type Player = {

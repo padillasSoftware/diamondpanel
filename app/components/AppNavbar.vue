@@ -1,32 +1,52 @@
 <script setup lang="ts">
-import { branchLabel, categoryLabel } from '~/utils/league'
+import { branchLabel, categoryLabel, type PlayoffEligibilityMode } from '~/utils/league'
 import type { AuthUser } from '~/composables/useAuth'
 
-const baseNavigation = [
+type NavigationItem = {
+  label: string
+  to: string
+  icon: string
+  requiresEligibility?: boolean
+}
+
+type NavigationSeason = {
+  playoffEligibilityMode?: PlayoffEligibilityMode
+}
+
+const baseNavigation: NavigationItem[] = [
   { label: 'Inicio', to: '/', icon: 'i-lucide-house' },
   { label: 'Posiciones', to: '/posiciones', icon: 'i-lucide-trophy' },
   { label: 'Rol', to: '/rol', icon: 'i-lucide-calendar-days' },
   { label: 'Resultados', to: '/resultados', icon: 'i-lucide-table-2' },
+  { label: 'Elegibles', to: '/elegibles', icon: 'i-lucide-badge-check', requiresEligibility: true },
   { label: 'Equipos', to: '/equipos', icon: 'i-lucide-users' }
 ]
 
-const adminNavigation = [
+const adminNavigation: NavigationItem[] = [
   { label: 'Resumen', to: '/admin', icon: 'i-lucide-layout-dashboard' },
   { label: 'Equipos', to: '/admin/equipos', icon: 'i-lucide-shield-plus' },
   { label: 'Rol', to: '/admin/rol', icon: 'i-lucide-calendar-plus' },
   { label: 'Resultados', to: '/admin/resultados', icon: 'i-lucide-clipboard-check' },
+  { label: 'Elegibles', to: '/admin/elegibles', icon: 'i-lucide-badge-check', requiresEligibility: true },
   { label: 'Posiciones', to: '/admin/posiciones', icon: 'i-lucide-trophy' },
-  { label: 'Temporadas', to: '/admin/temporadas', icon: 'i-lucide-calendar-range' }
+  { label: 'Temporadas', to: '/admin/temporadas', icon: 'i-lucide-calendar-range' },
+  { label: 'Ajustes', to: '/admin/configuracion', icon: 'i-lucide-settings' }
 ]
 
 const route = useRoute()
 const { user, isAdmin, logout } = useAuth()
 const { public: { leagueName } } = useRuntimeConfig()
+const { data: activeSeason } = await useFetch<NavigationSeason>('/api/seasons/active', {
+  key: 'navbar-active-season'
+})
 const managedTeams = computed(() => isAdmin.value ? [] : (user.value?.managedTeams ?? []))
 const hasMultipleManagedTeams = computed(() => managedTeams.value.length > 1)
 const isSwitchingTeam = ref(false)
+const showEligibilityNavigation = computed(() => activeSeason.value?.playoffEligibilityMode !== 'OPEN_ROSTER')
+const filterNavigation = (items: NavigationItem[]) =>
+  items.filter(item => !item.requiresEligibility || showEligibilityNavigation.value)
 const navigation = computed(() => [
-  ...baseNavigation,
+  ...filterNavigation(baseNavigation),
   ...(managedTeams.value.length
     ? [{ label: 'Mi equipo', to: '/mi-equipo', icon: 'i-lucide-clipboard-pen' }]
     : [])
@@ -37,7 +57,9 @@ const isActive = (to: string) => to === '/'
   : route.path === to || route.path.startsWith(`${to}/`)
 
 const isAdminSection = computed(() => route.path === '/admin' || route.path.startsWith('/admin/'))
-const visibleNavigation = computed(() => isAdmin.value || isAdminSection.value ? adminNavigation : navigation.value)
+const visibleNavigation = computed(() =>
+  isAdmin.value || isAdminSection.value ? filterNavigation(adminNavigation) : navigation.value
+)
 
 const isNavigationItemActive = (to: string) => to === '/admin'
   ? route.path === '/admin'

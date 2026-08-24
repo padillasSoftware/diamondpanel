@@ -3,6 +3,7 @@ import type { Prisma } from '../generated/prisma/client'
 import { cleanNumber, cleanOptionalText, cleanRequiredText } from './validation'
 
 const maxHighlightsPerSide = 3
+const maxLineupPlayersPerTeam = 30
 
 export const resultPlayerSelect = {
   id: true,
@@ -117,6 +118,22 @@ export const adminResultGameSelect = {
         }
       }
     }
+  },
+  lineupEntries: {
+    orderBy: [
+      { teamId: 'asc' },
+      { battingOrder: 'asc' },
+      { createdAt: 'asc' }
+    ],
+    select: {
+      id: true,
+      teamId: true,
+      playerId: true,
+      battingOrder: true,
+      player: {
+        select: resultPlayerSelect
+      }
+    }
   }
 } satisfies Prisma.GameSelect
 
@@ -136,6 +153,12 @@ type HighlightInput = {
   atBats: number
   hits: number
   homeRuns: number
+}
+
+export type LineupInput = {
+  teamId: string
+  playerId: string
+  battingOrder: number | null
 }
 
 function cleanScore(value: unknown, field: string) {
@@ -167,6 +190,28 @@ function readHighlightRows(body: Record<string, unknown>, key: 'winnerHighlights
     throw createError({
       statusCode: 400,
       statusMessage: 'Only 3 batting highlights are allowed per team'
+    })
+  }
+
+  return value
+}
+
+function readLineupRows(body: Record<string, unknown>, key: 'homeLineup' | 'awayLineup') {
+  const value = body[key]
+
+  if (value === undefined || value === null) return []
+
+  if (!Array.isArray(value)) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'Lineup must be a list'
+    })
+  }
+
+  if (value.length > maxLineupPlayersPerTeam) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: `Only ${maxLineupPlayersPerTeam} lineup players are allowed per team`
     })
   }
 
@@ -229,6 +274,51 @@ function cleanHighlightRows(input: {
   return rows
 }
 
+function cleanLineupRows(input: {
+  rows: unknown[]
+  teamId: string
+}) {
+  const rows: LineupInput[] = []
+  const seenPlayerIds = new Set<string>()
+  const seenOrders = new Set<number>()
+
+  input.rows.forEach((item) => {
+    const row = typeof item === 'object' && item ? item as Record<string, unknown> : {}
+    const playerId = cleanOptionalText(row.playerId, 120)
+
+    if (!playerId) return
+
+    if (seenPlayerIds.has(playerId)) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: 'A lineup player cannot be repeated'
+      })
+    }
+
+    const battingOrder = cleanNumber(row.battingOrder, { min: 1, max: 99, field: 'Batting order' })
+
+    if (battingOrder !== null) {
+      if (seenOrders.has(battingOrder)) {
+        throw createError({
+          statusCode: 400,
+          statusMessage: 'A batting order cannot be repeated in the same lineup'
+        })
+      }
+
+      seenOrders.add(battingOrder)
+    }
+
+    seenPlayerIds.add(playerId)
+    rows.push({
+      teamId: input.teamId,
+      playerId,
+      battingOrder
+    })
+  })
+
+  return rows
+}
+
 export async function getActiveSeasonForResults(prisma: Prisma.TransactionClient) {
   return prisma.season.findFirst({
     where: { status: SeasonStatus.ACTIVE },
@@ -239,7 +329,9 @@ export async function getActiveSeasonForResults(prisma: Prisma.TransactionClient
     select: {
       id: true,
       name: true,
-      year: true
+      year: true,
+      playoffEligibilityMode: true,
+      playoffMinimumLineupGames: true
     }
   })
 }
@@ -323,4 +415,17 @@ export function buildResultPayload(body: Record<string, unknown>, game: ResultGa
     },
     highlights
   }
+}
+
+export function buildLineupPayload(body: Record<string, unknown>, game: { homeTeamId: string, awayTeamId: string }) {
+  return [
+    ...cleanLineupRows({
+      rows: readLineupRows(body, 'homeLineup'),
+      teamId: game.homeTeamId
+    }),
+    ...cleanLineupRows({
+      rows: readLineupRows(body, 'awayLineup'),
+      teamId: game.awayTeamId
+    })
+  ]
 }
