@@ -1,7 +1,7 @@
 import { SeasonStatus } from '../../../generated/prisma/enums'
 import { prisma } from '../../../utils/db'
 import { requireAdmin } from '../../../utils/session'
-import { archiveOtherActiveSeasons, assertSeasonStartsAfterOtherSeasons, buildSeasonCreateData, seasonSelect } from '../../../utils/seasons'
+import { archiveOtherActiveSeasons, assertSeasonStartsAfterOtherSeasons, attachActiveTeamsToSeason, buildSeasonCreateData, seasonSelect } from '../../../utils/seasons'
 
 export default defineEventHandler(async (event) => {
   await requireAdmin(event)
@@ -20,6 +20,7 @@ export default defineEventHandler(async (event) => {
 
       if (created.status === SeasonStatus.ACTIVE) {
         await archiveOtherActiveSeasons(tx, created.id)
+        await attachActiveTeamsToSeason(tx, created.id)
       }
 
       return created

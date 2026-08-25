@@ -8,6 +8,7 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:admins": "tsx prisma/seed-admins.ts",
+    "db:backfill:team-seasons": "tsx prisma/backfill-team-seasons.ts",
     "dev": "nuxt dev",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
