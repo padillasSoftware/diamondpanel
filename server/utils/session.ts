@@ -6,13 +6,15 @@ import { prisma } from './db'
 
 const sessionCookieName = 'diamondpanel_session'
 const activeTeamCookieName = 'diamondpanel_active_team'
-const sessionMaxAge = 60 * 60 * 24 * 7
+const sessionMaxAge = 60 * 60 * 24
+const rememberedSessionMaxAge = 60 * 60 * 24 * 30
 
 type UserRoleValue = (typeof UserRole)[keyof typeof UserRole]
 
 type SessionPayload = {
   sub: string
   exp: number
+  rememberMe?: boolean
 }
 
 export type AuthManagedTeam = {
@@ -135,7 +137,7 @@ function decodePayload(value: string): SessionPayload | null {
   }
 }
 
-function readSessionUserId(event: H3Event) {
+function readSessionPayload(event: H3Event) {
   const token = getCookie(event, sessionCookieName)
 
   if (!token) return null
@@ -156,22 +158,46 @@ function readSessionUserId(event: H3Event) {
     return null
   }
 
-  return payload.sub
+  return payload
 }
 
-export function setSessionCookie(event: H3Event, userId: string) {
+function readSessionUserId(event: H3Event) {
+  return readSessionPayload(event)?.sub ?? null
+}
+
+function getSessionRemainingMaxAge(event: H3Event) {
+  const payload = readSessionPayload(event)
+
+  if (!payload) return sessionMaxAge
+
+  return Math.max(payload.exp - Math.floor(Date.now() / 1000), 1)
+}
+
+export function setSessionCookie(event: H3Event, userId: string, options: { rememberMe?: boolean } = {}) {
+  const maxAge = options.rememberMe ? rememberedSessionMaxAge : sessionMaxAge
   const payload = encodePayload({
     sub: userId,
-    exp: Math.floor(Date.now() / 1000) + sessionMaxAge
+    exp: Math.floor(Date.now() / 1000) + maxAge,
+    rememberMe: options.rememberMe === true
   })
   const token = `${payload}.${sign(payload, getAuthSecret(event))}`
+  const cookieOptions = {
+    httpOnly: true,
+    path: '/',
+    sameSite: 'lax' as const,
+    secure: process.env.NODE_ENV === 'production'
+  }
+
+  if (!options.rememberMe) {
+    setCookie(event, sessionCookieName, token, cookieOptions)
+
+    return
+  }
 
   setCookie(event, sessionCookieName, token, {
-    httpOnly: true,
-    maxAge: sessionMaxAge,
-    path: '/',
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production'
+    ...cookieOptions,
+    maxAge,
+    expires: new Date(Date.now() + maxAge * 1000)
   })
 }
 
@@ -183,9 +209,12 @@ export function clearSessionCookie(event: H3Event) {
 }
 
 function setActiveTeamCookie(event: H3Event, teamId: string) {
+  const maxAge = getSessionRemainingMaxAge(event)
+
   setCookie(event, activeTeamCookieName, teamId, {
     httpOnly: true,
-    maxAge: sessionMaxAge,
+    maxAge,
+    expires: new Date(Date.now() + maxAge * 1000),
     path: '/',
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production'

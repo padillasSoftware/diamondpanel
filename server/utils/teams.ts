@@ -231,7 +231,10 @@ export async function createOrFindManagerUser(
       })
     }
 
-    return existingUser.id
+    return {
+      userId: existingUser.id,
+      created: false
+    }
   }
 
   const createdUser = await prisma.user.create({
@@ -247,7 +250,10 @@ export async function createOrFindManagerUser(
     }
   })
 
-  return createdUser.id
+  return {
+    userId: createdUser.id,
+    created: true
+  }
 }
 
 export async function attachTeamToActiveSeason(prisma: Prisma.TransactionClient, teamId: string) {

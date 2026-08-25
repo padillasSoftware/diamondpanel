@@ -13,9 +13,16 @@ const { user, initialized, login, fetchSession } = useAuth()
 
 const email = ref('')
 const password = ref('')
+const rememberMe = ref(false)
 const isSubmitting = ref(false)
+const isForgotPasswordOpen = ref(false)
+const forgotEmail = ref('')
+const forgotResetUrl = ref('')
+const resetExpiresInMinutes = ref(30)
+const isRequestingReset = ref(false)
 const showSplash = useState('app:show-splash')
 const toast = useToast()
+const rememberedEmailKey = 'diamondpanel:remembered-email'
 
 if (!initialized.value) {
   await fetchSession().catch(() => null)
@@ -34,6 +41,15 @@ if (user.value) {
   await navigateTo(user.value.role === 'ADMIN' ? adminRedirectPath.value : '/')
 }
 
+onMounted(() => {
+  const savedEmail = localStorage.getItem(rememberedEmailKey)
+
+  if (savedEmail && !email.value) {
+    email.value = savedEmail
+    rememberMe.value = true
+  }
+})
+
 const emailError = computed(() => {
   if (!email.value) return ''
 
@@ -51,6 +67,14 @@ const passwordError = computed(() => {
 })
 
 const canSubmit = computed(() => Boolean(email.value && password.value && !emailError.value && !passwordError.value))
+const forgotEmailError = computed(() => {
+  if (!forgotEmail.value) return ''
+
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(forgotEmail.value)
+    ? ''
+    : 'Ingresa un email válido.'
+})
+const canRequestReset = computed(() => Boolean(forgotEmail.value && !forgotEmailError.value))
 
 async function handleLogin() {
   if (!canSubmit.value) {
@@ -69,9 +93,11 @@ async function handleLogin() {
   try {
     const loggedInUser = await login({
       email: email.value,
-      password: password.value
+      password: password.value,
+      rememberMe: rememberMe.value
     })
 
+    syncRememberedEmail()
     showSplash.value = true
     await navigateTo(loggedInUser?.role === 'ADMIN' ? adminRedirectPath.value : '/')
   } catch {
@@ -84,6 +110,77 @@ async function handleLogin() {
   } finally {
     isSubmitting.value = false
   }
+}
+
+function syncRememberedEmail() {
+  if (!import.meta.client) return
+
+  if (rememberMe.value) {
+    localStorage.setItem(rememberedEmailKey, email.value.trim().toLowerCase())
+
+    return
+  }
+
+  localStorage.removeItem(rememberedEmailKey)
+}
+
+function openForgotPassword() {
+  forgotEmail.value = email.value
+  forgotResetUrl.value = ''
+  isForgotPasswordOpen.value = true
+}
+
+async function requestPasswordReset() {
+  if (!canRequestReset.value) {
+    toast.add({
+      title: 'Revisa el correo',
+      description: 'Necesitamos un correo válido para generar la recuperación.',
+      color: 'error',
+      icon: 'i-lucide-circle-alert'
+    })
+
+    return
+  }
+
+  isRequestingReset.value = true
+
+  try {
+    const response = await $fetch<{ resetUrl: string | null, expiresInMinutes: number, emailSent: boolean }>('/api/auth/forgot-password', {
+      method: 'POST',
+      body: { email: forgotEmail.value }
+    })
+
+    forgotResetUrl.value = response.resetUrl ?? ''
+    resetExpiresInMinutes.value = response.expiresInMinutes
+    toast.add({
+      title: 'Solicitud generada',
+      description: response.resetUrl
+        ? 'Se generó el enlace temporal. También se intentó enviar por correo.'
+        : 'Si el correo existe, enviaremos instrucciones para cambiar la contraseña.',
+      color: 'success',
+      icon: 'i-lucide-check-circle-2'
+    })
+  } catch {
+    toast.add({
+      title: 'No se pudo generar la recuperación',
+      description: 'Revisa el correo e inténtalo de nuevo.',
+      color: 'error',
+      icon: 'i-lucide-circle-alert'
+    })
+  } finally {
+    isRequestingReset.value = false
+  }
+}
+
+async function copyResetUrl() {
+  if (!forgotResetUrl.value || !import.meta.client) return
+
+  await navigator.clipboard.writeText(forgotResetUrl.value)
+  toast.add({
+    title: 'Enlace copiado',
+    color: 'success',
+    icon: 'i-lucide-copy-check'
+  })
 }
 
 function getAdminRedirectPath(path: string) {
@@ -164,6 +261,25 @@ function getAdminRedirectPath(path: string) {
           </span>
         </label>
 
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <label class="inline-flex items-center gap-2 text-sm text-muted">
+            <input
+              v-model="rememberMe"
+              type="checkbox"
+              class="size-4 rounded border border-default accent-primary"
+            >
+            <span>Recordarme</span>
+          </label>
+
+          <button
+            type="button"
+            class="w-fit text-left text-sm font-medium text-primary hover:underline"
+            @click="openForgotPassword"
+          >
+            Olvidé mi contraseña
+          </button>
+        </div>
+
         <UButton
           type="submit"
           icon="i-lucide-log-in"
@@ -174,6 +290,72 @@ function getAdminRedirectPath(path: string) {
           block
         />
       </form>
+
+      <UModal
+        v-model:open="isForgotPasswordOpen"
+        title="Recuperar contraseña"
+        description="Ingresa tu correo y te enviaremos un enlace temporal para cambiar la contraseña."
+      >
+        <template #body>
+          <div class="grid gap-4">
+            <label class="grid gap-1.5 text-sm">
+              <span class="font-medium text-highlighted">Email</span>
+              <UInput
+                v-model="forgotEmail"
+                type="email"
+                autocomplete="email"
+                placeholder="tu@correo.com"
+                :color="forgotEmailError ? 'error' : 'neutral'"
+              />
+              <span
+                v-if="forgotEmailError"
+                class="text-xs font-medium text-error"
+              >
+                {{ forgotEmailError }}
+              </span>
+            </label>
+
+            <div
+              v-if="forgotResetUrl"
+              class="grid gap-2 rounded-md border border-default bg-muted/30 p-3"
+            >
+              <p class="text-sm text-muted">
+                Enlace válido por {{ resetExpiresInMinutes }} minutos.
+              </p>
+              <UInput
+                :model-value="forgotResetUrl"
+                readonly
+              />
+              <UButton
+                type="button"
+                icon="i-lucide-copy"
+                label="Copiar enlace"
+                color="neutral"
+                variant="outline"
+                @click="copyResetUrl"
+              />
+            </div>
+          </div>
+        </template>
+
+        <template #footer="{ close }">
+          <UButton
+            label="Cancelar"
+            color="neutral"
+            variant="ghost"
+            :disabled="isRequestingReset"
+            @click="close"
+          />
+          <UButton
+            label="Enviar enlace"
+            icon="i-lucide-key-round"
+            color="primary"
+            :disabled="!canRequestReset"
+            :loading="isRequestingReset"
+            @click="requestPasswordReset"
+          />
+        </template>
+      </UModal>
     </div>
   </UContainer>
 </template>
