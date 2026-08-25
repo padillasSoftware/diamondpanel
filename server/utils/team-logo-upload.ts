@@ -1,10 +1,12 @@
 import { randomUUID } from 'node:crypto'
 import { mkdir, unlink, writeFile } from 'node:fs/promises'
 import type { H3Event } from 'h3'
+import { assertCloudinaryConfiguredForProduction, isCloudinaryConfigured, uploadImageToCloudinary } from './cloudinary'
 import {
   getTeamLogoExtension,
   getTeamLogoPath,
   getTeamLogoUploadDir,
+  teamLogoContentTypes,
   teamLogoPublicPrefix,
   type TeamLogoExtension
 } from './team-logos'
@@ -56,6 +58,21 @@ export async function storeTeamLogoUpload(event: H3Event, teamId: string) {
   }
 
   const extension = detectLogoExtension(logo)
+
+  assertCloudinaryConfiguredForProduction()
+
+  if (isCloudinaryConfigured()) {
+    const uploaded = await uploadImageToCloudinary({
+      file: logo.data,
+      contentType: teamLogoContentTypes[extension],
+      folder: 'team-logos',
+      publicId: `team-${safeTeamId(teamId)}`,
+      tags: ['team-logo', teamId]
+    })
+
+    return uploaded.url
+  }
+
   const filename = `team-${safeTeamId(teamId)}-${randomUUID()}.${extension}`
 
   await mkdir(getTeamLogoUploadDir(), { recursive: true })

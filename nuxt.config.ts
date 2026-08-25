@@ -27,6 +27,10 @@ export default defineNuxtConfig({
     smtpPass: process.env.SMTP_PASS,
     smtpFromName: process.env.SMTP_FROM_NAME,
     smtpFromEmail: process.env.SMTP_FROM_EMAIL,
+    cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME,
+    cloudinaryApiKey: process.env.CLOUDINARY_API_KEY,
+    cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET,
+    cloudinaryFolder: process.env.CLOUDINARY_FOLDER || 'diamondpanel',
     public: {
       leagueName: process.env.NUXT_PUBLIC_LEAGUE_NAME || 'Liga de Softball',
       leagueLogoUrl: process.env.NUXT_PUBLIC_LEAGUE_LOGO_URL || ''
