@@ -8,7 +8,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
   }
 
   if (!user.value) {
-    if (to.path === '/') return
+    if (to.path === '/' || to.path === '/reset-password') return
 
     return navigateTo({
       path: '/login',
@@ -34,7 +34,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
 })
 
 function getAdminTarget(path: string) {
-  if (path === '/mi-perfil' || path === '/admin' || path.startsWith('/admin/')) return null
+  if (path === '/mi-perfil' || path === '/reset-password' || path === '/admin' || path.startsWith('/admin/')) return null
   if (path === '/posiciones') return '/admin/posiciones'
   if (path === '/rol') return '/admin/rol'
   if (path === '/resultados') return '/admin/resultados'

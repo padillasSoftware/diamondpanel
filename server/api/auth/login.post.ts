@@ -5,6 +5,7 @@ import { getAuthUserById, setSessionCookie } from '../../utils/session'
 type LoginBody = {
   email?: string
   password?: string
+  rememberMe?: boolean
 }
 
 function normalizeEmail(value: string) {
@@ -15,6 +16,7 @@ export default defineEventHandler(async (event) => {
   const body = await readBody<LoginBody>(event)
   const email = typeof body.email === 'string' ? normalizeEmail(body.email) : ''
   const password = typeof body.password === 'string' ? body.password : ''
+  const rememberMe = body.rememberMe === true
 
   if (!email || !password) {
     throw createError({
@@ -45,7 +47,7 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  setSessionCookie(event, user.id)
+  setSessionCookie(event, user.id, { rememberMe })
 
   return {
     user: await getAuthUserById(event, user.id)

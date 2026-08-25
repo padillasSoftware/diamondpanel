@@ -87,6 +87,24 @@ body {
     var(--league-page-bg);
 }
 
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+a[href],
+select:not(:disabled),
+summary,
+input[type="checkbox"]:not(:disabled),
+input[type="radio"]:not(:disabled),
+input[type="file"]:not(:disabled) {
+  cursor: pointer;
+}
+
+button:disabled,
+select:disabled,
+[aria-disabled="true"],
+input:disabled {
+  cursor: not-allowed;
+}
+
 .league-header,
 .league-mobile-nav {
   border-bottom: 1px solid rgb(0 56 32 / 0.9);

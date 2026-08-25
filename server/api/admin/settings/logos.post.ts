@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { mkdir, unlink, writeFile } from 'node:fs/promises'
 import { prisma } from '../../../utils/db'
+import { assertCloudinaryConfiguredForProduction, isCloudinaryConfigured, uploadImageToCloudinary } from '../../../utils/cloudinary'
 import {
   getLeagueLogoPath,
   getLeagueLogoUploadDir,
@@ -59,11 +60,28 @@ export default defineEventHandler(async (event) => {
       secondaryLogoUrl: true
     }
   })
-  const filename = `${slot}-${randomUUID()}${extension}`
-  const publicUrl = `${leagueLogoPublicPrefix}${filename}`
+  let publicUrl: string
 
-  await mkdir(getLeagueLogoUploadDir(), { recursive: true })
-  await writeFile(getLeagueLogoPath(filename), logoPart.data)
+  assertCloudinaryConfiguredForProduction()
+
+  if (isCloudinaryConfigured()) {
+    const uploaded = await uploadImageToCloudinary({
+      file: logoPart.data,
+      contentType: logoContentType(extension),
+      folder: 'league-logos',
+      publicId: `${slot}-logo`,
+      tags: ['league-logo', slot]
+    })
+
+    publicUrl = uploaded.url
+  } else {
+    const filename = `${slot}-${randomUUID()}${extension}`
+
+    publicUrl = `${leagueLogoPublicPrefix}${filename}`
+
+    await mkdir(getLeagueLogoUploadDir(), { recursive: true })
+    await writeFile(getLeagueLogoPath(filename), logoPart.data)
+  }
 
   const updatedSettings = await prisma.leagueSettings.upsert({
     where: { id: settingsId },
@@ -134,6 +152,14 @@ function detectLogoExtension(type: string | undefined, data: Buffer) {
   }
 
   return ''
+}
+
+function logoContentType(extension: string) {
+  if (extension === '.png') return 'image/png'
+  if (extension === '.jpg') return 'image/jpeg'
+  if (extension === '.webp') return 'image/webp'
+
+  return 'application/octet-stream'
 }
 
 async function removePreviousLogo(publicUrl: string | null | undefined) {

@@ -1,6 +1,9 @@
 import { prisma } from '../../../utils/db'
 import { hashPassword } from '../../../utils/password'
 import { requireAdmin } from '../../../utils/session'
+import { buildAppUrl } from '../../../utils/app-url'
+import { sendManagerWelcomeNotification } from '../../../utils/manager-email'
+import type { ManagerWelcomeNotification } from '../../../utils/manager-email'
 import {
   adminTeamSelect,
   attachTeamToActiveSeason,
@@ -35,27 +38,45 @@ export default defineEventHandler(async (event) => {
       team.managerName = newManager.name
     }
 
-    return await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       const created = await tx.team.create({
         data: team,
         select: { id: true }
       })
       const assignedManagerUserIds = [...managerUserIds]
+      let managerWelcomeEmail: ManagerWelcomeNotification | null = null
 
       if (newManager && newManagerPasswordHash) {
-        const newManagerUserId = await createOrFindManagerUser(tx, newManager, newManagerPasswordHash)
+        const managerUser = await createOrFindManagerUser(tx, newManager, newManagerPasswordHash)
 
-        assignedManagerUserIds.push(newManagerUserId)
+        assignedManagerUserIds.push(managerUser.userId)
+
+        if (managerUser.created) {
+          managerWelcomeEmail = {
+            to: newManager.email,
+            name: newManager.name ?? newManager.email,
+            loginUrl: buildAppUrl(event, '/login'),
+            temporaryPassword: managerTempPassword,
+            teamName: team.name
+          }
+        }
       }
 
       await attachTeamToActiveSeason(tx, created.id)
       await syncTeamManagers(tx, created.id, [...new Set(assignedManagerUserIds)])
 
-      return tx.team.findUniqueOrThrow({
-        where: { id: created.id },
-        select: adminTeamSelect
-      })
+      return {
+        team: await tx.team.findUniqueOrThrow({
+          where: { id: created.id },
+          select: adminTeamSelect
+        }),
+        managerWelcomeEmail
+      }
     })
+
+    await sendManagerWelcomeNotification(result.managerWelcomeEmail)
+
+    return result.team
   } catch (error) {
     handleTeamConflict(error)
   }

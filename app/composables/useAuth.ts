@@ -28,6 +28,7 @@ type SessionResponse = {
 type LoginInput = {
   email: string
   password: string
+  rememberMe?: boolean
 }
 
 type ChangePasswordInput = {

@@ -91,6 +91,7 @@ const branchOptions = TEAM_BRANCH_OPTIONS.filter(
 const editingTeamId = ref<string | null>(null)
 const isSavingTeam = ref(false)
 const isUploadingTeamLogo = ref(false)
+const togglingTeamId = ref<string | null>(null)
 const isDeletingTeam = ref(false)
 const teamPendingDelete = ref<AdminTeam | null>(null)
 const isSlugDirty = ref(false)
@@ -367,7 +368,10 @@ async function uploadTeamLogo(event: Event) {
 }
 
 async function toggleTeamStatus(team: AdminTeam) {
+  if (togglingTeamId.value) return
+
   const nextStatus = team.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'
+  togglingTeamId.value = team.id
 
   try {
     await $fetch(`/api/admin/teams/${team.id}`, {
@@ -378,6 +382,8 @@ async function toggleTeamStatus(team: AdminTeam) {
     showFeedback(nextStatus === 'ACTIVE' ? 'Equipo activado.' : 'Equipo inactivado.')
   } catch {
     showError('No se pudo cambiar el estado del equipo.')
+  } finally {
+    togglingTeamId.value = null
   }
 }
 
@@ -841,31 +847,39 @@ async function confirmDeleteTeam() {
               </div>
 
               <div class="flex shrink-0 gap-1.5">
-                <UButton
-                  :icon="team.status === 'ACTIVE' ? 'i-lucide-eye-off' : 'i-lucide-eye'"
-                  :aria-label="team.status === 'ACTIVE' ? 'Inactivar equipo' : 'Activar equipo'"
-                  :color="team.status === 'ACTIVE' ? 'warning' : 'success'"
-                  variant="subtle"
-                  size="sm"
-                  @click="toggleTeamStatus(team)"
-                />
-                <UButton
-                  icon="i-lucide-pencil"
-                  aria-label="Editar equipo"
-                  color="neutral"
-                  variant="outline"
-                  size="sm"
-                  @click="editTeam(team)"
-                />
-                <UButton
-                  icon="i-lucide-trash-2"
-                  aria-label="Eliminar equipo"
-                  color="error"
-                  variant="subtle"
-                  size="sm"
-                  :disabled="!canDeleteTeam(team)"
-                  @click="deleteTeam(team)"
-                />
+                <UTooltip :text="team.status === 'ACTIVE' ? 'Inactivar equipo' : 'Activar equipo'">
+                  <UButton
+                    :icon="team.status === 'ACTIVE' ? 'i-lucide-eye-off' : 'i-lucide-eye'"
+                    :aria-label="team.status === 'ACTIVE' ? 'Inactivar equipo' : 'Activar equipo'"
+                    :color="team.status === 'ACTIVE' ? 'warning' : 'success'"
+                    variant="subtle"
+                    size="sm"
+                    :loading="togglingTeamId === team.id"
+                    :disabled="Boolean(togglingTeamId)"
+                    @click="toggleTeamStatus(team)"
+                  />
+                </UTooltip>
+                <UTooltip text="Editar equipo">
+                  <UButton
+                    icon="i-lucide-pencil"
+                    aria-label="Editar equipo"
+                    color="neutral"
+                    variant="outline"
+                    size="sm"
+                    @click="editTeam(team)"
+                  />
+                </UTooltip>
+                <UTooltip :text="canDeleteTeam(team) ? 'Eliminar equipo' : 'No se puede eliminar porque ya tiene integrantes o juegos'">
+                  <UButton
+                    icon="i-lucide-trash-2"
+                    aria-label="Eliminar equipo"
+                    color="error"
+                    variant="subtle"
+                    size="sm"
+                    :disabled="!canDeleteTeam(team)"
+                    @click="deleteTeam(team)"
+                  />
+                </UTooltip>
               </div>
             </div>
           </article>

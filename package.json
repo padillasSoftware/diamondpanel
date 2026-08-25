@@ -7,6 +7,7 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
+    "db:seed:admins": "tsx prisma/seed-admins.ts",
     "dev": "nuxt dev",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
@@ -20,12 +21,14 @@
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
     "bcryptjs": "^3.0.3",
+    "nodemailer": "^9.0.5",
     "nuxt": "^4.5.2",
     "pg": "^8.23.0",
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
     "@nuxt/eslint": "^1.17.0",
+    "@types/nodemailer": "^8.0.1",
     "@types/pg": "^8.21.0",
     "dotenv": "^17.4.2",
     "eslint": "^10.8.1",
