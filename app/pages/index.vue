@@ -47,6 +47,8 @@ type MatchupMatrixResponse = {
   groups: MatchupMatrixGroup[]
 }
 
+type MatchupMatrixRow = MatchupMatrixGroup['rows'][number]
+
 const { user } = useAuth()
 const { public: { leagueName } } = useRuntimeConfig()
 const isPublicLanding = computed(() => !user.value)
@@ -117,6 +119,19 @@ const managerQuickActions = computed(() => [
 const selectedMatchupGroup = computed(() =>
   matchupGroups.value.find(group => group.id === selectedMatchupGroupId.value) ?? matchupGroups.value[0] ?? null
 )
+const mobileMatchupRows = computed(() => {
+  const rows = selectedMatchupGroup.value?.rows ?? []
+  const activeTeamId = user.value?.activeTeamId
+
+  if (!activeTeamId) return rows
+
+  return [...rows].sort((left, right) => {
+    if (left.team.id === activeTeamId) return -1
+    if (right.team.id === activeTeamId) return 1
+
+    return left.index - right.index
+  })
+})
 const matchupLegend = [
   { label: 'pendiente', state: 'PENDING' },
   { label: 'programado', state: 'SCHEDULED' },
@@ -151,6 +166,62 @@ function matchupCellClass(state: MatchupCellState) {
   }
 
   return classes[state]
+}
+
+function matchupLegendClass(state: MatchupCellState) {
+  const classes: Record<MatchupCellState, string> = {
+    SELF: 'bg-neutral-300',
+    PENDING: 'bg-neutral-300 dark:bg-neutral-500',
+    SCHEDULED: 'bg-cyan-400',
+    POSTPONED: 'bg-amber-400',
+    WON: 'bg-lime-400',
+    TIED: 'bg-yellow-400',
+    LOST: 'bg-red-400',
+    DEFAULT: 'bg-orange-400',
+    CANCELLED: 'bg-neutral-400'
+  }
+
+  return classes[state]
+}
+
+function matchupBadgeClass(state: MatchupCellState) {
+  const classes: Record<MatchupCellState, string> = {
+    SELF: 'bg-neutral-200 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300',
+    PENDING: 'bg-muted text-muted',
+    SCHEDULED: 'bg-cyan-100 text-cyan-900 dark:bg-cyan-900/40 dark:text-cyan-100',
+    POSTPONED: 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100',
+    WON: 'bg-lime-200 text-lime-950 dark:bg-lime-700 dark:text-lime-50',
+    TIED: 'bg-yellow-200 text-yellow-950 dark:bg-yellow-700 dark:text-yellow-50',
+    LOST: 'bg-red-300 text-red-950 dark:bg-red-800 dark:text-red-50',
+    DEFAULT: 'bg-orange-200 text-orange-950 dark:bg-orange-800 dark:text-orange-50',
+    CANCELLED: 'bg-neutral-200 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200'
+  }
+
+  return classes[state]
+}
+
+function matchupStatusLabel(state: MatchupCellState) {
+  const labels: Record<MatchupCellState, string> = {
+    SELF: 'Mismo equipo',
+    PENDING: 'Pendiente',
+    SCHEDULED: 'Programado',
+    POSTPONED: 'Suspendido',
+    WON: 'Ganado',
+    TIED: 'Empatado',
+    LOST: 'Perdido',
+    DEFAULT: 'Default',
+    CANCELLED: 'Cancelado'
+  }
+
+  return labels[state]
+}
+
+function matchupCellsForRow(row: MatchupMatrixRow) {
+  return row.cells.filter(cell => cell.state !== 'SELF')
+}
+
+function isActiveMatchupTeam(teamId: string) {
+  return user.value?.activeTeamId === teamId
 }
 </script>
 
@@ -287,73 +358,121 @@ function matchupCellClass(state: MatchupCellState) {
       </div>
 
       <template v-if="showMatchupMatrix">
-        <div class="mb-4 grid gap-2 text-xs sm:grid-cols-3 lg:grid-cols-6">
+        <div class="mb-4 flex max-w-full gap-2 overflow-x-auto pb-1 text-xs sm:grid sm:grid-cols-3 sm:overflow-visible lg:grid-cols-6">
           <div
             v-for="item in matchupLegend"
             :key="item.state"
-            class="rounded-md border-t-4 bg-muted/20 px-2 py-1.5 text-center text-muted"
-            :class="{
-              'border-neutral-300': item.state === 'PENDING',
-              'border-cyan-400': item.state === 'SCHEDULED',
-              'border-lime-400': item.state === 'WON',
-              'border-yellow-400': item.state === 'TIED',
-              'border-red-400': item.state === 'LOST',
-              'border-orange-400': item.state === 'DEFAULT'
-            }"
+            class="flex min-w-fit items-center justify-center gap-2 rounded-md border border-default bg-muted/20 px-2.5 py-1.5 text-muted"
           >
-            {{ item.label }}
+            <span
+              class="size-2 rounded-full"
+              :class="matchupLegendClass(item.state)"
+            />
+            <span>{{ item.label }}</span>
           </div>
         </div>
 
-        <div
-          v-if="selectedMatchupGroup"
-          class="max-w-full overflow-x-auto pb-1"
-        >
-          <table class="w-max border-separate border-spacing-1 text-xs">
-            <thead>
-              <tr class="text-muted">
-                <th class="sticky left-0 z-10 min-w-44 bg-default px-2 py-1 text-right font-bold">
-                  Equipos
-                </th>
-                <th class="w-8 px-1 py-1 text-center font-bold">
-                  #
-                </th>
-                <th
-                  v-for="(team, index) in selectedMatchupGroup.teams"
-                  :key="team.id"
-                  class="w-16 px-1 py-1 text-center font-bold"
-                  :title="team.name"
-                >
-                  {{ index + 1 }}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="row in selectedMatchupGroup.rows"
-                :key="row.team.id"
-              >
-                <th class="sticky left-0 z-10 max-w-44 bg-default px-2 py-1 text-right font-semibold text-primary">
-                  <span class="block truncate">
-                    {{ row.team.name }}
-                  </span>
-                </th>
-                <td class="px-1 py-1 text-center font-semibold text-muted">
-                  {{ row.index }}
-                </td>
-                <td
-                  v-for="cell in row.cells"
+        <template v-if="selectedMatchupGroup">
+          <div class="grid gap-2 sm:hidden">
+            <article
+              v-for="row in mobileMatchupRows"
+              :key="row.team.id"
+              class="rounded-lg border p-3"
+              :class="isActiveMatchupTeam(row.team.id) ? 'border-primary bg-primary/5' : 'border-default'"
+            >
+              <div class="mb-3 flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="flex flex-wrap items-center gap-1.5">
+                    <h3 class="truncate font-bold text-highlighted">
+                      {{ row.team.name }}
+                    </h3>
+                    <UBadge
+                      v-if="isActiveMatchupTeam(row.team.id)"
+                      color="primary"
+                      variant="subtle"
+                      size="sm"
+                    >
+                      Mi equipo
+                    </UBadge>
+                  </div>
+                  <p class="text-xs text-muted">
+                    Equipo #{{ row.index }} · {{ matchupCellsForRow(row).length }} cruces
+                  </p>
+                </div>
+              </div>
+
+              <div class="grid gap-1.5">
+                <div
+                  v-for="cell in matchupCellsForRow(row)"
                   :key="`${row.team.id}-${cell.opponentId}`"
-                  class="h-8 w-16 rounded-md px-1 text-center text-[11px] font-semibold"
-                  :class="matchupCellClass(cell.state)"
-                  :title="`${row.team.name} vs ${cell.opponentName}: ${cell.title}`"
+                  class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-default bg-muted/20 px-2.5 py-2"
                 >
-                  {{ cell.label }}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+                  <div class="min-w-0">
+                    <p class="truncate text-sm font-semibold text-highlighted">
+                      vs {{ cell.opponentName }}
+                    </p>
+                    <p class="truncate text-xs text-muted">
+                      {{ matchupStatusLabel(cell.state) }}{{ cell.title && cell.title !== cell.label ? ` · ${cell.title}` : '' }}
+                    </p>
+                  </div>
+                  <span
+                    class="rounded-md px-2 py-1 text-xs font-bold"
+                    :class="matchupBadgeClass(cell.state)"
+                  >
+                    {{ cell.label || matchupStatusLabel(cell.state) }}
+                  </span>
+                </div>
+              </div>
+            </article>
+          </div>
+
+          <div class="hidden max-w-full overflow-x-auto pb-1 sm:block">
+            <table class="w-max border-separate border-spacing-1 text-xs">
+              <thead>
+                <tr class="text-muted">
+                  <th class="sticky left-0 z-10 min-w-44 bg-default px-2 py-1 text-right font-bold">
+                    Equipos
+                  </th>
+                  <th class="w-8 px-1 py-1 text-center font-bold">
+                    #
+                  </th>
+                  <th
+                    v-for="(team, index) in selectedMatchupGroup.teams"
+                    :key="team.id"
+                    class="w-16 px-1 py-1 text-center font-bold"
+                    :title="team.name"
+                  >
+                    {{ index + 1 }}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="row in selectedMatchupGroup.rows"
+                  :key="row.team.id"
+                >
+                  <th class="sticky left-0 z-10 max-w-44 bg-default px-2 py-1 text-right font-semibold text-primary">
+                    <span class="block truncate">
+                      {{ row.team.name }}
+                    </span>
+                  </th>
+                  <td class="px-1 py-1 text-center font-semibold text-muted">
+                    {{ row.index }}
+                  </td>
+                  <td
+                    v-for="cell in row.cells"
+                    :key="`${row.team.id}-${cell.opponentId}`"
+                    class="h-8 w-16 rounded-md px-1 text-center text-[11px] font-semibold"
+                    :class="matchupCellClass(cell.state)"
+                    :title="`${row.team.name} vs ${cell.opponentName}: ${cell.title}`"
+                  >
+                    {{ cell.label }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </template>
 
         <div
           v-else
