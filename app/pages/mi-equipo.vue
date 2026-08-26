@@ -58,6 +58,7 @@ const isUploadingTeamLogo = ref(false)
 const isSavingMember = ref(false)
 const isDeletingMember = ref(false)
 const memberPendingDelete = ref<Player | null>(null)
+const mobileSection = ref<'TEAM' | 'ROSTER'>('TEAM')
 const toast = useToast()
 
 const statusOptions = [
@@ -340,7 +341,7 @@ async function confirmDeleteMember() {
 </script>
 
 <template>
-  <UContainer class="min-w-0 max-w-full overflow-x-hidden py-6 sm:py-8">
+  <UContainer class="min-w-0 max-w-full overflow-x-hidden pb-6 pt-4 sm:py-8">
     <div
       v-if="team"
       class="grid min-w-0 gap-5"
@@ -369,10 +370,10 @@ async function confirmDeleteMember() {
             </UBadge>
           </div>
 
-          <h1 class="max-w-full text-2xl font-bold leading-tight tracking-normal text-highlighted wrap-break-word sm:text-4xl">
-            Administración de {{ team.name }}
+          <h1 class="max-w-full text-3xl font-bold leading-tight tracking-normal text-highlighted wrap-break-word sm:text-4xl">
+            {{ team.name }}
           </h1>
-          <p class="mt-2 max-w-full text-base text-muted wrap-break-word sm:max-w-2xl">
+          <p class="mt-2 max-w-full text-sm text-muted wrap-break-word sm:max-w-2xl sm:text-base">
             Actualiza los datos visibles del equipo y administra jugadores, manejadores y coaches.
           </p>
         </div>
@@ -405,7 +406,37 @@ async function confirmDeleteMember() {
         </div>
       </div>
 
-      <section class="min-w-0 overflow-hidden rounded-lg border border-default bg-default p-4 shadow-sm sm:p-5">
+      <div class="grid grid-cols-2 gap-1 rounded-lg bg-muted/40 p-1 text-sm lg:hidden">
+        <button
+          type="button"
+          class="inline-flex h-10 items-center justify-center gap-2 rounded-md font-bold transition"
+          :class="mobileSection === 'TEAM' ? 'bg-default text-highlighted shadow-sm' : 'text-muted'"
+          @click="mobileSection = 'TEAM'"
+        >
+          <UIcon
+            name="i-lucide-shield"
+            class="size-4"
+          />
+          Datos
+        </button>
+        <button
+          type="button"
+          class="inline-flex h-10 items-center justify-center gap-2 rounded-md font-bold transition"
+          :class="mobileSection === 'ROSTER' ? 'bg-default text-highlighted shadow-sm' : 'text-muted'"
+          @click="mobileSection = 'ROSTER'"
+        >
+          <UIcon
+            name="i-lucide-users-round"
+            class="size-4"
+          />
+          Roster
+        </button>
+      </div>
+
+      <section
+        class="min-w-0 overflow-hidden rounded-lg border border-default bg-default p-4 shadow-sm sm:p-5"
+        :class="mobileSection === 'TEAM' ? '' : 'hidden lg:block'"
+      >
         <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div class="flex min-w-0 items-center gap-3">
             <img
@@ -532,7 +563,10 @@ async function confirmDeleteMember() {
         </div>
       </section>
 
-      <section class="grid min-w-0 gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+      <section
+        class="grid min-w-0 gap-4 lg:grid-cols-[0.95fr_1.05fr]"
+        :class="mobileSection === 'ROSTER' ? '' : 'hidden lg:grid'"
+      >
         <form
           class="min-w-0 overflow-hidden rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 lg:h-96"
           @submit.prevent="saveMember"

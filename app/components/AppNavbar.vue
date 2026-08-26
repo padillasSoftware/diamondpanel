@@ -224,17 +224,17 @@ const handleActiveTeamChange = (event: Event) => {
           v-if="hasMultipleManagedTeams"
           class="mb-2 grid min-w-0 gap-1 overflow-hidden rounded-lg border border-default bg-default p-2 text-sm"
         >
-          <span class="flex items-center gap-2 font-medium text-highlighted">
+          <span class="flex items-center gap-2 text-xs font-semibold uppercase tracking-normal text-muted">
             <UIcon
               name="i-lucide-shuffle"
-              class="size-4"
+              class="size-3.5"
             />
             Equipo activo
           </span>
           <select
             :value="user.activeTeamId ?? ''"
             :disabled="isSwitchingTeam"
-            class="box-border h-10 min-w-0 max-w-full appearance-none truncate rounded-md border border-default bg-default px-3 pr-8 text-sm text-highlighted outline-none focus:border-primary"
+            class="box-border h-9 min-w-0 max-w-full appearance-none truncate rounded-md border border-default bg-default px-3 pr-8 text-sm font-semibold text-highlighted outline-none focus:border-primary"
             @change="handleActiveTeamChange"
           >
             <option

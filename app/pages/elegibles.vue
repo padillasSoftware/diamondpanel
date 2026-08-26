@@ -101,9 +101,9 @@ function refreshEligibility() {
 </script>
 
 <template>
-  <UContainer class="py-6 sm:py-8">
+  <UContainer class="min-w-0 pb-6 pt-4 sm:py-8">
     <div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-      <div>
+      <div class="min-w-0">
         <div class="mb-3 flex flex-wrap items-center gap-2">
           <UBadge
             color="primary"
@@ -119,10 +119,10 @@ function refreshEligibility() {
             {{ data?.season ? `${data.season.name} ${data.season.year}` : 'Temporada activa requerida' }}
           </UBadge>
         </div>
-        <h1 class="text-3xl font-bold tracking-normal text-highlighted sm:text-4xl">
+        <h1 class="text-2xl font-bold leading-tight tracking-normal text-highlighted sm:text-4xl">
           Elegibles para playoffs
         </h1>
-        <p class="mt-2 max-w-2xl text-base text-muted">
+        <p class="mt-2 max-w-2xl text-sm text-muted sm:text-base">
           Cada jugador necesita {{ minimumGames }} partidos registrados en lineup.
         </p>
       </div>
@@ -133,6 +133,7 @@ function refreshEligibility() {
         label="Actualizar"
         color="neutral"
         variant="outline"
+        class="w-full justify-center sm:w-fit"
         :loading="pending"
         @click="refreshEligibility"
       />
@@ -167,8 +168,8 @@ function refreshEligibility() {
     <template v-else>
       <section class="mb-4 rounded-lg border border-default bg-default p-4 shadow-sm">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 class="text-xl font-bold text-highlighted">
+          <div class="min-w-0">
+            <h2 class="truncate text-xl font-bold text-highlighted">
               {{ team.name }}
             </h2>
             <div class="mt-2 flex flex-wrap gap-1">
@@ -193,43 +194,44 @@ function refreshEligibility() {
             label="Mi equipo"
             color="primary"
             variant="subtle"
+            class="w-full justify-center sm:w-fit"
           />
         </div>
       </section>
 
-      <div class="mb-4 grid gap-3 sm:grid-cols-3">
-        <div class="rounded-lg border border-default bg-default p-4 shadow-sm">
-          <p class="text-sm text-muted">
+      <div class="mb-4 grid grid-cols-3 gap-2 sm:gap-3">
+        <div class="rounded-lg border border-default bg-default p-3 shadow-sm sm:p-4">
+          <p class="text-xs text-muted sm:text-sm">
             Elegibles
           </p>
-          <p class="mt-1 text-3xl font-bold text-highlighted">
+          <p class="mt-1 text-2xl font-bold text-highlighted sm:text-3xl">
             {{ eligiblePlayers.length }}
           </p>
-          <p class="text-sm text-muted">
+          <p class="hidden text-sm text-muted sm:block">
             Listos para playoffs
           </p>
         </div>
 
-        <div class="rounded-lg border border-default bg-default p-4 shadow-sm">
-          <p class="text-sm text-muted">
-            Por completar
+        <div class="rounded-lg border border-default bg-default p-3 shadow-sm sm:p-4">
+          <p class="text-xs text-muted sm:text-sm">
+            Pendientes
           </p>
-          <p class="mt-1 text-3xl font-bold text-highlighted">
+          <p class="mt-1 text-2xl font-bold text-highlighted sm:text-3xl">
             {{ pendingPlayers.length }}
           </p>
-          <p class="text-sm text-muted">
+          <p class="hidden text-sm text-muted sm:block">
             Aún no llegan a {{ minimumGames }}
           </p>
         </div>
 
-        <div class="rounded-lg border border-default bg-default p-4 shadow-sm">
-          <p class="text-sm text-muted">
+        <div class="rounded-lg border border-default bg-default p-3 shadow-sm sm:p-4">
+          <p class="text-xs text-muted sm:text-sm">
             Regla
           </p>
-          <p class="mt-1 text-3xl font-bold text-highlighted">
+          <p class="mt-1 text-2xl font-bold text-highlighted sm:text-3xl">
             {{ minimumGames }}
           </p>
-          <p class="text-sm text-muted">
+          <p class="hidden text-sm text-muted sm:block">
             Juegos en lineup
           </p>
         </div>
@@ -287,68 +289,105 @@ function refreshEligibility() {
           </p>
         </div>
 
-        <div
-          v-else
-          class="max-w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]"
-        >
-          <table class="w-full min-w-[42rem] text-sm">
-            <thead>
-              <tr class="border-b border-default text-left text-xs uppercase text-muted">
-                <th class="py-3 pr-3">
-                  Jugador
-                </th>
-                <th class="py-3 pr-3">
-                  Posición
-                </th>
-                <th class="py-3 pr-3 text-right">
-                  Juegos
-                </th>
-                <th class="py-3 pr-3">
-                  Avance
-                </th>
-                <th class="py-3 text-right">
-                  Estado
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="player in filteredPlayers"
-                :key="player.id"
-                class="border-b border-muted last:border-0"
-              >
-                <td class="py-3 pr-3">
-                  <p class="font-semibold text-highlighted">
+        <template v-else>
+          <div class="grid gap-2 sm:hidden">
+            <article
+              v-for="player in filteredPlayers"
+              :key="player.id"
+              class="rounded-lg border border-default p-3"
+            >
+              <div class="mb-3 flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="truncate font-bold text-highlighted">
                     {{ playerName(player) }}
                   </p>
-                </td>
-                <td class="py-3 pr-3 text-muted">
-                  {{ playerPositionLabel(player.position) }}
-                </td>
-                <td class="py-3 pr-3 text-right font-semibold text-highlighted">
-                  {{ player.lineupGames }}/{{ minimumGames }}
-                </td>
-                <td class="py-3 pr-3">
-                  <div class="h-2 min-w-28 overflow-hidden rounded-full bg-muted">
-                    <div
-                      class="h-full rounded-full"
-                      :class="player.isPlayoffEligible ? 'bg-success' : 'bg-primary'"
-                      :style="{ width: progressWidth(player) }"
-                    />
-                  </div>
-                </td>
-                <td class="py-3 text-right">
-                  <UBadge
-                    :color="player.isPlayoffEligible ? 'success' : 'neutral'"
-                    variant="subtle"
-                  >
-                    {{ player.isPlayoffEligible ? 'Elegible' : `${missingGames(player)} faltan` }}
-                  </UBadge>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+                  <p class="text-sm text-muted">
+                    {{ playerPositionLabel(player.position) }}
+                  </p>
+                </div>
+                <UBadge
+                  :color="player.isPlayoffEligible ? 'success' : 'neutral'"
+                  variant="subtle"
+                  class="shrink-0"
+                >
+                  {{ player.isPlayoffEligible ? 'Elegible' : `${missingGames(player)} faltan` }}
+                </UBadge>
+              </div>
+
+              <div class="mb-2 flex items-center justify-between gap-3 text-sm">
+                <span class="text-muted">Juegos en lineup</span>
+                <span class="font-bold text-highlighted">{{ player.lineupGames }}/{{ minimumGames }}</span>
+              </div>
+              <div class="h-2 overflow-hidden rounded-full bg-muted">
+                <div
+                  class="h-full rounded-full"
+                  :class="player.isPlayoffEligible ? 'bg-success' : 'bg-primary'"
+                  :style="{ width: progressWidth(player) }"
+                />
+              </div>
+            </article>
+          </div>
+
+          <div class="hidden max-w-full overflow-x-auto overscroll-x-contain sm:block [-webkit-overflow-scrolling:touch]">
+            <table class="w-full min-w-[42rem] text-sm">
+              <thead>
+                <tr class="border-b border-default text-left text-xs uppercase text-muted">
+                  <th class="py-3 pr-3">
+                    Jugador
+                  </th>
+                  <th class="py-3 pr-3">
+                    Posición
+                  </th>
+                  <th class="py-3 pr-3 text-right">
+                    Juegos
+                  </th>
+                  <th class="py-3 pr-3">
+                    Avance
+                  </th>
+                  <th class="py-3 text-right">
+                    Estado
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="player in filteredPlayers"
+                  :key="player.id"
+                  class="border-b border-muted last:border-0"
+                >
+                  <td class="py-3 pr-3">
+                    <p class="font-semibold text-highlighted">
+                      {{ playerName(player) }}
+                    </p>
+                  </td>
+                  <td class="py-3 pr-3 text-muted">
+                    {{ playerPositionLabel(player.position) }}
+                  </td>
+                  <td class="py-3 pr-3 text-right font-semibold text-highlighted">
+                    {{ player.lineupGames }}/{{ minimumGames }}
+                  </td>
+                  <td class="py-3 pr-3">
+                    <div class="h-2 min-w-28 overflow-hidden rounded-full bg-muted">
+                      <div
+                        class="h-full rounded-full"
+                        :class="player.isPlayoffEligible ? 'bg-success' : 'bg-primary'"
+                        :style="{ width: progressWidth(player) }"
+                      />
+                    </div>
+                  </td>
+                  <td class="py-3 text-right">
+                    <UBadge
+                      :color="player.isPlayoffEligible ? 'success' : 'neutral'"
+                      variant="subtle"
+                    >
+                      {{ player.isPlayoffEligible ? 'Elegible' : `${missingGames(player)} faltan` }}
+                    </UBadge>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </template>
       </section>
     </template>
   </UContainer>

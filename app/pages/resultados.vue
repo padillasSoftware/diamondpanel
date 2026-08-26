@@ -78,9 +78,9 @@ function loserTeamName(game: ResultGame) {
 </script>
 
 <template>
-  <UContainer class="py-6 sm:py-8">
+  <UContainer class="min-w-0 pb-6 pt-4 sm:py-8">
     <div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-      <div>
+      <div class="min-w-0">
         <div class="mb-3 flex flex-wrap items-center gap-2">
           <UBadge
             color="primary"
@@ -96,11 +96,11 @@ function loserTeamName(game: ResultGame) {
             {{ season?.name }} {{ season?.year }}
           </UBadge>
         </div>
-        <h1 class="text-3xl font-bold tracking-normal text-highlighted sm:text-4xl">
+        <h1 class="text-2xl font-bold leading-tight tracking-normal text-highlighted sm:text-4xl">
           Marcadores finales
         </h1>
-        <p class="mt-2 max-w-2xl text-base text-muted">
-          Historial reciente de partidos jugados, ganador, carreras e innings registrados.
+        <p class="mt-2 max-w-2xl text-sm text-muted sm:text-base">
+          {{ scopeDescription }}
         </p>
       </div>
 
@@ -110,51 +110,52 @@ function loserTeamName(game: ResultGame) {
         label="Ver posiciones"
         color="primary"
         variant="subtle"
+        class="w-full justify-center sm:w-auto"
       />
     </div>
 
-    <div class="mb-4 grid gap-3 md:grid-cols-3">
-      <div class="rounded-lg border border-default bg-default p-4 shadow-sm">
-        <p class="text-sm text-muted">
-          Partidos finalizados
+    <div class="mb-4 grid grid-cols-3 gap-2 sm:gap-3">
+      <div class="min-w-0 rounded-lg border border-default bg-default p-3 text-center shadow-sm sm:p-4 sm:text-left">
+        <p class="truncate text-xs text-muted sm:text-sm">
+          Finales
         </p>
-        <p class="mt-1 text-2xl font-bold text-highlighted">
+        <p class="mt-1 text-xl font-bold text-highlighted sm:text-2xl">
           {{ resultRows.length }}
         </p>
-        <p class="text-sm text-muted">
+        <p class="hidden text-sm text-muted sm:block">
           Con resultado capturado
         </p>
       </div>
 
-      <div class="rounded-lg border border-default bg-default p-4 shadow-sm">
-        <p class="text-sm text-muted">
-          Carreras totales
+      <div class="min-w-0 rounded-lg border border-default bg-default p-3 text-center shadow-sm sm:p-4 sm:text-left">
+        <p class="truncate text-xs text-muted sm:text-sm">
+          Carreras
         </p>
-        <p class="mt-1 text-2xl font-bold text-highlighted">
+        <p class="mt-1 text-xl font-bold text-highlighted sm:text-2xl">
           {{ totalRuns }}
         </p>
-        <p class="text-sm text-muted">
+        <p class="hidden text-sm text-muted sm:block">
           {{ averageRuns }} por partido
         </p>
       </div>
 
-      <div class="rounded-lg border border-default bg-default p-4 shadow-sm">
-        <p class="text-sm text-muted">
-          Resultado más reciente
+      <div class="min-w-0 rounded-lg border border-default bg-default p-3 text-center shadow-sm sm:p-4 sm:text-left">
+        <p class="truncate text-xs text-muted sm:text-sm">
+          Reciente
         </p>
-        <p class="mt-1 truncate text-2xl font-bold text-highlighted">
+        <p class="mt-1 truncate text-lg font-bold text-highlighted sm:text-2xl">
           {{ latestResult ? resultWinnerLabel(latestResult) : '-' }}
         </p>
-        <p class="text-sm text-muted">
+        <p class="hidden text-sm text-muted sm:block">
           {{ latestResult ? formatShortDate(latestResult.scheduledAt) : '-' }}
         </p>
       </div>
     </div>
 
-    <section class="rounded-lg border border-default bg-default p-5 shadow-sm">
+    <section class="rounded-lg border border-default bg-default p-3 shadow-sm sm:p-5">
       <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h2 class="text-xl font-bold text-highlighted">
+          <h2 class="text-lg font-bold text-highlighted sm:text-xl">
             Juegos completados
           </h2>
           <p class="text-sm text-muted">
@@ -212,15 +213,16 @@ function loserTeamName(game: ResultGame) {
         <article
           v-for="game in resultRows"
           :key="game.id"
-          class="rounded-lg border border-default p-4"
+          class="rounded-lg border border-default p-3 sm:p-4"
         >
           <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div class="flex flex-wrap items-center gap-2 text-sm text-muted">
-              <span>{{ roundLabel(game.round) }}</span>
-              <span>•</span>
-              <span>{{ formatGameDate(game.scheduledAt) }}</span>
-              <span>•</span>
-              <span>{{ game.field?.name ?? 'Campo por definir' }}</span>
+            <div class="min-w-0 text-sm text-muted">
+              <p class="font-semibold text-highlighted">
+                {{ roundLabel(game.round) }}
+              </p>
+              <p class="truncate">
+                {{ formatGameDate(game.scheduledAt) }} · {{ game.field?.name ?? 'Campo por definir' }}
+              </p>
             </div>
             <div class="flex flex-wrap gap-1">
               <UBadge
@@ -261,7 +263,7 @@ function loserTeamName(game: ResultGame) {
                 </p>
               </div>
               <p
-                class="text-2xl font-bold"
+                class="text-2xl font-black"
                 :class="scoreClass(game, 'home')"
               >
                 {{ game.result.homeScore }}
@@ -284,7 +286,7 @@ function loserTeamName(game: ResultGame) {
                 </p>
               </div>
               <p
-                class="text-2xl font-bold"
+                class="text-2xl font-black"
                 :class="scoreClass(game, 'away')"
               >
                 {{ game.result.awayScore }}
@@ -292,7 +294,7 @@ function loserTeamName(game: ResultGame) {
             </div>
           </div>
 
-          <p class="mt-3 text-sm text-muted">
+          <p class="mt-3 text-xs font-medium uppercase text-muted sm:text-sm">
             {{ game.result.innings ?? 7 }} innings{{ game.result.isForfeit ? ' • Forfeit' : '' }}
           </p>
 

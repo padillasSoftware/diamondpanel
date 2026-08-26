@@ -88,9 +88,9 @@ const gamesByDate = computed(() => {
 </script>
 
 <template>
-  <UContainer class="py-6 sm:py-8">
+  <UContainer class="min-w-0 pb-6 pt-4 sm:py-8">
     <div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-      <div>
+      <div class="min-w-0">
         <div class="mb-3 flex flex-wrap items-center gap-2">
           <UBadge
             color="primary"
@@ -106,10 +106,10 @@ const gamesByDate = computed(() => {
             {{ season?.name }} {{ season?.year }}
           </UBadge>
         </div>
-        <h1 class="text-3xl font-bold tracking-normal text-highlighted sm:text-4xl">
+        <h1 class="text-2xl font-bold leading-tight tracking-normal text-highlighted sm:text-4xl">
           Próximos partidos
         </h1>
-        <p class="mt-2 max-w-2xl text-base text-muted">
+        <p class="mt-2 max-w-2xl text-sm text-muted sm:text-base">
           {{ scopeDescription }}
         </p>
       </div>
@@ -136,7 +136,7 @@ const gamesByDate = computed(() => {
 
     <section
       v-if="nextGame"
-      class="mb-4 rounded-lg border border-default bg-default p-5 shadow-sm"
+      class="mb-4 rounded-lg border border-default bg-default p-3 shadow-sm sm:p-5"
     >
       <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -169,10 +169,10 @@ const gamesByDate = computed(() => {
         </div>
       </div>
 
-      <div class="grid gap-4 lg:grid-cols-[1fr_auto_1fr] lg:items-center">
-        <div class="flex items-center gap-3 rounded-lg border border-default bg-muted/30 p-4">
+      <div class="grid gap-3 lg:grid-cols-[1fr_auto_1fr] lg:items-center">
+        <div class="flex items-center gap-3 rounded-lg border border-default bg-muted/30 p-3 sm:p-4">
           <span
-            class="flex size-14 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
+            class="flex size-12 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white sm:size-14"
             :style="{ backgroundColor: nextGame.homeTeam.primaryColor ?? '#047857' }"
           >
             {{ teamInitials(nextGame.homeTeam) }}
@@ -181,14 +181,17 @@ const gamesByDate = computed(() => {
             <p class="text-sm text-muted">
               Local
             </p>
-            <p class="truncate text-lg font-bold text-highlighted">
+            <p class="truncate text-base font-bold text-highlighted sm:text-lg">
               {{ nextGame.homeTeam.name }}
             </p>
           </div>
         </div>
 
-        <div class="rounded-md border border-default bg-muted/30 px-4 py-3 text-center">
-          <p class="text-xs font-semibold uppercase text-muted">
+        <div class="rounded-md border border-default bg-primary/10 px-4 py-3 text-center">
+          <p class="text-sm font-bold text-highlighted">
+            {{ formatGameTime(nextGame.scheduledAt) }}
+          </p>
+          <p class="mt-0.5 text-xs font-semibold uppercase text-muted">
             {{ formatGameDate(nextGame.scheduledAt) }}
           </p>
           <p class="mt-1 text-sm text-highlighted">
@@ -196,9 +199,9 @@ const gamesByDate = computed(() => {
           </p>
         </div>
 
-        <div class="flex items-center gap-3 rounded-lg border border-default bg-muted/30 p-4 lg:flex-row-reverse lg:text-right">
+        <div class="flex items-center gap-3 rounded-lg border border-default bg-muted/30 p-3 sm:p-4 lg:flex-row-reverse lg:text-right">
           <span
-            class="flex size-14 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
+            class="flex size-12 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white sm:size-14"
             :style="{ backgroundColor: nextGame.awayTeam.primaryColor ?? '#f97316' }"
           >
             {{ teamInitials(nextGame.awayTeam) }}
@@ -207,7 +210,7 @@ const gamesByDate = computed(() => {
             <p class="text-sm text-muted">
               Visitante
             </p>
-            <p class="truncate text-lg font-bold text-highlighted">
+            <p class="truncate text-base font-bold text-highlighted sm:text-lg">
               {{ nextGame.awayTeam.name }}
             </p>
           </div>
@@ -215,10 +218,10 @@ const gamesByDate = computed(() => {
       </div>
     </section>
 
-    <section class="rounded-lg border border-default bg-default p-5 shadow-sm">
+    <section class="rounded-lg border border-default bg-default p-3 shadow-sm sm:p-5">
       <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h2 class="text-xl font-bold text-highlighted">
+          <h2 class="text-lg font-bold text-highlighted sm:text-xl">
             Calendario
           </h2>
           <p class="text-sm text-muted">
@@ -272,75 +275,91 @@ const gamesByDate = computed(() => {
             <div
               v-for="game in group.games"
               :key="game.id"
-              class="grid gap-3 rounded-lg border border-default p-3 md:grid-cols-[1fr_auto_1fr] md:items-center"
+              class="grid gap-3 rounded-lg border border-default p-3"
             >
-              <div class="flex min-w-0 items-center gap-3">
-                <span
-                  class="flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                  :style="{ backgroundColor: game.homeTeam.primaryColor ?? '#047857' }"
-                >
-                  {{ teamInitials(game.homeTeam) }}
-                </span>
+              <div class="flex flex-wrap items-center justify-between gap-2">
                 <div class="min-w-0">
-                  <p class="truncate font-semibold text-highlighted">
-                    {{ game.homeTeam.name }}
+                  <p class="text-sm font-bold text-highlighted">
+                    {{ formatGameTime(game.scheduledAt) }}
                   </p>
+                  <p class="truncate text-xs text-muted">
+                    {{ game.field?.name ?? 'Campo por definir' }}
+                  </p>
+                </div>
+                <UBadge
+                  :color="gameStatusColor(game.status)"
+                  variant="subtle"
+                  size="sm"
+                >
+                  {{ gameStatusLabel(game.status) }}
+                </UBadge>
+              </div>
+
+              <div class="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+                <div class="min-w-0 rounded-md bg-muted/30 p-2">
+                  <div class="mb-1 flex items-center gap-2">
+                    <span
+                      class="flex size-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white"
+                      :style="{ backgroundColor: game.homeTeam.primaryColor ?? '#047857' }"
+                    >
+                      {{ teamInitials(game.homeTeam) }}
+                    </span>
+                    <p class="min-w-0 truncate font-semibold text-highlighted">
+                      {{ game.homeTeam.name }}
+                    </p>
+                  </div>
                   <p class="text-xs text-muted">
                     Local
                   </p>
                 </div>
-              </div>
 
-              <div class="rounded-md bg-muted/30 px-3 py-2 text-center">
-                <p class="text-sm font-semibold text-highlighted">
-                  {{ formatGameTime(game.scheduledAt) }}
-                </p>
-                <p class="text-xs text-muted">
-                  {{ formatGameDate(game.scheduledAt) }}
-                </p>
-                <p class="mt-1 text-xs text-muted">
-                  {{ game.field?.name ?? 'Campo por definir' }}
-                </p>
-                <div class="mt-2 flex flex-wrap justify-center gap-1">
-                  <UBadge
-                    :color="categoryColor(game.homeTeam.category)"
-                    variant="subtle"
-                    size="sm"
-                  >
-                    {{ categoryLabel(game.homeTeam.category) }}
-                  </UBadge>
-                  <UBadge
-                    :color="branchColor(game.homeTeam.branch)"
-                    variant="subtle"
-                    size="sm"
-                  >
-                    {{ branchLabel(game.homeTeam.branch) }}
-                  </UBadge>
-                  <UBadge
-                    :color="gameStatusColor(game.status)"
-                    variant="subtle"
-                    size="sm"
-                  >
-                    {{ gameStatusLabel(game.status) }}
-                  </UBadge>
-                </div>
-              </div>
-
-              <div class="flex min-w-0 items-center gap-3 md:flex-row-reverse md:text-right">
-                <span
-                  class="flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                  :style="{ backgroundColor: game.awayTeam.primaryColor ?? '#f97316' }"
-                >
-                  {{ teamInitials(game.awayTeam) }}
+                <span class="rounded-md bg-primary/10 px-2 py-1 text-xs font-black text-primary">
+                  VS
                 </span>
-                <div class="min-w-0">
-                  <p class="truncate font-semibold text-highlighted">
-                    {{ game.awayTeam.name }}
-                  </p>
+
+                <div class="min-w-0 rounded-md bg-muted/30 p-2 text-right">
+                  <div class="mb-1 flex flex-row-reverse items-center gap-2">
+                    <span
+                      class="flex size-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white"
+                      :style="{ backgroundColor: game.awayTeam.primaryColor ?? '#f97316' }"
+                    >
+                      {{ teamInitials(game.awayTeam) }}
+                    </span>
+                    <p class="min-w-0 truncate font-semibold text-highlighted">
+                      {{ game.awayTeam.name }}
+                    </p>
+                  </div>
                   <p class="text-xs text-muted">
                     Visitante
                   </p>
                 </div>
+              </div>
+
+              <div class="flex flex-wrap items-center gap-1">
+                <UBadge
+                  :color="categoryColor(game.homeTeam.category)"
+                  variant="subtle"
+                  size="sm"
+                >
+                  {{ categoryLabel(game.homeTeam.category) }}
+                </UBadge>
+                <UBadge
+                  :color="branchColor(game.homeTeam.branch)"
+                  variant="subtle"
+                  size="sm"
+                >
+                  {{ branchLabel(game.homeTeam.branch) }}
+                </UBadge>
+                <UBadge
+                  color="primary"
+                  variant="outline"
+                  size="sm"
+                >
+                  {{ roundLabel(game.round) }}
+                </UBadge>
+                <span class="ml-auto text-xs font-medium text-muted">
+                  {{ formatGameDate(game.scheduledAt) }}
+                </span>
               </div>
             </div>
           </div>
