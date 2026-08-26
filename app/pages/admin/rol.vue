@@ -856,7 +856,7 @@ async function confirmDeleteGame() {
       </div>
 
       <section
-        class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 xl:flex xl:max-h-[48rem] xl:flex-col"
+        class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 xl:flex xl:max-h-192 xl:flex-col"
         :class="mobileSection === 'WEEK' ? '' : 'hidden xl:flex'"
       >
         <div class="mb-2.5 flex items-center justify-between gap-2">
