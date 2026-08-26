@@ -26,6 +26,9 @@ importers:
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3
+      fontkitten:
+        specifier: ^1.0.3
+        version: 1.0.3
       nodemailer:
         specifier: ^9.0.5
         version: 9.0.5
