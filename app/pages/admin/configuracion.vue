@@ -174,9 +174,9 @@ async function saveSettings() {
 </script>
 
 <template>
-  <UContainer class="py-6 sm:py-8">
+  <UContainer class="min-w-0 pb-6 pt-4 sm:py-8">
     <div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-      <div>
+      <div class="min-w-0">
         <UBadge
           color="primary"
           variant="subtle"
@@ -184,10 +184,10 @@ async function saveSettings() {
         >
           Ajustes
         </UBadge>
-        <h1 class="mt-3 text-3xl font-bold tracking-normal text-highlighted sm:text-4xl">
+        <h1 class="mt-3 text-2xl font-bold leading-tight tracking-normal text-highlighted sm:text-4xl">
           Configuración de liga
         </h1>
-        <p class="mt-2 max-w-2xl text-base text-muted">
+        <p class="mt-2 max-w-2xl text-sm text-muted sm:text-base">
           {{ seasonTitle }}
         </p>
       </div>
@@ -197,6 +197,7 @@ async function saveSettings() {
         icon="i-lucide-save"
         label="Guardar cambios"
         color="primary"
+        class="w-full justify-center lg:w-fit"
         :loading="isSaving"
         :disabled="pending || !data?.season"
         @click="saveSettings"
@@ -221,7 +222,7 @@ async function saveSettings() {
       class="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]"
     >
       <div class="grid gap-4">
-        <section class="rounded-lg border border-default bg-default p-4 shadow-sm">
+        <section class="rounded-lg border border-default bg-default p-3 shadow-sm sm:p-4">
           <div class="mb-4 flex items-center justify-between gap-3">
             <div>
               <h2 class="text-lg font-bold text-highlighted">
@@ -302,7 +303,7 @@ async function saveSettings() {
           </div>
         </section>
 
-        <section class="rounded-lg border border-default bg-default p-4 shadow-sm">
+        <section class="rounded-lg border border-default bg-default p-3 shadow-sm sm:p-4">
           <div class="mb-4 flex items-center justify-between gap-3">
             <div>
               <h2 class="text-lg font-bold text-highlighted">
@@ -396,7 +397,7 @@ async function saveSettings() {
         </section>
       </div>
 
-      <section class="rounded-lg border border-default bg-default p-4 shadow-sm">
+      <section class="rounded-lg border border-default bg-default p-3 shadow-sm sm:p-4">
         <div class="mb-4 flex items-center justify-between gap-3">
           <div>
             <h2 class="text-lg font-bold text-highlighted">

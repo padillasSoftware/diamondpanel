@@ -42,6 +42,7 @@ const isSavingSeason = ref(false)
 const isDeletingSeason = ref(false)
 const activatingSeasonId = ref<string | null>(null)
 const seasonPendingDelete = ref<Season | null>(null)
+const mobileSection = ref<'LIST' | 'FORM'>('LIST')
 const toast = useToast()
 
 const editingSeason = computed(() => seasons.value?.find(season => season.id === editingSeasonId.value) ?? null)
@@ -103,6 +104,11 @@ function resetSeasonForm() {
   seasonForm.status = 'DRAFT'
 }
 
+function startNewSeason() {
+  resetSeasonForm()
+  mobileSection.value = 'FORM'
+}
+
 function editSeason(season: Season) {
   editingSeasonId.value = season.id
   seasonForm.name = season.name
@@ -110,6 +116,7 @@ function editSeason(season: Season) {
   seasonForm.startsAt = season.startsAt?.slice(0, 10) ?? ''
   seasonForm.endsAt = season.endsAt?.slice(0, 10) ?? ''
   seasonForm.status = season.status
+  mobileSection.value = 'FORM'
 }
 
 function seasonPayload() {
@@ -154,6 +161,7 @@ async function saveSeason() {
 
     await refresh()
     resetSeasonForm()
+    mobileSection.value = 'LIST'
   } catch (error) {
     const statusMessage = typeof error === 'object' && error && 'data' in error
       ? String((error as { data?: { statusMessage?: unknown } }).data?.statusMessage ?? '')
@@ -223,8 +231,8 @@ async function confirmDeleteSeason() {
 </script>
 
 <template>
-  <UContainer class="py-6 sm:py-8">
-    <div class="mb-6">
+  <UContainer class="min-w-0 pb-6 pt-4 sm:py-8">
+    <div class="mb-6 min-w-0">
       <UBadge
         color="primary"
         variant="subtle"
@@ -232,17 +240,45 @@ async function confirmDeleteSeason() {
       >
         Temporadas
       </UBadge>
-      <h1 class="mt-3 text-3xl font-bold tracking-normal text-highlighted sm:text-4xl">
+      <h1 class="mt-3 text-2xl font-bold leading-tight tracking-normal text-highlighted sm:text-4xl">
         Administración de temporadas
       </h1>
-      <p class="mt-2 max-w-2xl text-base text-muted">
+      <p class="mt-2 max-w-2xl text-sm text-muted sm:text-base">
         Crea temporadas, márcalas como activas y archiva las que ya concluyeron. Solo puede haber una temporada activa a la vez.
       </p>
+    </div>
+
+    <div class="mb-4 grid grid-cols-2 gap-1 rounded-lg bg-muted/40 p-1 text-sm lg:hidden">
+      <button
+        type="button"
+        class="inline-flex h-10 items-center justify-center gap-2 rounded-md font-bold transition"
+        :class="mobileSection === 'LIST' ? 'bg-default text-highlighted shadow-sm' : 'text-muted'"
+        @click="mobileSection = 'LIST'"
+      >
+        <UIcon
+          name="i-lucide-calendar-range"
+          class="size-4"
+        />
+        Lista
+      </button>
+      <button
+        type="button"
+        class="inline-flex h-10 items-center justify-center gap-2 rounded-md font-bold transition"
+        :class="mobileSection === 'FORM' ? 'bg-default text-highlighted shadow-sm' : 'text-muted'"
+        @click="startNewSeason"
+      >
+        <UIcon
+          name="i-lucide-plus"
+          class="size-4"
+        />
+        Nueva
+      </button>
     </div>
 
     <section class="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
       <form
         class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 lg:h-96"
+        :class="mobileSection === 'FORM' ? '' : 'hidden lg:block'"
         @submit.prevent="saveSeason"
       >
         <div class="mb-2.5 flex items-center justify-between gap-2">
@@ -341,7 +377,10 @@ async function confirmDeleteSeason() {
         />
       </form>
 
-      <section class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 lg:flex lg:h-96 lg:flex-col">
+      <section
+        class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 lg:flex lg:h-96 lg:flex-col"
+        :class="mobileSection === 'LIST' ? '' : 'hidden lg:flex'"
+      >
         <div class="mb-2.5 flex items-center justify-between gap-2">
           <div>
             <h2 class="text-base font-bold text-highlighted">
@@ -357,6 +396,16 @@ async function confirmDeleteSeason() {
           >
             {{ seasons?.length ?? 0 }} registros
           </UBadge>
+          <UButton
+            type="button"
+            icon="i-lucide-plus"
+            label="Nueva"
+            color="primary"
+            variant="subtle"
+            size="sm"
+            class="lg:hidden"
+            @click="startNewSeason"
+          />
         </div>
 
         <div class="grid gap-2 overflow-y-auto pr-1 lg:min-h-0 lg:flex-1">

@@ -93,6 +93,7 @@ type GameGroup = {
 const toast = useToast()
 const weekStart = ref(getWeekStartInput(getLeagueDateInput(new Date())))
 const editableConfigs = ref<ScheduleConfig[]>([])
+const mobileSection = ref<'WEEK' | 'FORM'>('WEEK')
 
 const { data, pending, refresh } = await useFetch<ScheduleResponse>('/api/admin/schedule', {
   query: computed(() => ({
@@ -335,6 +336,7 @@ function resetGameForm() {
   gameForm.fieldId = ''
   gameForm.status = 'SCHEDULED'
   gameForm.notes = ''
+  mobileSection.value = 'FORM'
 }
 
 function editGame(game: ScheduleGame) {
@@ -348,6 +350,7 @@ function editGame(game: ScheduleGame) {
   gameForm.fieldId = game.field?.id ?? ''
   gameForm.status = game.status
   gameForm.notes = game.notes ?? ''
+  mobileSection.value = 'FORM'
 }
 
 function gamePayload() {
@@ -389,6 +392,7 @@ async function saveGame() {
 
     await refresh()
     resetGameForm()
+    mobileSection.value = 'WEEK'
   } catch (error) {
     const statusMessage = typeof error === 'object' && error && 'data' in error
       ? String((error as { data?: { statusMessage?: unknown } }).data?.statusMessage ?? '')
@@ -541,9 +545,9 @@ async function confirmDeleteGame() {
 </script>
 
 <template>
-  <UContainer class="py-6 sm:py-8">
+  <UContainer class="min-w-0 pb-6 pt-4 sm:py-8">
     <div class="mb-6 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-      <div>
+      <div class="min-w-0">
         <UBadge
           color="primary"
           variant="subtle"
@@ -551,10 +555,10 @@ async function confirmDeleteGame() {
         >
           Rol de juegos
         </UBadge>
-        <h1 class="mt-3 text-3xl font-bold tracking-normal text-highlighted sm:text-4xl">
+        <h1 class="mt-3 text-2xl font-bold leading-tight tracking-normal text-highlighted sm:text-4xl">
           Administración del rol
         </h1>
-        <p class="mt-2 max-w-2xl text-base text-muted">
+        <p class="mt-2 max-w-2xl text-sm text-muted sm:text-base">
           {{ data?.season ? `${data.season.name} ${data.season.year}` : 'Temporada activa' }}
         </p>
       </div>
@@ -626,6 +630,7 @@ async function confirmDeleteGame() {
         label="Generar rol"
         color="primary"
         variant="soft"
+        class="w-full justify-center lg:w-fit"
         :loading="isGeneratingSchedule"
         :disabled="pending"
         @click="generateSchedule"
@@ -637,13 +642,42 @@ async function confirmDeleteGame() {
         label="Ajustes"
         color="neutral"
         variant="outline"
+        class="w-full justify-center lg:w-fit"
       />
     </section>
+
+    <div class="mb-4 grid grid-cols-2 gap-1 rounded-lg bg-muted/40 p-1 text-sm xl:hidden">
+      <button
+        type="button"
+        class="inline-flex h-10 items-center justify-center gap-2 rounded-md font-bold transition"
+        :class="mobileSection === 'WEEK' ? 'bg-default text-highlighted shadow-sm' : 'text-muted'"
+        @click="mobileSection = 'WEEK'"
+      >
+        <UIcon
+          name="i-lucide-calendar-days"
+          class="size-4"
+        />
+        Semana
+      </button>
+      <button
+        type="button"
+        class="inline-flex h-10 items-center justify-center gap-2 rounded-md font-bold transition"
+        :class="mobileSection === 'FORM' ? 'bg-default text-highlighted shadow-sm' : 'text-muted'"
+        @click="resetGameForm"
+      >
+        <UIcon
+          name="i-lucide-plus"
+          class="size-4"
+        />
+        Partido
+      </button>
+    </div>
 
     <section class="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
       <div class="grid gap-4">
         <form
           class="min-w-0 rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3"
+          :class="mobileSection === 'FORM' ? '' : 'hidden xl:block'"
           @submit.prevent="saveGame"
         >
           <div class="mb-2.5 flex items-center justify-between gap-2">
@@ -821,7 +855,10 @@ async function confirmDeleteGame() {
         </form>
       </div>
 
-      <section class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 xl:flex xl:max-h-[48rem] xl:flex-col">
+      <section
+        class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 xl:flex xl:max-h-[48rem] xl:flex-col"
+        :class="mobileSection === 'WEEK' ? '' : 'hidden xl:flex'"
+      >
         <div class="mb-2.5 flex items-center justify-between gap-2">
           <div>
             <h2 class="text-base font-bold text-highlighted">
@@ -834,6 +871,16 @@ async function confirmDeleteGame() {
           <UIcon
             name="i-lucide-list-checks"
             class="size-5 text-muted"
+          />
+          <UButton
+            type="button"
+            icon="i-lucide-plus"
+            label="Agregar"
+            color="primary"
+            variant="subtle"
+            size="sm"
+            class="xl:hidden"
+            @click="resetGameForm"
           />
         </div>
 

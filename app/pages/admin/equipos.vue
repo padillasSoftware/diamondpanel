@@ -131,6 +131,7 @@ const search = ref('')
 const selectedStatus = ref<'ALL' | TeamStatus>('ALL')
 const selectedCategory = ref<'ALL' | TeamCategory>('ALL')
 const selectedBranch = ref<'ALL' | TeamBranch>('ALL')
+const mobileSection = ref<'LIST' | 'FORM' | 'MEMBERS'>('LIST')
 
 const teams = computed(() => data.value?.teams ?? [])
 const managerOptions = computed(() => data.value?.managerOptions ?? [])
@@ -317,6 +318,11 @@ function resetTeamForm() {
   resetMemberForm()
 }
 
+function startNewTeam() {
+  resetTeamForm()
+  mobileSection.value = 'FORM'
+}
+
 function editTeam(team: AdminTeam) {
   editingTeamId.value = team.id
   teamMembers.value = []
@@ -335,6 +341,7 @@ function editTeam(team: AdminTeam) {
   teamForm.managerUserIds = managerIds(team)
   teamForm.newManagerName = ''
   teamForm.newManagerEmail = ''
+  mobileSection.value = 'FORM'
   void loadTeamMembers(team.id)
 }
 
@@ -394,6 +401,7 @@ function editMember(member: Player) {
   memberForm.bats = member.bats
   memberForm.throws = member.throws
   memberForm.status = member.status
+  mobileSection.value = 'MEMBERS'
 }
 
 function memberPayload() {
@@ -439,6 +447,7 @@ async function saveTeam() {
 
     await refresh()
     resetTeamForm()
+    mobileSection.value = 'LIST'
   } catch (error) {
     const statusMessage = typeof error === 'object' && error && 'data' in error
       ? String((error as { data?: { statusMessage?: unknown } }).data?.statusMessage ?? '')
@@ -666,9 +675,9 @@ async function confirmDeleteTeam() {
 </script>
 
 <template>
-  <UContainer class="py-6 sm:py-8">
+  <UContainer class="min-w-0 pb-6 pt-4 sm:py-8">
     <div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-      <div>
+      <div class="min-w-0">
         <UBadge
           color="primary"
           variant="subtle"
@@ -676,16 +685,16 @@ async function confirmDeleteTeam() {
         >
           Equipos
         </UBadge>
-        <h1 class="mt-3 text-3xl font-bold tracking-normal text-highlighted sm:text-4xl">
+        <h1 class="mt-3 text-2xl font-bold leading-tight tracking-normal text-highlighted sm:text-4xl">
           Administración de equipos
         </h1>
-        <p class="mt-2 max-w-2xl text-base text-muted">
+        <p class="mt-2 max-w-2xl text-sm text-muted sm:text-base">
           Crea equipos, define categoría y rama, asigna manejadores y controla si están activos.
         </p>
       </div>
 
       <div class="grid grid-cols-3 gap-2 rounded-lg border border-default bg-default p-2 text-center shadow-sm">
-        <div class="rounded-md bg-muted/40 px-3 py-2">
+        <div class="min-w-0 rounded-md bg-muted/40 px-2 py-2 sm:px-3">
           <p class="text-xl font-bold text-highlighted">
             {{ teams.length }}
           </p>
@@ -693,7 +702,7 @@ async function confirmDeleteTeam() {
             Equipos
           </p>
         </div>
-        <div class="rounded-md bg-muted/40 px-3 py-2">
+        <div class="min-w-0 rounded-md bg-muted/40 px-2 py-2 sm:px-3">
           <p class="text-xl font-bold text-highlighted">
             {{ activeTeams }}
           </p>
@@ -701,7 +710,7 @@ async function confirmDeleteTeam() {
             Activos
           </p>
         </div>
-        <div class="rounded-md bg-muted/40 px-3 py-2">
+        <div class="min-w-0 rounded-md bg-muted/40 px-2 py-2 sm:px-3">
           <p class="text-xl font-bold text-highlighted">
             {{ teamsWithManagers }}
           </p>
@@ -712,9 +721,50 @@ async function confirmDeleteTeam() {
       </div>
     </div>
 
+    <div class="mb-4 grid grid-cols-3 gap-1 rounded-lg bg-muted/40 p-1 text-sm xl:hidden">
+      <button
+        type="button"
+        class="inline-flex h-10 items-center justify-center gap-1.5 rounded-md font-bold transition"
+        :class="mobileSection === 'LIST' ? 'bg-default text-highlighted shadow-sm' : 'text-muted'"
+        @click="mobileSection = 'LIST'"
+      >
+        <UIcon
+          name="i-lucide-shield"
+          class="size-4"
+        />
+        Equipos
+      </button>
+      <button
+        type="button"
+        class="inline-flex h-10 items-center justify-center gap-1.5 rounded-md font-bold transition"
+        :class="mobileSection === 'FORM' ? 'bg-default text-highlighted shadow-sm' : 'text-muted'"
+        @click="startNewTeam"
+      >
+        <UIcon
+          name="i-lucide-plus"
+          class="size-4"
+        />
+        Nuevo
+      </button>
+      <button
+        type="button"
+        class="inline-flex h-10 items-center justify-center gap-1.5 rounded-md font-bold transition disabled:opacity-45"
+        :class="mobileSection === 'MEMBERS' ? 'bg-default text-highlighted shadow-sm' : 'text-muted'"
+        :disabled="!editingTeam"
+        @click="mobileSection = 'MEMBERS'"
+      >
+        <UIcon
+          name="i-lucide-users-round"
+          class="size-4"
+        />
+        Roster
+      </button>
+    </div>
+
     <section class="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
       <form
         class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3"
+        :class="mobileSection === 'FORM' ? '' : 'hidden xl:block'"
         @submit.prevent="saveTeam"
       >
         <div class="mb-2.5 flex items-center justify-between gap-2">
@@ -962,9 +1012,33 @@ async function confirmDeleteTeam() {
         />
       </form>
 
-      <section class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 xl:flex xl:max-h-168 xl:flex-col">
+      <section
+        class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 xl:flex xl:max-h-168 xl:flex-col"
+        :class="mobileSection === 'LIST' ? '' : 'hidden xl:flex'"
+      >
         <div class="mb-2.5 grid gap-2 lg:grid-cols-[1fr_auto] lg:items-end">
-          <div>
+          <div class="flex items-center justify-between gap-2 xl:hidden">
+            <div>
+              <h2 class="text-base font-bold text-highlighted">
+                Equipos registrados
+              </h2>
+              <p class="text-xs text-muted">
+                {{ filteredTeams.length }} de {{ teams.length }} equipos visibles.
+              </p>
+            </div>
+            <UButton
+              type="button"
+              icon="i-lucide-plus"
+              label="Nuevo"
+              color="primary"
+              variant="subtle"
+              size="sm"
+              class="xl:hidden"
+              @click="startNewTeam"
+            />
+          </div>
+
+          <div class="hidden xl:block">
             <h2 class="text-base font-bold text-highlighted">
               Equipos registrados
             </h2>
@@ -1126,7 +1200,8 @@ async function confirmDeleteTeam() {
 
     <section
       v-if="editingTeam"
-      class="mt-4 grid gap-4 xl:grid-cols-[0.85fr_1.15fr]"
+      class="mt-4 min-w-0 gap-4 xl:grid xl:grid-cols-[0.85fr_1.15fr]"
+      :class="mobileSection === 'MEMBERS' ? 'grid' : 'hidden xl:grid'"
     >
       <form
         class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3"

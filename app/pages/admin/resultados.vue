@@ -184,6 +184,7 @@ const selectedStatus = ref<'ALL' | 'PENDING' | 'FINAL'>('ALL')
 const showBattingHighlights = ref(false)
 const showLineupEditor = ref(false)
 const resultPanelRef = ref<HTMLElement | null>(null)
+const mobileSection = ref<'GAMES' | 'CAPTURE'>('GAMES')
 
 const resultForm = reactive({
   homeScore: 0,
@@ -409,6 +410,7 @@ async function syncOfflineDraftsManually() {
 
 function selectGame(gameId: string) {
   selectedGameId.value = gameId
+  mobileSection.value = 'CAPTURE'
 
   if (!import.meta.client || !window.matchMedia('(max-width: 1279px)').matches) return
 
@@ -762,9 +764,9 @@ function editSelectedResult() {
 </script>
 
 <template>
-  <UContainer class="min-w-0 max-w-full overflow-x-hidden py-5 sm:py-8">
+  <UContainer class="min-w-0 max-w-full overflow-x-hidden pb-6 pt-4 sm:py-8">
     <div class="mb-6 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-      <div>
+      <div class="min-w-0">
         <UBadge
           color="primary"
           variant="subtle"
@@ -772,10 +774,10 @@ function editSelectedResult() {
         >
           Resultados
         </UBadge>
-        <h1 class="mt-3 text-3xl font-bold tracking-normal text-highlighted sm:text-4xl">
+        <h1 class="mt-3 text-2xl font-bold leading-tight tracking-normal text-highlighted sm:text-4xl">
           Captura de resultados
         </h1>
-        <p class="mt-2 max-w-2xl text-base text-muted">
+        <p class="mt-2 max-w-2xl text-sm text-muted sm:text-base">
           {{ data?.season ? `${data.season.name} ${data.season.year}` : 'Temporada activa requerida' }}
         </p>
       </div>
@@ -895,11 +897,45 @@ function editSelectedResult() {
       </p>
     </section>
 
+    <div
+      v-if="data?.season"
+      class="mb-4 grid grid-cols-2 gap-1 rounded-lg bg-muted/40 p-1 text-sm xl:hidden"
+    >
+      <button
+        type="button"
+        class="inline-flex h-10 items-center justify-center gap-2 rounded-md font-bold transition"
+        :class="mobileSection === 'GAMES' ? 'bg-default text-highlighted shadow-sm' : 'text-muted'"
+        @click="mobileSection = 'GAMES'"
+      >
+        <UIcon
+          name="i-lucide-list-checks"
+          class="size-4"
+        />
+        Juegos
+      </button>
+      <button
+        type="button"
+        class="inline-flex h-10 items-center justify-center gap-2 rounded-md font-bold transition disabled:opacity-45"
+        :class="mobileSection === 'CAPTURE' ? 'bg-default text-highlighted shadow-sm' : 'text-muted'"
+        :disabled="!selectedGame"
+        @click="mobileSection = 'CAPTURE'"
+      >
+        <UIcon
+          name="i-lucide-clipboard-pen"
+          class="size-4"
+        />
+        Captura
+      </button>
+    </div>
+
     <section
-      v-else
+      v-if="data?.season"
       class="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]"
     >
-      <section class="min-w-0 overflow-hidden rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 xl:flex xl:max-h-192 xl:flex-col">
+      <section
+        class="min-w-0 overflow-hidden rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 xl:flex xl:max-h-192 xl:flex-col"
+        :class="mobileSection === 'GAMES' ? '' : 'hidden xl:flex'"
+      >
         <div class="mb-2.5 grid gap-2 lg:grid-cols-[1fr_auto] lg:items-end">
           <div>
             <h2 class="text-base font-bold text-highlighted">
@@ -1014,7 +1050,8 @@ function editSelectedResult() {
 
       <div
         ref="resultPanelRef"
-        class="grid min-w-0 scroll-mt-4 gap-4"
+        class="min-w-0 scroll-mt-4 gap-4 xl:grid"
+        :class="mobileSection === 'CAPTURE' ? 'grid' : 'hidden xl:grid'"
       >
         <section
           v-if="selectedGameOfflineDrafts.length"
