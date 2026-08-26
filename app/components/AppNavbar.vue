@@ -154,6 +154,11 @@ const handleActiveTeamChange = (event: Event) => {
           </select>
         </label>
 
+        <PwaInstallButton
+          tone="navbar"
+          compact
+        />
+
         <ColorModeButton tone="navbar" />
 
         <UButton

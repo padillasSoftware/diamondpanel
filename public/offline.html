@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#ff9800">
+    <title>Sin conexion | DiamondPanel</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #06130d;
+        color: #f8fafc;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        min-height: 100vh;
+        margin: 0;
+        display: grid;
+        place-items: center;
+        background:
+          radial-gradient(circle at 20% 0%, rgb(255 152 0 / 0.22), transparent 22rem),
+          linear-gradient(140deg, #06130d 0%, #0a2116 50%, #130f08 100%);
+      }
+
+      main {
+        width: min(28rem, calc(100vw - 2rem));
+        padding: 2rem;
+        border: 1px solid rgb(255 255 255 / 0.12);
+        border-radius: 0.75rem;
+        background: rgb(6 19 13 / 0.86);
+        box-shadow: 0 1.5rem 4rem rgb(0 0 0 / 0.28);
+      }
+
+      img {
+        width: 4rem;
+        height: 4rem;
+        margin-bottom: 1.25rem;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(1.75rem, 8vw, 2.5rem);
+        line-height: 1;
+      }
+
+      p {
+        margin: 1rem 0 0;
+        color: #cbd5e1;
+        line-height: 1.6;
+      }
+
+      button {
+        width: 100%;
+        min-height: 2.75rem;
+        margin-top: 1.5rem;
+        border: 0;
+        border-radius: 0.5rem;
+        background: #ff9800;
+        color: #111827;
+        font: inherit;
+        font-weight: 800;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="/pwa/icon.svg" alt="">
+      <h1>Sin conexión</h1>
+      <p>
+        DiamondPanel necesita internet para consultar y guardar información de la liga.
+        Revisa tu conexión y vuelve a intentarlo.
+      </p>
+      <button type="button" onclick="window.location.reload()">Reintentar</button>
+    </main>
+  </body>
+</html>
