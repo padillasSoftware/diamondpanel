@@ -12,6 +12,11 @@ import {
   type TeamBranch,
   type TeamCategory
 } from '~/utils/league'
+import {
+  isOfflineResultSyncError,
+  useOfflineAdminResults,
+  type OfflineAdminResultDraft
+} from '~/composables/useOfflineAdminResults'
 
 definePageMeta({
   middleware: 'admin'
@@ -157,6 +162,17 @@ const emptyHighlight = (): HighlightForm => ({
 const toast = useToast()
 const { data, pending, refresh } = await useFetch<ResultsResponse>('/api/admin/results')
 const { data: eligibilityData, refresh: refreshEligibility } = await useFetch<PlayoffEligibilityResponse>('/api/admin/playoff-eligibility')
+const {
+  drafts: offlineDrafts,
+  isOnline,
+  isSyncing: isSyncingOfflineDrafts,
+  lastSyncResult,
+  pendingCount: offlineDraftCount,
+  queueDraft: queueOfflineDraft,
+  removeDraft: removeOfflineDraft,
+  draftForGame,
+  syncPendingDrafts
+} = useOfflineAdminResults()
 
 const selectedGameId = ref<string | null>(null)
 const isSavingResult = ref(false)
@@ -189,6 +205,9 @@ const games = computed(() => data.value?.games ?? [])
 const selectedGame = computed(() => games.value.find(game => game.id === selectedGameId.value) ?? null)
 const resultCardHref = computed(() =>
   selectedGame.value?.result ? `/api/admin/results/${selectedGame.value.id}/card.svg` : ''
+)
+const selectedGameOfflineDrafts = computed(() =>
+  selectedGame.value ? offlineDrafts.value.filter(draft => draft.gameId === selectedGame.value?.id) : []
 )
 const showResultForm = computed(() => Boolean(
   selectedGame.value && (!selectedGame.value.result || editingResultId.value === selectedGame.value.id)
@@ -273,6 +292,25 @@ watch(() => resultForm.isForfeit, (isForfeit) => {
   showBattingHighlights.value = false
 })
 
+const lastObservedSyncResultAt = ref(0)
+
+watch(lastSyncResult, async (result) => {
+  if (!result || result.completedAt === lastObservedSyncResultAt.value) return
+
+  lastObservedSyncResultAt.value = result.completedAt
+
+  if (result.synced) {
+    await Promise.all([refresh(), refreshEligibility()])
+    showFeedback(result.synced === 1 ? 'Borrador sincronizado.' : `${result.synced} borradores sincronizados.`)
+  }
+
+  if (result.failed) {
+    showError(result.failed === 1
+      ? 'Un borrador no se pudo sincronizar. Revisa si hubo cambios en el servidor.'
+      : `${result.failed} borradores no se pudieron sincronizar. Revisa si hubo cambios en el servidor.`)
+  }
+})
+
 function playerLabel(player: AdminResultPlayer) {
   const number = player.number === null ? '' : `#${player.number} `
 
@@ -318,6 +356,55 @@ function lineupRowsForTeam(game: AdminResultGame, teamId: string) {
 
 function selectedLineupCount(side: 'home' | 'away') {
   return lineupForm[side].filter(player => player.selected).length
+}
+
+function gameLabel(game: AdminResultGame) {
+  return `${game.homeTeam.name} vs ${game.awayTeam.name}`
+}
+
+function hasOfflineDraft(gameId: string, type?: OfflineAdminResultDraft['type']) {
+  return Boolean(draftForGame(gameId, type))
+}
+
+function offlineDraftTypeLabel(draft: OfflineAdminResultDraft) {
+  return draft.type === 'RESULT' ? 'Resultado' : 'Lineup'
+}
+
+function offlineDraftUpdatedText(draft: OfflineAdminResultDraft) {
+  return new Intl.DateTimeFormat('es-MX', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(new Date(draft.updatedAt))
+}
+
+function discardOfflineDraft(draft: OfflineAdminResultDraft) {
+  removeOfflineDraft(draft.id)
+  toast.add({
+    title: 'Borrador descartado',
+    description: draft.gameLabel,
+    color: 'neutral',
+    icon: 'i-lucide-trash-2'
+  })
+}
+
+async function syncOfflineDraftsManually() {
+  if (!isOnline.value) {
+    showError('Todavía no hay conexión. Los borradores se guardan en este dispositivo.')
+
+    return
+  }
+
+  const result = await syncPendingDrafts()
+
+  if (!result.synced && !result.failed) {
+    toast.add({
+      title: 'Sin borradores pendientes',
+      color: 'neutral',
+      icon: 'i-lucide-check'
+    })
+  }
 }
 
 function selectGame(gameId: string) {
@@ -483,8 +570,8 @@ function showError(message: string) {
   })
 }
 
-function resultPayload() {
-  return {
+function resultPayload(options: { offlineGuard?: boolean } = {}) {
+  const payload = {
     homeScore: resultForm.homeScore,
     awayScore: resultForm.awayScore,
     innings: resultForm.innings,
@@ -494,6 +581,30 @@ function resultPayload() {
     notes: resultForm.notes,
     winnerHighlights: resultForm.isForfeit ? [] : resultForm.winnerHighlights,
     loserHighlights: resultForm.isForfeit ? [] : resultForm.loserHighlights
+  }
+
+  if (!options.offlineGuard || !selectedGame.value) return payload
+
+  return {
+    ...payload,
+    offlineExpectedResult: {
+      id: selectedGame.value.result?.id ?? null,
+      recordedAt: selectedGame.value.result?.recordedAt ?? null
+    }
+  }
+}
+
+function lineupPayload(options: { offlineGuard?: boolean } = {}) {
+  const payload = {
+    homeLineup: normalizedLineupRows(lineupForm.home),
+    awayLineup: normalizedLineupRows(lineupForm.away)
+  }
+
+  if (!options.offlineGuard || !selectedGame.value) return payload
+
+  return {
+    ...payload,
+    offlineExpectedLineupEntryIds: selectedGame.value.lineupEntries.map(entry => entry.id)
   }
 }
 
@@ -549,6 +660,18 @@ async function saveResult() {
     editingResultId.value = null
     showFeedback('Resultado guardado. Imagen lista para compartir.')
   } catch (error) {
+    if (isOfflineResultSyncError(error)) {
+      queueOfflineDraft({
+        type: 'RESULT',
+        gameId: game.id,
+        gameLabel: gameLabel(game),
+        payload: resultPayload({ offlineGuard: true })
+      })
+      showFeedback('Sin conexión. Resultado guardado como borrador en este dispositivo.')
+
+      return
+    }
+
     const statusMessage = typeof error === 'object' && error && 'data' in error
       ? String((error as { data?: { statusMessage?: unknown } }).data?.statusMessage ?? '')
       : ''
@@ -600,15 +723,25 @@ async function saveLineup() {
   try {
     await $fetch(`/api/admin/results/${game.id}/lineup`, {
       method: 'PATCH',
-      body: {
-        homeLineup: normalizedLineupRows(lineupForm.home),
-        awayLineup: normalizedLineupRows(lineupForm.away)
-      }
+      body: lineupPayload()
     })
     await Promise.all([refresh(), refreshEligibility()])
     showLineupEditor.value = false
     showFeedback('Lineups guardados.')
   } catch (error) {
+    if (isOfflineResultSyncError(error)) {
+      queueOfflineDraft({
+        type: 'LINEUP',
+        gameId: game.id,
+        gameLabel: gameLabel(game),
+        payload: lineupPayload({ offlineGuard: true })
+      })
+      showLineupEditor.value = false
+      showFeedback('Sin conexión. Lineup guardado como borrador en este dispositivo.')
+
+      return
+    }
+
     const statusMessage = typeof error === 'object' && error && 'data' in error
       ? String((error as { data?: { statusMessage?: unknown } }).data?.statusMessage ?? '')
       : ''
@@ -674,6 +807,80 @@ function editSelectedResult() {
         </div>
       </div>
     </div>
+
+    <section
+      v-if="offlineDraftCount"
+      class="mb-4 rounded-lg border border-warning/30 bg-warning/10 p-3 shadow-sm"
+    >
+      <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div class="min-w-0">
+          <div class="mb-1 flex flex-wrap items-center gap-2">
+            <UBadge
+              :color="isOnline ? 'warning' : 'error'"
+              variant="subtle"
+              :icon="isOnline ? 'i-lucide-cloud-upload' : 'i-lucide-wifi-off'"
+            >
+              {{ isOnline ? 'Borradores pendientes' : 'Sin conexión' }}
+            </UBadge>
+            <UBadge
+              color="neutral"
+              variant="outline"
+            >
+              {{ offlineDraftCount }} en este dispositivo
+            </UBadge>
+          </div>
+          <p class="text-sm text-highlighted">
+            Estos cambios todavía no están en el servidor. Se sincronizarán automáticamente cuando vuelva la conexión.
+          </p>
+        </div>
+
+        <UButton
+          type="button"
+          icon="i-lucide-refresh-cw"
+          label="Sincronizar ahora"
+          color="warning"
+          variant="solid"
+          size="sm"
+          class="w-full justify-center lg:w-fit"
+          :disabled="!isOnline"
+          :loading="isSyncingOfflineDrafts"
+          @click="syncOfflineDraftsManually"
+        />
+      </div>
+
+      <div class="mt-3 grid gap-2">
+        <article
+          v-for="draft in offlineDrafts"
+          :key="draft.id"
+          class="grid gap-2 rounded-md border border-warning/25 bg-default/75 p-2 text-sm sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center"
+        >
+          <UBadge
+            color="warning"
+            variant="subtle"
+          >
+            {{ offlineDraftTypeLabel(draft) }}
+          </UBadge>
+          <div class="min-w-0">
+            <p class="truncate font-semibold text-highlighted">
+              {{ draft.gameLabel }}
+            </p>
+            <p class="text-xs text-muted">
+              {{ draft.lastError || `Guardado ${offlineDraftUpdatedText(draft)}` }}
+            </p>
+          </div>
+          <UButton
+            type="button"
+            icon="i-lucide-trash-2"
+            label="Descartar"
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            class="w-fit"
+            @click="discardOfflineDraft(draft)"
+          />
+        </article>
+      </div>
+    </section>
 
     <section
       v-if="!data?.season"
@@ -756,6 +963,22 @@ function editSelectedResult() {
                 >
                   {{ gameStatusLabel(game.status) }}
                 </UBadge>
+                <UBadge
+                  v-if="hasOfflineDraft(game.id, 'RESULT')"
+                  color="warning"
+                  variant="subtle"
+                  icon="i-lucide-cloud-off"
+                >
+                  Resultado offline
+                </UBadge>
+                <UBadge
+                  v-if="hasOfflineDraft(game.id, 'LINEUP')"
+                  color="warning"
+                  variant="outline"
+                  icon="i-lucide-list-checks"
+                >
+                  Lineup offline
+                </UBadge>
               </div>
               <p class="text-sm font-bold text-highlighted">
                 {{ scoreText(game) }}
@@ -793,6 +1016,28 @@ function editSelectedResult() {
         ref="resultPanelRef"
         class="grid min-w-0 scroll-mt-4 gap-4"
       >
+        <section
+          v-if="selectedGameOfflineDrafts.length"
+          class="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm"
+        >
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p class="font-semibold text-highlighted">
+                Cambios pendientes de sincronizar
+              </p>
+              <p class="text-muted">
+                {{ selectedGameOfflineDrafts.map(offlineDraftTypeLabel).join(' y ') }} guardado en este dispositivo.
+              </p>
+            </div>
+            <UBadge
+              :color="isOnline ? 'warning' : 'error'"
+              variant="subtle"
+            >
+              {{ isOnline ? 'Pendiente' : 'Offline' }}
+            </UBadge>
+          </div>
+        </section>
+
         <section
           v-if="selectedGame && selectedGame.result && !showResultForm"
           class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3"
@@ -1482,7 +1727,7 @@ function editSelectedResult() {
           <UButton
             type="submit"
             icon="i-lucide-save"
-            label="Guardar resultado"
+            :label="isOnline ? 'Guardar resultado' : 'Guardar borrador offline'"
             color="primary"
             class="mt-3"
             :disabled="!canSaveResult"
@@ -1726,7 +1971,7 @@ function editSelectedResult() {
             <UButton
               type="button"
               icon="i-lucide-save"
-              label="Guardar lineups"
+              :label="isOnline ? 'Guardar lineups' : 'Guardar borrador offline'"
               color="primary"
               :loading="isSavingLineup"
               block

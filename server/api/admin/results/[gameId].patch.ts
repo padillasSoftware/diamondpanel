@@ -39,7 +39,13 @@ export default defineEventHandler(async (event) => {
         id: true,
         status: true,
         homeTeamId: true,
-        awayTeamId: true
+        awayTeamId: true,
+        result: {
+          select: {
+            id: true,
+            recordedAt: true
+          }
+        }
       }
     })
 
@@ -49,6 +55,8 @@ export default defineEventHandler(async (event) => {
         statusMessage: 'Game not found'
       })
     }
+
+    assertOfflineResultHasNotChanged(body, game.result)
 
     const payload = buildResultPayload(body, game)
     const result = await tx.gameResult.upsert({
@@ -109,3 +117,48 @@ export default defineEventHandler(async (event) => {
     })
   })
 })
+
+function assertOfflineResultHasNotChanged(
+  body: Record<string, unknown>,
+  currentResult: { id: string, recordedAt: Date } | null
+) {
+  const expected = readOfflineExpectedResult(body.offlineExpectedResult)
+
+  if (expected === undefined) return
+
+  if (!expected.id && currentResult) {
+    throw createError({
+      statusCode: 409,
+      statusMessage: 'Este juego ya tiene un resultado en el servidor. Revisa el partido antes de sincronizar.'
+    })
+  }
+
+  if (expected.id && !currentResult) {
+    throw createError({
+      statusCode: 409,
+      statusMessage: 'El resultado del servidor cambió. Revisa el partido antes de sincronizar.'
+    })
+  }
+
+  if (!expected.id || !currentResult) return
+
+  if (expected.id !== currentResult.id || expected.recordedAt !== currentResult.recordedAt.toISOString()) {
+    throw createError({
+      statusCode: 409,
+      statusMessage: 'El resultado fue modificado en otro dispositivo. Revisa el partido antes de sincronizar.'
+    })
+  }
+}
+
+function readOfflineExpectedResult(value: unknown) {
+  if (value === undefined) return undefined
+  if (!value || typeof value !== 'object') return undefined
+
+  const expected = value as { id?: unknown, recordedAt?: unknown }
+  const id = typeof expected.id === 'string' && expected.id.trim() ? expected.id : null
+  const recordedAt = typeof expected.recordedAt === 'string' && expected.recordedAt.trim()
+    ? expected.recordedAt
+    : null
+
+  return { id, recordedAt }
+}
