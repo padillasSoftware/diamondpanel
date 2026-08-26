@@ -16,6 +16,7 @@ const installPrompt = shallowRef<BeforeInstallPromptEvent | null>(null)
 const isStandalone = ref(false)
 const isSupported = ref(false)
 const isServiceWorkerReady = ref(false)
+const isIos = ref(false)
 const isInstalling = ref(false)
 let listenersRegistered = false
 
@@ -26,12 +27,23 @@ function detectStandaloneMode() {
     || Boolean((window.navigator as NavigatorWithStandalone).standalone)
 }
 
+function detectIos() {
+  if (!import.meta.client) return false
+
+  const platform = window.navigator.platform
+  const userAgent = window.navigator.userAgent
+  const isTouchMac = platform === 'MacIntel' && window.navigator.maxTouchPoints > 1
+
+  return /iphone|ipad|ipod/i.test(userAgent) || isTouchMac
+}
+
 export function registerPwaInstallListeners() {
   if (!import.meta.client || listenersRegistered) return
 
   listenersRegistered = true
   isSupported.value = 'serviceWorker' in navigator
   isStandalone.value = detectStandaloneMode()
+  isIos.value = detectIos()
 
   const displayModeQuery = window.matchMedia('(display-mode: standalone)')
 
@@ -62,6 +74,10 @@ export function usePwaInstall() {
     && Boolean(installPrompt.value)
     && !isStandalone.value
   )
+  const canShowManualInstallHelp = computed(() =>
+    isIos.value
+    && !isStandalone.value
+  )
 
   const installApp = async () => {
     const prompt = installPrompt.value
@@ -81,8 +97,10 @@ export function usePwaInstall() {
 
   return {
     canInstall,
+    canShowManualInstallHelp,
     installApp,
     isInstalling,
+    isIos: readonly(isIos),
     isPwaStandalone: readonly(isStandalone),
     isPwaSupported: readonly(isSupported),
     isPwaServiceWorkerReady: readonly(isServiceWorkerReady)

@@ -91,6 +91,10 @@ function matrixCellClass(state: string) {
           </NuxtLink>
 
           <div class="flex items-center gap-2">
+            <PwaInstallButton
+              tone="navbar"
+              compact
+            />
             <ColorModeButton tone="navbar" />
             <UButton
               to="/login"
@@ -127,6 +131,7 @@ function matrixCellClass(state: string) {
                 color="primary"
                 size="xl"
               />
+              <PwaInstallButton />
               <UButton
                 to="#modulos"
                 icon="i-lucide-chevron-down"

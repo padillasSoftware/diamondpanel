@@ -13,9 +13,11 @@ export default defineEventHandler((event) => {
     start_url: '/?source=pwa',
     scope: '/',
     display: 'standalone',
+    display_override: ['standalone', 'minimal-ui', 'browser'],
     orientation: 'portrait',
     background_color: '#06130d',
     theme_color: '#ff9800',
+    prefer_related_applications: false,
     categories: ['sports', 'productivity'],
     icons: [
       {

@@ -19,7 +19,8 @@ useHead({
   link: [
     { rel: 'icon', href: '/favicon.ico' },
     { rel: 'manifest', href: '/manifest.webmanifest' },
-    { rel: 'apple-touch-icon', href: '/pwa/apple-touch-icon.png' }
+    { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
+    { rel: 'apple-touch-icon', sizes: '180x180', href: '/pwa/apple-touch-icon.png' }
   ],
   htmlAttrs: {
     lang: 'es'

@@ -199,7 +199,8 @@ function getAdminRedirectPath(path: string) {
 <template>
   <UContainer class="py-8 sm:py-12">
     <div class="mx-auto grid max-w-md gap-5">
-      <div class="flex justify-end">
+      <div class="flex justify-end gap-2">
+        <PwaInstallButton />
         <ColorModeButton />
       </div>
 
