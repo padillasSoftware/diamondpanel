@@ -185,6 +185,9 @@ const showBattingHighlights = ref(false)
 const showLineupEditor = ref(false)
 const resultPanelRef = ref<HTMLElement | null>(null)
 const mobileSection = ref<'GAMES' | 'CAPTURE'>('GAMES')
+const isResultCardModalOpen = ref(false)
+const isSharingResultCard = ref(false)
+const isDownloadingResultCard = ref(false)
 
 const resultForm = reactive({
   homeScore: 0,
@@ -361,6 +364,104 @@ function selectedLineupCount(side: 'home' | 'away') {
 
 function gameLabel(game: AdminResultGame) {
   return `${game.homeTeam.name} vs ${game.awayTeam.name}`
+}
+
+function resultCardFilename() {
+  const game = selectedGame.value
+
+  if (!game) return 'resultado.png'
+
+  return `${slugifyFilename(gameLabel(game))}.png`
+}
+
+function slugifyFilename(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/gi, '-')
+    .replace(/^-|-$/g, '')
+    .toLowerCase()
+    .slice(0, 80) || 'resultado'
+}
+
+function openResultCardModal() {
+  if (!resultCardHref.value) return
+
+  isResultCardModalOpen.value = true
+}
+
+async function fetchResultCardBlob() {
+  if (!resultCardHref.value) {
+    throw new Error('Result card is not available')
+  }
+
+  const response = await fetch(resultCardHref.value)
+
+  if (!response.ok) {
+    throw new Error('Result card could not be loaded')
+  }
+
+  return await response.blob()
+}
+
+function triggerResultCardDownload(blob: Blob) {
+  const objectUrl = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+
+  link.href = objectUrl
+  link.download = resultCardFilename()
+  document.body.append(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(objectUrl)
+}
+
+async function downloadResultCard(options: { quiet?: boolean } = {}) {
+  if (!import.meta.client) return
+
+  isDownloadingResultCard.value = true
+
+  try {
+    const blob = await fetchResultCardBlob()
+
+    triggerResultCardDownload(blob)
+    if (!options.quiet) showFeedback('Imagen descargada.')
+  } catch {
+    showError('No se pudo descargar la imagen. Intenta abrirla en otra pestaña.')
+  } finally {
+    isDownloadingResultCard.value = false
+  }
+}
+
+async function shareResultCard() {
+  if (!import.meta.client || !selectedGame.value) return
+
+  isSharingResultCard.value = true
+
+  try {
+    const blob = await fetchResultCardBlob()
+    const file = new File([blob], resultCardFilename(), { type: 'image/png' })
+    const shareData: ShareData = {
+      title: 'Resultado de juego',
+      text: gameLabel(selectedGame.value),
+      files: [file]
+    }
+
+    if (navigator.share && (!navigator.canShare || navigator.canShare(shareData))) {
+      await navigator.share(shareData)
+
+      return
+    }
+
+    triggerResultCardDownload(blob)
+    showFeedback('Tu dispositivo no permite compartir directo; descargué la imagen.')
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') return
+
+    showError('No se pudo compartir la imagen. Intenta descargarla.')
+  } finally {
+    isSharingResultCard.value = false
+  }
 }
 
 function hasOfflineDraft(gameId: string, type?: OfflineAdminResultDraft['type']) {
@@ -1119,14 +1220,13 @@ function editSelectedResult() {
             <div class="flex flex-wrap gap-2">
               <UButton
                 v-if="resultCardHref"
-                :href="resultCardHref"
-                target="_blank"
-                rel="noopener"
+                type="button"
                 icon="i-lucide-image"
                 label="Imagen"
                 color="warning"
                 variant="subtle"
                 size="sm"
+                @click="openResultCardModal"
               />
               <UButton
                 type="button"
@@ -2069,5 +2169,68 @@ function editSelectedResult() {
         </section>
       </div>
     </section>
+
+    <UModal
+      v-model:open="isResultCardModalOpen"
+      title="Imagen del resultado"
+      :description="selectedGame ? gameLabel(selectedGame) : ''"
+    >
+      <template #body>
+        <div class="grid gap-3">
+          <div class="overflow-hidden rounded-lg border border-default bg-muted/30">
+            <img
+              v-if="resultCardHref"
+              :src="resultCardHref"
+              :alt="selectedGame ? `Resultado ${gameLabel(selectedGame)}` : 'Resultado de juego'"
+              class="max-h-[70vh] w-full object-contain"
+            >
+          </div>
+          <p class="text-xs text-muted">
+            Vista previa lista para compartir o guardar como PNG.
+          </p>
+        </div>
+      </template>
+
+      <template #footer="{ close }">
+        <div class="grid w-full gap-2 sm:flex sm:items-center sm:justify-end">
+          <UButton
+            label="Cerrar"
+            color="neutral"
+            variant="ghost"
+            :disabled="isSharingResultCard || isDownloadingResultCard"
+            @click="close"
+          />
+          <UButton
+            v-if="resultCardHref"
+            :href="resultCardHref"
+            target="_blank"
+            rel="noopener"
+            label="Abrir"
+            icon="i-lucide-external-link"
+            color="neutral"
+            variant="outline"
+          />
+          <UButton
+            type="button"
+            label="Descargar"
+            icon="i-lucide-download"
+            color="neutral"
+            variant="subtle"
+            :loading="isDownloadingResultCard"
+            :disabled="isSharingResultCard"
+            @click="downloadResultCard()"
+          />
+          <UButton
+            type="button"
+            label="Compartir"
+            icon="i-lucide-share-2"
+            color="primary"
+            :loading="isSharingResultCard"
+            :disabled="isDownloadingResultCard"
+            @click="shareResultCard"
+          />
+        </div>
+      </template>
+    </UModal>
   </UContainer>
 </template>
