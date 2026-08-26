@@ -3,19 +3,19 @@ const { public: { leagueName } } = useRuntimeConfig()
 </script>
 
 <template>
-  <div class="flex items-center gap-3 text-white">
-    <div class="flex size-9 items-center justify-center rounded-lg bg-white text-green-700 shadow-sm ring-1 ring-white/25">
+  <div class="flex min-w-0 items-center gap-2 text-white sm:gap-3">
+    <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-white text-green-700 shadow-sm ring-1 ring-white/25">
       <UIcon
         name="i-lucide-diamond"
         class="size-5"
       />
     </div>
 
-    <div class="leading-tight">
-      <p class="text-sm font-bold tracking-normal text-white">
+    <div class="min-w-0 leading-tight">
+      <p class="truncate text-sm font-bold tracking-normal text-white">
         DiamondPanel
       </p>
-      <p class="text-xs text-emerald-100">
+      <p class="truncate text-xs text-emerald-100">
         {{ leagueName }}
       </p>
     </div>

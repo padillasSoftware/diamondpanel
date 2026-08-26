@@ -107,9 +107,10 @@ const handleActiveTeamChange = (event: Event) => {
       <template #left>
         <NuxtLink
           to="/"
+          class="block min-w-0 max-w-[min(54vw,15rem)] sm:max-w-none"
           :aria-label="`Ir al inicio de ${leagueName}`"
         >
-          <AppLogo class="shrink-0" />
+          <AppLogo class="min-w-0" />
         </NuxtLink>
       </template>
 
@@ -186,10 +187,10 @@ const handleActiveTeamChange = (event: Event) => {
       v-if="visibleNavigation.length || hasMultipleManagedTeams"
       class="league-mobile-nav max-w-full overflow-hidden lg:hidden"
     >
-      <UContainer class="min-w-0 py-2">
+      <UContainer class="min-w-0 max-w-full overflow-hidden py-2">
         <label
           v-if="hasMultipleManagedTeams"
-          class="mb-2 grid gap-1 rounded-lg border border-default bg-default p-2 text-sm"
+          class="mb-2 grid min-w-0 gap-1 overflow-hidden rounded-lg border border-default bg-default p-2 text-sm"
         >
           <span class="flex items-center gap-2 font-medium text-highlighted">
             <UIcon
@@ -201,7 +202,7 @@ const handleActiveTeamChange = (event: Event) => {
           <select
             :value="user.activeTeamId ?? ''"
             :disabled="isSwitchingTeam"
-            class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
+            class="box-border h-10 min-w-0 max-w-full appearance-none truncate rounded-md border border-default bg-default px-3 pr-8 text-sm text-highlighted outline-none focus:border-primary"
             @change="handleActiveTeamChange"
           >
             <option
@@ -214,7 +215,7 @@ const handleActiveTeamChange = (event: Event) => {
           </select>
         </label>
 
-        <nav class="flex max-w-full gap-1 overflow-x-auto pb-1 scrollbar-none [&::-webkit-scrollbar]:hidden">
+        <nav class="flex min-w-0 max-w-full gap-1 overflow-x-auto overscroll-x-contain pb-1 scrollbar-none [&::-webkit-scrollbar]:hidden">
           <NuxtLink
             v-for="item in visibleNavigation"
             :key="item.to"

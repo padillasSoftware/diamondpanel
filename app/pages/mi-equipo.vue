@@ -340,13 +340,13 @@ async function confirmDeleteMember() {
 </script>
 
 <template>
-  <UContainer class="py-6 sm:py-8">
+  <UContainer class="min-w-0 max-w-full overflow-x-hidden py-6 sm:py-8">
     <div
       v-if="team"
-      class="grid gap-5"
+      class="grid min-w-0 gap-5"
     >
-      <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
+      <div class="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div class="min-w-0">
           <div class="mb-3 flex flex-wrap items-center gap-2">
             <UBadge
               color="primary"
@@ -369,16 +369,16 @@ async function confirmDeleteMember() {
             </UBadge>
           </div>
 
-          <h1 class="text-3xl font-bold tracking-normal text-highlighted sm:text-4xl">
+          <h1 class="max-w-full text-2xl font-bold leading-tight tracking-normal text-highlighted break-words sm:text-4xl">
             Administración de {{ team.name }}
           </h1>
-          <p class="mt-2 max-w-2xl text-base text-muted">
+          <p class="mt-2 max-w-full text-base text-muted break-words sm:max-w-2xl">
             Actualiza los datos visibles del equipo y administra jugadores, manejadores y coaches.
           </p>
         </div>
 
-        <div class="grid grid-cols-2 gap-2 rounded-lg border border-default bg-muted/30 p-2 text-center sm:grid-cols-3">
-          <div class="rounded-md bg-default px-3 py-2">
+        <div class="grid min-w-0 grid-cols-2 gap-2 rounded-lg border border-default bg-muted/30 p-2 text-center sm:grid-cols-3">
+          <div class="min-w-0 rounded-md bg-default px-3 py-2">
             <p class="text-xl font-bold text-highlighted">
               {{ activePlayers.length }}
             </p>
@@ -386,7 +386,7 @@ async function confirmDeleteMember() {
               Jugadores
             </p>
           </div>
-          <div class="rounded-md bg-default px-3 py-2">
+          <div class="min-w-0 rounded-md bg-default px-3 py-2">
             <p class="text-xl font-bold text-highlighted">
               {{ staffMembers.length }}
             </p>
@@ -394,8 +394,8 @@ async function confirmDeleteMember() {
               Staff
             </p>
           </div>
-          <div class="col-span-2 rounded-md bg-default px-3 py-2 sm:col-auto">
-            <p class="text-xl font-bold text-highlighted">
+          <div class="col-span-2 min-w-0 rounded-md bg-default px-3 py-2 sm:col-auto">
+            <p class="truncate text-xl font-bold text-highlighted">
               {{ team.shortName ?? teamInitials(team) }}
             </p>
             <p class="text-xs text-muted">
@@ -405,7 +405,7 @@ async function confirmDeleteMember() {
         </div>
       </div>
 
-      <section class="rounded-lg border border-default bg-default p-4 shadow-sm sm:p-5">
+      <section class="min-w-0 overflow-hidden rounded-lg border border-default bg-default p-4 shadow-sm sm:p-5">
         <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div class="flex min-w-0 items-center gap-3">
             <img
@@ -425,7 +425,7 @@ async function confirmDeleteMember() {
               <h2 class="text-xl font-bold text-highlighted">
                 Datos del equipo
               </h2>
-              <p class="truncate text-sm text-muted">
+              <p class="text-sm text-muted break-words">
                 Categoría y rama las define la liga.
               </p>
             </div>
@@ -435,37 +435,41 @@ async function confirmDeleteMember() {
             icon="i-lucide-save"
             label="Guardar equipo"
             color="primary"
+            class="w-full justify-center sm:w-auto"
             :loading="isSavingTeam"
             @click="saveTeam"
           />
         </div>
 
-        <div class="grid gap-3 md:grid-cols-2">
-          <label class="grid gap-1.5 text-sm">
+        <div class="grid min-w-0 gap-3 md:grid-cols-2">
+          <label class="grid min-w-0 gap-1.5 text-sm">
             <span class="font-medium text-highlighted">Nombre del equipo</span>
             <UInput
               v-model="teamForm.name"
+              class="min-w-0"
               placeholder="Nombre"
             />
           </label>
 
-          <label class="grid gap-1.5 text-sm">
+          <label class="grid min-w-0 gap-1.5 text-sm">
             <span class="font-medium text-highlighted">Siglas</span>
             <UInput
               v-model="teamForm.shortName"
+              class="min-w-0"
               placeholder="TR"
             />
           </label>
 
-          <label class="grid gap-1.5 text-sm">
+          <label class="grid min-w-0 gap-1.5 text-sm">
             <span class="font-medium text-highlighted">Manejador principal</span>
             <UInput
               v-model="teamForm.managerName"
+              class="min-w-0"
               placeholder="Nombre del manejador"
             />
           </label>
 
-          <div class="grid gap-2 rounded-md border border-default bg-muted/20 p-2 text-sm md:col-span-2">
+          <div class="grid min-w-0 gap-2 overflow-hidden rounded-md border border-default bg-muted/20 p-2 text-sm md:col-span-2">
             <span class="font-medium text-highlighted">Logo del equipo</span>
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
               <img
@@ -485,7 +489,7 @@ async function confirmDeleteMember() {
                 <input
                   type="file"
                   accept="image/png,image/jpeg,image/webp"
-                  class="block w-full text-sm text-muted file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-2 file:text-sm file:font-medium file:text-white disabled:opacity-60"
+                  class="block min-w-0 max-w-full text-sm text-muted file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-2 file:text-sm file:font-medium file:text-white disabled:opacity-60"
                   :disabled="isUploadingTeamLogo"
                   @change="uploadTeamLogo"
                 >
@@ -496,35 +500,41 @@ async function confirmDeleteMember() {
             </div>
           </div>
 
-          <label class="grid gap-1.5 text-sm">
+          <label class="grid min-w-0 gap-1.5 text-sm">
             <span class="font-medium text-highlighted">Color primario</span>
-            <div class="grid grid-cols-[3rem_1fr] gap-2">
+            <div class="grid min-w-0 grid-cols-[3rem_minmax(0,1fr)] gap-2">
               <input
                 v-model="teamForm.primaryColor"
                 type="color"
                 class="h-10 w-12 rounded-md border border-default bg-default"
               >
-              <UInput v-model="teamForm.primaryColor" />
+              <UInput
+                v-model="teamForm.primaryColor"
+                class="min-w-0"
+              />
             </div>
           </label>
 
-          <label class="grid gap-1.5 text-sm">
+          <label class="grid min-w-0 gap-1.5 text-sm">
             <span class="font-medium text-highlighted">Color secundario</span>
-            <div class="grid grid-cols-[3rem_1fr] gap-2">
+            <div class="grid min-w-0 grid-cols-[3rem_minmax(0,1fr)] gap-2">
               <input
                 v-model="teamForm.secondaryColor"
                 type="color"
                 class="h-10 w-12 rounded-md border border-default bg-default"
               >
-              <UInput v-model="teamForm.secondaryColor" />
+              <UInput
+                v-model="teamForm.secondaryColor"
+                class="min-w-0"
+              />
             </div>
           </label>
         </div>
       </section>
 
-      <section class="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+      <section class="grid min-w-0 gap-4 lg:grid-cols-[0.95fr_1.05fr]">
         <form
-          class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 lg:h-96"
+          class="min-w-0 overflow-hidden rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 lg:h-96"
           @submit.prevent="saveMember"
         >
           <div class="mb-2.5 flex items-center justify-between gap-2">
@@ -548,32 +558,34 @@ async function confirmDeleteMember() {
             />
           </div>
 
-          <div class="grid gap-2 sm:grid-cols-2">
-            <label class="grid gap-1.5 text-sm">
+          <div class="grid min-w-0 gap-2 sm:grid-cols-2">
+            <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">Nombre</span>
               <UInput
                 v-model="memberForm.firstName"
+                class="min-w-0"
                 required
               />
             </label>
 
-            <label class="grid gap-1.5 text-sm">
+            <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">Apellido</span>
               <UInput
                 v-model="memberForm.lastName"
+                class="min-w-0"
                 required
               />
             </label>
 
-            <label class="grid gap-1.5 text-sm">
+            <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">CURP</span>
               <UInput
                 v-model="memberForm.curp"
+                class="min-w-0 uppercase"
                 autocomplete="off"
                 maxlength="18"
                 placeholder="ABCD010101HDFXXX01"
                 :color="curpError ? 'error' : 'neutral'"
-                class="uppercase"
                 required
               />
               <span
@@ -584,21 +596,22 @@ async function confirmDeleteMember() {
               </span>
             </label>
 
-            <label class="grid gap-1.5 text-sm">
+            <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">Fecha de nacimiento</span>
               <UInput
                 v-model="memberForm.birthDate"
+                class="min-w-0"
                 type="date"
                 :max="new Date().toISOString().slice(0, 10)"
                 required
               />
             </label>
 
-            <label class="grid gap-1.5 text-sm">
+            <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">Tipo</span>
               <select
                 v-model="memberForm.memberRole"
-                class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
+                class="h-10 min-w-0 max-w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
               >
                 <option
                   v-for="option in TEAM_MEMBER_ROLE_OPTIONS"
@@ -610,11 +623,11 @@ async function confirmDeleteMember() {
               </select>
             </label>
 
-            <label class="grid gap-1.5 text-sm">
+            <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">Estado</span>
               <select
                 v-model="memberForm.status"
-                class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
+                class="h-10 min-w-0 max-w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
               >
                 <option
                   v-for="option in statusOptions"
@@ -628,11 +641,12 @@ async function confirmDeleteMember() {
 
             <label
               v-if="memberForm.memberRole === 'PLAYER'"
-              class="grid gap-1.5 text-sm"
+              class="grid min-w-0 gap-1.5 text-sm"
             >
               <span class="font-medium text-highlighted">Número</span>
               <UInput
                 v-model="memberForm.number"
+                class="min-w-0"
                 type="number"
                 min="0"
                 max="999"
@@ -642,13 +656,13 @@ async function confirmDeleteMember() {
 
             <label
               v-if="memberForm.memberRole === 'PLAYER'"
-              class="grid gap-1.5 text-sm"
+              class="grid min-w-0 gap-1.5 text-sm"
             >
               <span class="font-medium text-highlighted">Posición</span>
               <select
                 v-model="memberForm.position"
                 required
-                class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
+                class="h-10 min-w-0 max-w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
               >
                 <option value="">
                   Selecciona posición
@@ -676,7 +690,7 @@ async function confirmDeleteMember() {
           />
         </form>
 
-        <section class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 lg:flex lg:h-96 lg:flex-col">
+        <section class="min-w-0 overflow-hidden rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 lg:flex lg:h-96 lg:flex-col">
           <div class="mb-2.5 flex items-center justify-between gap-2">
             <div>
               <h2 class="text-base font-bold text-highlighted">
@@ -720,7 +734,7 @@ async function confirmDeleteMember() {
                   <h3 class="truncate font-bold text-highlighted">
                     {{ playerName(member) }}
                   </h3>
-                  <p class="text-xs text-muted">
+                  <p class="text-xs text-muted break-words">
                     <span v-if="member.memberRole === 'PLAYER'">
                       #{{ member.number ?? '-' }} • {{ playerPositionLabel(member.position) }} • CURP {{ member.curp ?? '-' }} • Batea {{ handLabel(member.bats) }} • Lanza {{ handLabel(member.throws) }}
                     </span>
