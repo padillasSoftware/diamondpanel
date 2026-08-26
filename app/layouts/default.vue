@@ -1,10 +1,13 @@
 <script setup lang="ts">
 const route = useRoute()
 const { isAdmin, isTeamManager } = useAuth()
-const hasManagerBottomNav = computed(() =>
-  isTeamManager.value
-  && !isAdmin.value
-  && !route.path.startsWith('/admin')
+const hasMobileBottomNav = computed(() =>
+  isAdmin.value
+  || (
+    isTeamManager.value
+    && !isAdmin.value
+    && !route.path.startsWith('/admin')
+  )
 )
 </script>
 
@@ -13,7 +16,7 @@ const hasManagerBottomNav = computed(() =>
     <AppNavbar />
     <UMain
       class="min-w-0 flex-1 overflow-x-hidden"
-      :class="hasManagerBottomNav ? 'pb-24 lg:pb-0' : ''"
+      :class="hasMobileBottomNav ? 'pb-24 lg:pb-0' : ''"
     >
       <slot />
     </UMain>

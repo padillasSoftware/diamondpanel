@@ -167,7 +167,7 @@ input:disabled {
   bottom: -0.45rem;
 }
 
-.manager-bottom-nav {
+.app-bottom-nav {
   position: fixed;
   right: 0;
   bottom: 0;
@@ -180,21 +180,38 @@ input:disabled {
   backdrop-filter: blur(16px);
 }
 
-.dark .manager-bottom-nav {
+.dark .app-bottom-nav {
   border-top-color: rgb(255 152 0 / 0.24);
   background: rgb(7 26 20 / 0.94);
   box-shadow: 0 -14px 32px rgb(0 0 0 / 0.32);
 }
 
-.manager-bottom-nav__inner {
+.app-bottom-nav__inner {
   display: grid;
-  max-width: 34rem;
   margin-inline: auto;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.25rem;
 }
 
-.manager-bottom-nav__link {
+.app-bottom-nav__inner--fixed {
+  max-width: 34rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.app-bottom-nav__inner--scroll {
+  max-width: 40rem;
+  grid-auto-columns: minmax(4.75rem, 1fr);
+  grid-auto-flow: column;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding-bottom: 0.125rem;
+  scrollbar-width: none;
+}
+
+.app-bottom-nav__inner--scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.app-bottom-nav__link {
   display: inline-flex;
   min-width: 0;
   min-height: 3.35rem;
@@ -214,13 +231,13 @@ input:disabled {
     transform 160ms ease;
 }
 
-.manager-bottom-nav__link:hover,
-.manager-bottom-nav__link.is-active {
+.app-bottom-nav__link:hover,
+.app-bottom-nav__link.is-active {
   background: rgb(0 95 61 / 0.11);
   color: var(--ui-primary);
 }
 
-.manager-bottom-nav__link:active {
+.app-bottom-nav__link:active {
   transform: scale(0.97);
 }
 

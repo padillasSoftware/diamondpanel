@@ -70,11 +70,29 @@ const showManagerBottomNav = computed(() =>
   && !isAdminSection.value
   && managedTeams.value.length > 0
 )
+const showAdminBottomNav = computed(() => isAdmin.value)
+const showBottomNavigation = computed(() => showManagerBottomNav.value || showAdminBottomNav.value)
 const visibleNavigation = computed(() =>
   isAdmin.value || isAdminSection.value ? filterNavigation(adminNavigation) : navigation.value
 )
 const visibleManagerBottomNavigation = computed(() => filterNavigation(managerBottomNavigation))
-const showMobileTopNavigation = computed(() => !showManagerBottomNav.value && visibleNavigation.value.length > 0)
+const visibleAdminBottomNavigation = computed(() => filterNavigation(adminNavigation))
+const visibleBottomNavigation = computed(() =>
+  showAdminBottomNav.value ? visibleAdminBottomNavigation.value : visibleManagerBottomNavigation.value
+)
+const bottomNavigationLabel = computed(() =>
+  showAdminBottomNav.value ? 'Accesos rápidos de administrador' : 'Accesos rápidos de manejador'
+)
+const bottomNavigationInnerClass = computed(() => [
+  'app-bottom-nav__inner',
+  showAdminBottomNav.value ? 'app-bottom-nav__inner--scroll' : 'app-bottom-nav__inner--fixed'
+])
+const bottomNavigationInnerStyle = computed(() =>
+  showAdminBottomNav.value
+    ? undefined
+    : { gridTemplateColumns: `repeat(${visibleBottomNavigation.value.length}, minmax(0, 1fr))` }
+)
+const showMobileTopNavigation = computed(() => !showBottomNavigation.value && visibleNavigation.value.length > 0)
 
 const isNavigationItemActive = (to: string) => to === '/admin'
   ? route.path === '/admin'
@@ -250,19 +268,19 @@ const handleActiveTeamChange = (event: Event) => {
     </div>
 
     <nav
-      v-if="showManagerBottomNav"
-      class="manager-bottom-nav lg:hidden"
-      aria-label="Accesos rápidos de manejador"
+      v-if="showBottomNavigation"
+      class="app-bottom-nav lg:hidden"
+      :aria-label="bottomNavigationLabel"
     >
       <div
-        class="manager-bottom-nav__inner"
-        :style="{ gridTemplateColumns: `repeat(${visibleManagerBottomNavigation.length}, minmax(0, 1fr))` }"
+        :class="bottomNavigationInnerClass"
+        :style="bottomNavigationInnerStyle"
       >
         <NuxtLink
-          v-for="item in visibleManagerBottomNavigation"
+          v-for="item in visibleBottomNavigation"
           :key="item.to"
           :to="item.to"
-          :class="['manager-bottom-nav__link', { 'is-active': isNavigationItemActive(item.to) }]"
+          :class="['app-bottom-nav__link', { 'is-active': isNavigationItemActive(item.to) }]"
         >
           <UIcon
             :name="item.icon"
