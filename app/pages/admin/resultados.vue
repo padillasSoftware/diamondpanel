@@ -205,7 +205,7 @@ const lineupForm = reactive({
 const games = computed(() => data.value?.games ?? [])
 const selectedGame = computed(() => games.value.find(game => game.id === selectedGameId.value) ?? null)
 const resultCardHref = computed(() =>
-  selectedGame.value?.result ? `/api/admin/results/${selectedGame.value.id}/card.svg` : ''
+  selectedGame.value?.result ? `/api/admin/results/${selectedGame.value.id}/card.png` : ''
 )
 const selectedGameOfflineDrafts = computed(() =>
   selectedGame.value ? offlineDrafts.value.filter(draft => draft.gameId === selectedGame.value?.id) : []

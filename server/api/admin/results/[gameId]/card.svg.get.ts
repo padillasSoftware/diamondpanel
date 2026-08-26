@@ -2,6 +2,7 @@ import { GameStatus } from '../../../../generated/prisma/enums'
 import { prisma } from '../../../../utils/db'
 import { getActiveSeasonForResults } from '../../../../utils/results'
 import { requireAdmin } from '../../../../utils/session'
+import type { H3Event } from 'h3'
 
 type CardTeam = {
   id: string
@@ -33,15 +34,28 @@ const cardTeamSelect = {
 
 export default defineEventHandler(async (event) => {
   await requireAdmin(event)
+  const gameId = getResultCardGameId(event)
+  const { svg, filename } = await loadResultCardSvg(event, gameId)
+
+  event.node.res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8')
+  event.node.res.setHeader('Cache-Control', 'no-store')
+  event.node.res.setHeader('Content-Disposition', `inline; filename="${filename}.svg"`)
+
+  return svg
+})
+
+export function getResultCardGameId(event: H3Event) {
   const gameId = getRouterParam(event, 'gameId')
 
-  if (!gameId) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: 'Game id is required'
-    })
-  }
+  if (gameId) return gameId
 
+  throw createError({
+    statusCode: 400,
+    statusMessage: 'Game id is required'
+  })
+}
+
+export async function loadResultCardSvg(event: H3Event, gameId: string) {
   const season = await getActiveSeasonForResults(prisma)
 
   if (!season) {
@@ -133,12 +147,11 @@ export default defineEventHandler(async (event) => {
   })
   const filename = slugify(`${leagueName}-${game.homeTeam.name}-vs-${game.awayTeam.name}`)
 
-  event.node.res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8')
-  event.node.res.setHeader('Cache-Control', 'no-store')
-  event.node.res.setHeader('Content-Disposition', `inline; filename="${filename}.svg"`)
-
-  return svg
-})
+  return {
+    filename,
+    svg
+  }
+}
 
 function buildResultCardSvg(input: {
   leagueName: string
