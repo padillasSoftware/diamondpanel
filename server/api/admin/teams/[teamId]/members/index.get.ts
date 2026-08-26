@@ -1,6 +1,6 @@
 import { prisma } from '../../../../../utils/db'
 import { requireAdmin } from '../../../../../utils/session'
-import { teamMemberSelect } from '../../../../../utils/team-members'
+import { adminTeamMemberSelect } from '../../../../../utils/team-members'
 
 export default defineEventHandler(async (event) => {
   await requireAdmin(event)
@@ -33,7 +33,7 @@ export default defineEventHandler(async (event) => {
         { number: 'asc' },
         { lastName: 'asc' }
       ],
-      select: teamMemberSelect
+      select: adminTeamMemberSelect
     })
   }
 })

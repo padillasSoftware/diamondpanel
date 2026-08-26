@@ -7,6 +7,7 @@ import {
   branchLabel,
   categoryColor,
   categoryLabel,
+  formatShortDate,
   handLabel,
   memberRoleColor,
   memberRoleLabel,
@@ -15,7 +16,7 @@ import {
   teamInitials,
   teamStatusColor,
   teamStatusLabel,
-  type Player,
+  type AdminPlayer,
   type TeamBranch,
   type TeamCategory
 } from '~/utils/league'
@@ -66,7 +67,7 @@ type TeamsResponse = {
 }
 
 type TeamMembersResponse = {
-  members: Player[]
+  members: AdminPlayer[]
 }
 
 const { data, refresh } = await useFetch<TeamsResponse>('/api/admin/teams')
@@ -122,8 +123,8 @@ const isDeletingMember = ref(false)
 const togglingTeamId = ref<string | null>(null)
 const isDeletingTeam = ref(false)
 const teamPendingDelete = ref<AdminTeam | null>(null)
-const memberPendingDelete = ref<Player | null>(null)
-const teamMembers = ref<Player[]>([])
+const memberPendingDelete = ref<AdminPlayer | null>(null)
+const teamMembers = ref<AdminPlayer[]>([])
 const editingMemberId = ref<string | null>(null)
 const isSlugDirty = ref(false)
 const showAdvancedTeamOptions = ref(false)
@@ -260,6 +261,10 @@ function gameCount(team: AdminTeam) {
   return team._count.homeGames + team._count.awayGames
 }
 
+function memberRegisteredAt(member: AdminPlayer) {
+  return formatShortDate(member.createdAt)
+}
+
 function canDeleteTeam(team: AdminTeam) {
   return team._count.players === 0 && gameCount(team) === 0
 }
@@ -389,7 +394,7 @@ async function loadTeamMembers(teamId: string) {
   }
 }
 
-function editMember(member: Player) {
+function editMember(member: AdminPlayer) {
   editingMemberId.value = member.id
   memberForm.firstName = member.firstName
   memberForm.lastName = member.lastName
@@ -575,7 +580,7 @@ async function saveMember() {
   }
 }
 
-function deleteMember(member: Player) {
+function deleteMember(member: AdminPlayer) {
   memberPendingDelete.value = member
 }
 
@@ -1404,6 +1409,14 @@ async function confirmDeleteTeam() {
                     variant="outline"
                   >
                     {{ member.status === 'ACTIVE' ? 'Activo' : 'Inactivo' }}
+                  </UBadge>
+                  <UBadge
+                    v-if="member.memberRole === 'PLAYER'"
+                    color="info"
+                    variant="subtle"
+                    icon="i-lucide-calendar-plus"
+                  >
+                    Alta {{ memberRegisteredAt(member) }}
                   </UBadge>
                 </div>
 

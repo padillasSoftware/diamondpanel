@@ -26,7 +26,11 @@ export const teamMemberSelect = {
   position: true,
   bats: true,
   throws: true,
-  status: true,
+  status: true
+} as const
+
+export const adminTeamMemberSelect = {
+  ...teamMemberSelect,
   createdAt: true,
   updatedAt: true
 } as const

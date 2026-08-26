@@ -60,6 +60,11 @@ export type Player = {
   status: string
 }
 
+export type AdminPlayer = Player & {
+  createdAt: string
+  updatedAt: string
+}
+
 export type TeamSummary = {
   id: string
   name: string

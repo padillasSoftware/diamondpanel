@@ -4,7 +4,7 @@ import {
   assertCurpMatchesTeamBranch,
   assertPlayerCategoryEligibility,
   buildMemberUpdateData,
-  teamMemberSelect
+  adminTeamMemberSelect
 } from '../../../../../utils/team-members'
 
 export default defineEventHandler(async (event) => {
@@ -55,7 +55,7 @@ export default defineEventHandler(async (event) => {
     return await prisma.player.update({
       where: { id: current.id },
       data: member,
-      select: teamMemberSelect
+      select: adminTeamMemberSelect
     })
   } catch (error) {
     if (typeof error === 'object' && error && 'code' in error && error.code === 'P2002') {
