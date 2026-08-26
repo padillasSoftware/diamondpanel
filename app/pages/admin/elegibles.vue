@@ -6,6 +6,7 @@ import {
   branchLabel,
   categoryColor,
   categoryLabel,
+  playerPositionLabel,
   type PlayoffEligibilityMode,
   type TeamBranch,
   type TeamCategory
@@ -386,7 +387,7 @@ function refreshEligibility() {
                     </p>
                   </td>
                   <td class="py-3 pr-3 text-muted">
-                    {{ player.position ?? '-' }}
+                    {{ playerPositionLabel(player.position) }}
                   </td>
                   <td class="py-3 pr-3 text-right font-semibold text-highlighted">
                     {{ player.lineupGames }}/{{ minimumGames }}

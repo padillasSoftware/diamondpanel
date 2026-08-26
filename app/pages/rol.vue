@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import {
-  // TEAM_BRANCH_OPTIONS,
-  // TEAM_CATEGORY_OPTIONS,
   branchColor,
   branchLabel,
   categoryColor,
@@ -15,9 +13,7 @@ import {
   scheduleDateKey,
   teamInitials,
   type Game,
-  type Season,
-  type TeamBranch,
-  type TeamCategory
+  type Season
 } from '~/utils/league'
 
 type GameGroup = {
@@ -26,17 +22,26 @@ type GameGroup = {
   games: Game[]
 }
 
+type ScheduleScope = 'TEAM' | 'GROUP'
+
 useSeoMeta({
   title: 'Rol | DiamondPanel',
   description: 'Rol de juegos de la temporada activa de DiamondPanel.'
 })
 
-const selectedCategory = ref<'ALL' | TeamCategory>('ALL')
-const selectedBranch = ref<'ALL' | TeamBranch>('ALL')
+const { user } = useAuth()
+const selectedScope = ref<ScheduleScope>('TEAM')
+const managedTeam = computed(() => user.value?.role === 'ADMIN' ? null : user.value?.activeTeam ?? null)
+const canFilterByManagedTeam = computed(() => Boolean(managedTeam.value))
 const gamesQuery = computed(() => ({
   limit: 50,
-  ...(selectedCategory.value === 'ALL' ? {} : { category: selectedCategory.value }),
-  ...(selectedBranch.value === 'ALL' ? {} : { branch: selectedBranch.value })
+  ...(managedTeam.value && selectedScope.value === 'TEAM' ? { scope: 'mine' } : {}),
+  ...(managedTeam.value && selectedScope.value === 'GROUP'
+    ? {
+        category: managedTeam.value.category,
+        branch: managedTeam.value.branch
+      }
+    : {})
 }))
 
 const { data: season } = await useFetch<Season>('/api/seasons/active')
@@ -49,6 +54,15 @@ const upcomingGames = computed(() =>
 )
 const nextGame = computed(() => upcomingGames.value[0])
 const postponedGames = computed(() => upcomingGames.value.filter(game => game.status === 'POSTPONED').length)
+const scopeDescription = computed(() => {
+  const team = managedTeam.value
+
+  if (!team) return 'Partidos pendientes ordenados por fecha y hora.'
+  if (selectedScope.value === 'TEAM') return `Solo partidos de ${team.name}.`
+
+  return `${categoryLabel(team.category)} • ${branchLabel(team.branch)}.`
+})
+const scopeCounterLabel = computed(() => selectedScope.value === 'TEAM' ? 'Mi equipo' : 'Mi categoría')
 const gamesByDate = computed(() => {
   const groups = new Map<string, GameGroup>()
 
@@ -96,7 +110,7 @@ const gamesByDate = computed(() => {
           Próximos partidos
         </h1>
         <p class="mt-2 max-w-2xl text-base text-muted">
-          Consulta el calendario por rol, campo, horario y estado del partido.
+          {{ scopeDescription }}
         </p>
       </div>
 
@@ -106,7 +120,7 @@ const gamesByDate = computed(() => {
             {{ upcomingGames.length }}
           </p>
           <p class="text-xs text-muted">
-            En rol
+            {{ scopeCounterLabel }}
           </p>
         </div>
         <div class="rounded-md bg-default px-3 py-2">
@@ -119,40 +133,6 @@ const gamesByDate = computed(() => {
         </div>
       </div>
     </div>
-
-    <!-- <div class="mb-4 grid gap-3 rounded-lg border border-default bg-default p-3 shadow-sm sm:grid-cols-2">
-      <label class="grid gap-1 text-sm">
-        <span class="font-medium text-highlighted">Categoría</span>
-        <select
-          v-model="selectedCategory"
-          class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
-        >
-          <option
-            v-for="option in TEAM_CATEGORY_OPTIONS"
-            :key="option.value"
-            :value="option.value"
-          >
-            {{ option.label }}
-          </option>
-        </select>
-      </label>
-
-      <label class="grid gap-1 text-sm">
-        <span class="font-medium text-highlighted">Rama</span>
-        <select
-          v-model="selectedBranch"
-          class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
-        >
-          <option
-            v-for="option in TEAM_BRANCH_OPTIONS"
-            :key="option.value"
-            :value="option.value"
-          >
-            {{ option.label }}
-          </option>
-        </select>
-      </label>
-    </div> -->
 
     <section
       v-if="nextGame"
@@ -236,19 +216,44 @@ const gamesByDate = computed(() => {
     </section>
 
     <section class="rounded-lg border border-default bg-default p-5 shadow-sm">
-      <div class="mb-4 flex items-center justify-between gap-3">
+      <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h2 class="text-xl font-bold text-highlighted">
             Calendario
           </h2>
           <p class="text-sm text-muted">
-            Partidos pendientes ordenados por fecha y hora.
+            {{ scopeDescription }}
           </p>
         </div>
-        <UIcon
-          name="i-lucide-list-checks"
-          class="size-5 text-muted"
-        />
+        <div
+          v-if="canFilterByManagedTeam"
+          class="grid grid-cols-2 gap-1 rounded-md bg-muted/40 p-1 text-sm"
+        >
+          <button
+            type="button"
+            class="inline-flex h-9 items-center justify-center gap-1.5 rounded-md px-3 font-medium transition"
+            :class="selectedScope === 'TEAM' ? 'bg-default text-highlighted shadow-sm' : 'text-muted hover:text-highlighted'"
+            @click="selectedScope = 'TEAM'"
+          >
+            <UIcon
+              name="i-lucide-shield"
+              class="size-4"
+            />
+            Mi equipo
+          </button>
+          <button
+            type="button"
+            class="inline-flex h-9 items-center justify-center gap-1.5 rounded-md px-3 font-medium transition"
+            :class="selectedScope === 'GROUP' ? 'bg-default text-highlighted shadow-sm' : 'text-muted hover:text-highlighted'"
+            @click="selectedScope = 'GROUP'"
+          >
+            <UIcon
+              name="i-lucide-users"
+              class="size-4"
+            />
+            Mi categoría
+          </button>
+        </div>
       </div>
 
       <div

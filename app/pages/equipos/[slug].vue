@@ -5,6 +5,7 @@ import {
   categoryColor,
   categoryLabel,
   handLabel,
+  playerPositionLabel,
   playerName,
   teamInitials,
   teamStatusColor,
@@ -170,7 +171,7 @@ const activePlayers = computed(() => team.value?.players.filter(player => player
                   {{ playerName(player) }}
                 </td>
                 <td class="py-3 pr-3 text-muted">
-                  {{ player.position ?? '-' }}
+                  {{ playerPositionLabel(player.position) }}
                 </td>
                 <td class="py-3 pr-3 text-muted">
                   {{ handLabel(player.bats) }}

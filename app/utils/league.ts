@@ -310,6 +310,16 @@ export function memberRoleLabel(role?: string) {
   return 'Integrante'
 }
 
+export function playerPositionLabel(position?: string | null) {
+  if (position === 'FIELDER') return 'Jardinero'
+  if (position === 'INFIELDER') return 'Cuadro'
+  if (position === 'PITCHER') return 'Pitcher'
+  if (position === 'CATCHER') return 'Catcher'
+  if (position === 'UTILITY') return 'Utility'
+
+  return position || '-'
+}
+
 export function memberRoleColor(role?: string): BadgeColor {
   if (role === 'PLAYER') return 'primary'
   if (role === 'MANAGER') return 'warning'

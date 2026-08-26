@@ -7,6 +7,7 @@ import {
 } from '../../utils/password-reset'
 import { emailService } from '../../services/email/email.service'
 import { buildAppUrl } from '../../utils/app-url'
+import { assertRateLimit, getRateLimitIp } from '../../utils/rate-limit'
 
 type ForgotPasswordBody = {
   email?: string
@@ -23,6 +24,23 @@ function isValidEmail(value: string) {
 export default defineEventHandler(async (event) => {
   const body = await readBody<ForgotPasswordBody>(event)
   const email = typeof body.email === 'string' ? normalizeEmail(body.email) : ''
+  const ip = getRateLimitIp(event)
+
+  assertRateLimit(event, {
+    key: `forgot-password:ip:${ip}`,
+    max: 20,
+    windowMs: 60 * 60 * 1000,
+    message: 'Demasiadas solicitudes de recuperación. Intenta de nuevo más tarde.'
+  })
+
+  if (email) {
+    assertRateLimit(event, {
+      key: `forgot-password:email:${email}`,
+      max: 5,
+      windowMs: 60 * 60 * 1000,
+      message: 'Demasiadas solicitudes para este correo. Intenta de nuevo más tarde.'
+    })
+  }
 
   if (!email || !isValidEmail(email)) {
     throw createError({

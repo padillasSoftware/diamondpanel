@@ -10,6 +10,7 @@ import {
   handLabel,
   memberRoleColor,
   memberRoleLabel,
+  playerPositionLabel,
   playerName,
   teamInitials,
   teamStatusColor,
@@ -1262,7 +1263,7 @@ async function confirmDeleteTeam() {
                 :key="position"
                 :value="position"
               >
-                {{ position }}
+                {{ playerPositionLabel(position) }}
               </option>
             </select>
           </label>
@@ -1336,7 +1337,7 @@ async function confirmDeleteTeam() {
                 </h3>
                 <p class="text-xs text-muted">
                   <span v-if="member.memberRole === 'PLAYER'">
-                    #{{ member.number ?? '-' }} · {{ member.position }} · CURP {{ member.curp ?? '-' }} · Batea {{ handLabel(member.bats) }} · Lanza {{ handLabel(member.throws) }}
+                    #{{ member.number ?? '-' }} · {{ playerPositionLabel(member.position) }} · CURP {{ member.curp ?? '-' }} · Batea {{ handLabel(member.bats) }} · Lanza {{ handLabel(member.throws) }}
                   </span>
                   <span v-else>
                     Staff del equipo · CURP {{ member.curp ?? '-' }}
