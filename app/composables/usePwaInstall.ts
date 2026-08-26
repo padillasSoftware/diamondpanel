@@ -19,6 +19,8 @@ const isServiceWorkerReady = ref(false)
 const isIos = ref(false)
 const isInstalling = ref(false)
 const updateRegistration = shallowRef<ServiceWorkerRegistration | null>(null)
+const updateBuildId = ref<string | null>(null)
+const dismissedUpdateBuildId = ref<string | null>(null)
 const isUpdateAvailable = ref(false)
 const isRefreshingForUpdate = ref(false)
 let listenersRegistered = false
@@ -69,17 +71,24 @@ export function setPwaServiceWorkerReady(value: boolean) {
   isServiceWorkerReady.value = value
 }
 
-export function setPwaUpdateAvailable(registration: ServiceWorkerRegistration) {
+export function setPwaUpdateAvailable(registration: ServiceWorkerRegistration, buildId: string | null = null) {
+  if (buildId && dismissedUpdateBuildId.value === buildId) return
+
   updateRegistration.value = registration
+  updateBuildId.value = buildId
   isUpdateAvailable.value = true
 }
 
-export function setPwaRefreshAvailable() {
+export function setPwaRefreshAvailable(buildId: string | null = null) {
+  if (buildId && dismissedUpdateBuildId.value === buildId) return
+
   updateRegistration.value = null
+  updateBuildId.value = buildId
   isUpdateAvailable.value = true
 }
 
 export function dismissPwaUpdate() {
+  dismissedUpdateBuildId.value = updateBuildId.value
   isUpdateAvailable.value = false
 }
 
