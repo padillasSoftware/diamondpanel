@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { GameStatus } from '../../../../generated/prisma/enums'
 import { prisma } from '../../../../utils/db'
 import { getActiveSeasonForResults } from '../../../../utils/results'
@@ -23,6 +25,8 @@ type CardHighlight = {
 
 const cardWidth = 1080
 const cardHeight = 1350
+const resultCardFontPublicPath = 'result-card/fonts/public-sans-heavy.woff2'
+let resultCardFontCssPromise: Promise<string> | null = null
 
 const cardTeamSelect = {
   id: true,
@@ -134,7 +138,9 @@ export async function loadResultCardSvg(event: H3Event, gameId: string) {
   })
   const primaryLogoUrl = league?.primaryLogoUrl || String(runtimeConfig.public.leagueLogoUrl || '')
   const secondaryLogoUrl = league?.secondaryLogoUrl || ''
+  const fontFaceCss = await loadResultCardFontCss()
   const svg = buildResultCardSvg({
+    fontFaceCss,
     leagueName,
     primaryLogoUrl,
     secondaryLogoUrl,
@@ -154,6 +160,7 @@ export async function loadResultCardSvg(event: H3Event, gameId: string) {
 }
 
 function buildResultCardSvg(input: {
+  fontFaceCss: string
   leagueName: string
   primaryLogoUrl: string
   secondaryLogoUrl: string
@@ -214,10 +221,11 @@ function buildResultCardSvg(input: {
       <feDropShadow dx="0" dy="14" stdDeviation="7" flood-color="#000000" flood-opacity="0.72"/>
     </filter>
     <style>
-      .impact { font-family: Impact, Haettenschweiler, 'Arial Black', sans-serif; font-weight: 900; letter-spacing: 0; }
-      .body { font-family: Arial, Helvetica, sans-serif; font-weight: 900; letter-spacing: 0; }
-      .brush { font-family: 'Trebuchet MS', 'Arial Black', Arial, sans-serif; font-weight: 900; font-style: italic; letter-spacing: 0; }
-      .small { font-family: Arial, Helvetica, sans-serif; font-weight: 800; letter-spacing: 0; }
+      ${input.fontFaceCss}
+      .impact { font-family: 'DiamondPanelPoster', 'Arial Black', sans-serif; font-weight: 900; letter-spacing: 0; }
+      .body { font-family: 'DiamondPanelPoster', Arial, Helvetica, sans-serif; font-weight: 900; letter-spacing: 0; }
+      .brush { font-family: 'DiamondPanelPoster', 'Arial Black', Arial, sans-serif; font-weight: 900; font-style: italic; letter-spacing: 0; }
+      .small { font-family: 'DiamondPanelPoster', Arial, Helvetica, sans-serif; font-weight: 800; letter-spacing: 0; }
     </style>
   </defs>
 
@@ -415,6 +423,50 @@ function leagueMarkText(value: string) {
   }
 
   return words.slice(0, 4).map(word => word[0] ?? '').join('').toUpperCase() || 'DP'
+}
+
+function loadResultCardFontCss() {
+  resultCardFontCssPromise ??= loadResultCardFontCssOnce()
+
+  return resultCardFontCssPromise
+}
+
+async function loadResultCardFontCssOnce() {
+  const font = await readResultCardFont()
+
+  if (!font) return ''
+
+  return `
+      @font-face {
+        font-family: 'DiamondPanelPoster';
+        src: url('data:font/woff2;base64,${font.toString('base64')}') format('woff2');
+        font-weight: 400 900;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: 'DiamondPanelPoster';
+        src: url('data:font/woff2;base64,${font.toString('base64')}') format('woff2');
+        font-weight: 400 900;
+        font-style: italic;
+      }`
+}
+
+async function readResultCardFont() {
+  const candidates = [
+    join(process.cwd(), 'public', resultCardFontPublicPath),
+    join(process.cwd(), '.output', 'public', resultCardFontPublicPath),
+    join(process.cwd(), '..', 'public', resultCardFontPublicPath)
+  ]
+
+  for (const candidate of candidates) {
+    try {
+      return await readFile(candidate)
+    } catch {
+      // Continue with the next runtime asset location.
+    }
+  }
+
+  return null
 }
 
 function fitFont(value: string, maxWidth: number, baseSize: number, minSize: number) {
