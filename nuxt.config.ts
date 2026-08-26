@@ -1,4 +1,11 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+const pwaBuildId = [
+  process.env.COMMIT_REF,
+  process.env.DEPLOY_ID,
+  process.env.BUILD_ID,
+  process.env.NUXT_BUILD_ID
+].find(Boolean) ?? `build-${Date.now()}`
+
 export default defineNuxtConfig({
   modules: [
     '@nuxt/eslint',
@@ -33,7 +40,8 @@ export default defineNuxtConfig({
     cloudinaryFolder: process.env.CLOUDINARY_FOLDER || 'diamondpanel',
     public: {
       leagueName: process.env.NUXT_PUBLIC_LEAGUE_NAME || 'Liga de Softball',
-      leagueLogoUrl: process.env.NUXT_PUBLIC_LEAGUE_LOGO_URL || ''
+      leagueLogoUrl: process.env.NUXT_PUBLIC_LEAGUE_LOGO_URL || '',
+      pwaBuildId
     }
   },
 

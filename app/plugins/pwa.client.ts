@@ -26,6 +26,12 @@ export default defineNuxtPlugin(() => {
     })
   }
 
+  const checkForWaitingUpdate = (registration: ServiceWorkerRegistration) => {
+    if (registration.waiting && navigator.serviceWorker.controller) {
+      setPwaUpdateAvailable(registration)
+    }
+  }
+
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (!hadController || didHandleControllerChange) return
 
@@ -39,9 +45,14 @@ export default defineNuxtPlugin(() => {
       .then((registration) => {
         setPwaServiceWorkerReady(true)
         watchRegistration(registration)
+        void registration.update().finally(() => {
+          checkForWaitingUpdate(registration)
+        })
 
         window.setInterval(() => {
-          void registration.update()
+          void registration.update().finally(() => {
+            checkForWaitingUpdate(registration)
+          })
         }, 60 * 60 * 1000)
       })
       .catch(() => {

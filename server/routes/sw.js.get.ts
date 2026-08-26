@@ -1,24 +1,19 @@
-const CACHE_VERSION_SOURCE = [
-  process.env.COMMIT_REF,
-  process.env.DEPLOY_ID,
-  process.env.BUILD_ID,
-  process.env.NUXT_BUILD_ID,
-  process.env.npm_package_version,
-  'local'
-].find(Boolean) ?? 'local'
-
-function cacheVersion() {
-  return CACHE_VERSION_SOURCE
+function cacheVersion(source: string) {
+  return source
     .replace(/[^a-zA-Z0-9_-]/g, '')
     .slice(0, 24) || 'local'
 }
 
 export default defineEventHandler((event) => {
+  const runtimeConfig = useRuntimeConfig(event)
+  const versionSource = String(runtimeConfig.public.pwaBuildId || process.env.DEPLOY_ID || process.env.COMMIT_REF || 'local')
+
   setHeader(event, 'content-type', 'text/javascript; charset=utf-8')
   setHeader(event, 'cache-control', 'no-cache, no-store, must-revalidate')
 
   return `
-const CACHE_NAME = ${JSON.stringify(`diamondpanel-static-${cacheVersion()}`)}
+const CACHE_NAME = ${JSON.stringify(`diamondpanel-static-${cacheVersion(versionSource)}`)}
+const BUILD_ID = ${JSON.stringify(versionSource)}
 const OFFLINE_URL = '/offline.html'
 const PRECACHE_ASSETS = [
   OFFLINE_URL,
