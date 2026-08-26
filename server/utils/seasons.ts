@@ -1,4 +1,4 @@
-import { SeasonStatus } from '../generated/prisma/enums'
+import { SeasonStatus, TeamStatus } from '../generated/prisma/enums'
 import type { Prisma } from '../generated/prisma/client'
 import { cleanEnum, cleanOptionalDate, cleanRequiredDate, cleanRequiredText } from './validation'
 
@@ -91,4 +91,31 @@ export async function archiveOtherActiveSeasons(prisma: Prisma.TransactionClient
       status: SeasonStatus.ARCHIVED
     }
   })
+}
+
+export async function attachActiveTeamsToSeason(prisma: Prisma.TransactionClient, seasonId: string) {
+  const teams = await prisma.team.findMany({
+    where: { status: TeamStatus.ACTIVE },
+    select: { id: true }
+  })
+
+  if (!teams.length) {
+    return {
+      attachedCount: 0,
+      teamCount: 0
+    }
+  }
+
+  const result = await prisma.teamSeason.createMany({
+    data: teams.map(team => ({
+      seasonId,
+      teamId: team.id
+    })),
+    skipDuplicates: true
+  })
+
+  return {
+    attachedCount: result.count,
+    teamCount: teams.length
+  }
 }

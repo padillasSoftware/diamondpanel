@@ -1,5 +1,6 @@
 import { verifyPassword } from '../../utils/password'
 import { prisma } from '../../utils/db'
+import { assertRateLimit, getRateLimitIp } from '../../utils/rate-limit'
 import { getAuthUserById, setSessionCookie } from '../../utils/session'
 
 type LoginBody = {
@@ -17,6 +18,23 @@ export default defineEventHandler(async (event) => {
   const email = typeof body.email === 'string' ? normalizeEmail(body.email) : ''
   const password = typeof body.password === 'string' ? body.password : ''
   const rememberMe = body.rememberMe === true
+  const ip = getRateLimitIp(event)
+
+  assertRateLimit(event, {
+    key: `login:ip:${ip}`,
+    max: 30,
+    windowMs: 15 * 60 * 1000,
+    message: 'Demasiados intentos de inicio de sesión. Intenta de nuevo en unos minutos.'
+  })
+
+  if (email) {
+    assertRateLimit(event, {
+      key: `login:email:${email}`,
+      max: 8,
+      windowMs: 15 * 60 * 1000,
+      message: 'Demasiados intentos para este correo. Intenta de nuevo en unos minutos.'
+    })
+  }
 
   if (!email || !password) {
     throw createError({

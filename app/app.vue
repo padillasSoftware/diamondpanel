@@ -53,7 +53,7 @@ function scheduleSplashDismissal() {
 
   splashTimer = setTimeout(() => {
     showSplash.value = false
-  }, 1500)
+  }, 900)
 }
 
 watch(showSplash, (visible) => {

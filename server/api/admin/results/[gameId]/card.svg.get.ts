@@ -171,14 +171,11 @@ function buildResultCardSvg(input: {
   const rightScore = homeWins ? game.result.awayScore : game.result.homeScore
   const winnerHighlights = game.result.battingHighlights.filter(highlight => highlight.side === 'WINNER').slice(0, 3)
   const loserHighlights = game.result.battingHighlights.filter(highlight => highlight.side === 'LOSER').slice(0, 3)
-  const headlineLineOne = game.result.isForfeit ? 'RESULTADO POR' : 'RESULTADOS DE'
-  const headlineLineTwo = game.result.isForfeit ? 'DEFAULT' : 'JUEGO'
+  const headlineLineOne = 'RESULTADO DE'
+  const headlineLineTwo = 'JUEGO'
   const roundText = game.round ? `JORNADA ${game.round}` : upper(`${input.seasonName} ${input.seasonYear}`)
   const theme = branchTheme(leftTeam.branch)
   const branchLogoUrl = getBranchLogoUrl(input, leftTeam.branch)
-  const forfeitRibbon = game.result.isForfeit
-    ? `<text x="73" y="646" text-anchor="start" class="body" font-size="32" fill="${theme.accent}" stroke="#050505" stroke-width="8" paint-order="stroke">P. DEFAULT</text>`
-    : ''
   const battersSectionSvg = game.result.isForfeit
     ? ''
     : battersSection(winnerHighlights, loserHighlights, theme)
@@ -220,7 +217,6 @@ function buildResultCardSvg(input: {
     <text x="150" y="280" text-anchor="start" class="impact" font-size="55" fill="#ffffff" stroke="#050505" stroke-width="6" paint-order="stroke">${escapeXml(roundText)}</text>
     ${leagueMark(input.leagueName, branchLogoUrl, 895, 152, true, 224)}
     <text x="73" y="410" text-anchor="start" class="body" font-size="48" fill="#ffffff" stroke="#050505" stroke-width="9" paint-order="stroke">MARCADOR FINAL</text>
-    ${forfeitRibbon}
   </g>
 
   <g filter="url(#scoreNeon)">

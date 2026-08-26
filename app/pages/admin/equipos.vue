@@ -1,13 +1,21 @@
 <script setup lang="ts">
 import {
+  PLAYER_POSITION_OPTIONS,
   TEAM_BRANCH_OPTIONS,
   TEAM_CATEGORY_OPTIONS,
+  TEAM_MEMBER_ROLE_OPTIONS,
   branchLabel,
   categoryColor,
   categoryLabel,
+  handLabel,
+  memberRoleColor,
+  memberRoleLabel,
+  playerPositionLabel,
+  playerName,
   teamInitials,
   teamStatusColor,
   teamStatusLabel,
+  type Player,
   type TeamBranch,
   type TeamCategory
 } from '~/utils/league'
@@ -57,6 +65,10 @@ type TeamsResponse = {
   managerOptions: ManagerOption[]
 }
 
+type TeamMembersResponse = {
+  members: Player[]
+}
+
 const { data, refresh } = await useFetch<TeamsResponse>('/api/admin/teams')
 const toast = useToast()
 
@@ -76,6 +88,19 @@ const teamForm = reactive({
   newManagerEmail: ''
 })
 
+const memberForm = reactive({
+  firstName: '',
+  lastName: '',
+  curp: '',
+  birthDate: '',
+  number: '',
+  memberRole: 'PLAYER',
+  position: '',
+  bats: 'UNKNOWN',
+  throws: 'UNKNOWN',
+  status: 'ACTIVE'
+})
+
 const statusOptions = [
   { label: 'Activo', value: 'ACTIVE' },
   { label: 'Inactivo', value: 'INACTIVE' }
@@ -91,9 +116,15 @@ const branchOptions = TEAM_BRANCH_OPTIONS.filter(
 const editingTeamId = ref<string | null>(null)
 const isSavingTeam = ref(false)
 const isUploadingTeamLogo = ref(false)
+const isLoadingMembers = ref(false)
+const isSavingMember = ref(false)
+const isDeletingMember = ref(false)
 const togglingTeamId = ref<string | null>(null)
 const isDeletingTeam = ref(false)
 const teamPendingDelete = ref<AdminTeam | null>(null)
+const memberPendingDelete = ref<Player | null>(null)
+const teamMembers = ref<Player[]>([])
+const editingMemberId = ref<string | null>(null)
 const isSlugDirty = ref(false)
 const showAdvancedTeamOptions = ref(false)
 const search = ref('')
@@ -104,6 +135,7 @@ const selectedBranch = ref<'ALL' | TeamBranch>('ALL')
 const teams = computed(() => data.value?.teams ?? [])
 const managerOptions = computed(() => data.value?.managerOptions ?? [])
 const editingTeam = computed(() => teams.value.find(team => team.id === editingTeamId.value) ?? null)
+const editingMember = computed(() => teamMembers.value.find(member => member.id === editingMemberId.value) ?? null)
 const activeTeams = computed(() => teams.value.filter(team => team.status === 'ACTIVE').length)
 const teamsWithManagers = computed(() => teams.value.filter(team => team.managerAssignments.length).length)
 const hasNewManagerData = computed(() => Boolean(
@@ -114,6 +146,28 @@ const hasValidNewManager = computed(() => !hasNewManagerData.value || Boolean(
   teamForm.newManagerEmail.trim()
 ))
 const canSaveTeam = computed(() => Boolean(teamForm.name.trim() && teamForm.slug.trim() && hasValidNewManager.value))
+const canSaveMember = computed(() => {
+  const hasBase = Boolean(memberForm.firstName.trim() && memberForm.lastName.trim())
+  const hasPosition = memberForm.memberRole !== 'PLAYER' || Boolean(memberForm.position.trim())
+  const hasIdentity = Boolean(memberForm.curp.trim() && memberForm.birthDate)
+
+  return Boolean(editingTeamId.value && hasBase && hasPosition && hasIdentity && !curpError.value)
+})
+const hasDuplicateMemberNumber = computed(() => {
+  if (memberForm.memberRole !== 'PLAYER' || !memberForm.number) return false
+
+  return teamMembers.value.some(member =>
+    member.id !== editingMemberId.value
+    && member.number === Number(memberForm.number)
+  )
+})
+const curpError = computed(() => {
+  if (!memberForm.curp) return ''
+
+  return /^[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d$/.test(memberForm.curp.trim().toUpperCase())
+    ? ''
+    : 'Ingresa una CURP válida de 18 caracteres.'
+})
 const filteredTeams = computed(() => {
   const term = search.value.trim().toLowerCase()
 
@@ -137,10 +191,26 @@ const isDeleteModalOpen = computed({
   }
 })
 
+const isMemberDeleteModalOpen = computed({
+  get: () => memberPendingDelete.value !== null,
+  set: (value) => {
+    if (!value) memberPendingDelete.value = null
+  }
+})
+
 watch(() => teamForm.name, (name) => {
   if (editingTeamId.value || isSlugDirty.value) return
 
   teamForm.slug = slugify(name)
+})
+
+watch(() => memberForm.memberRole, (role) => {
+  if (role !== 'PLAYER') {
+    memberForm.position = ''
+    memberForm.number = ''
+    memberForm.bats = 'UNKNOWN'
+    memberForm.throws = 'UNKNOWN'
+  }
 })
 
 function slugify(value: string) {
@@ -210,8 +280,25 @@ function showError(message: string) {
   })
 }
 
+function resetMemberForm() {
+  editingMemberId.value = null
+  memberForm.firstName = ''
+  memberForm.lastName = ''
+  memberForm.curp = ''
+  memberForm.birthDate = ''
+  memberForm.number = ''
+  memberForm.memberRole = 'PLAYER'
+  memberForm.position = ''
+  memberForm.bats = 'UNKNOWN'
+  memberForm.throws = 'UNKNOWN'
+  memberForm.status = 'ACTIVE'
+}
+
 function resetTeamForm() {
   editingTeamId.value = null
+  teamMembers.value = []
+  memberPendingDelete.value = null
+  isLoadingMembers.value = false
   isSlugDirty.value = false
   teamForm.name = ''
   teamForm.shortName = ''
@@ -227,10 +314,13 @@ function resetTeamForm() {
   teamForm.newManagerName = ''
   teamForm.newManagerEmail = ''
   showAdvancedTeamOptions.value = false
+  resetMemberForm()
 }
 
 function editTeam(team: AdminTeam) {
   editingTeamId.value = team.id
+  teamMembers.value = []
+  resetMemberForm()
   isSlugDirty.value = true
   teamForm.name = team.name
   teamForm.shortName = team.shortName ?? ''
@@ -245,6 +335,7 @@ function editTeam(team: AdminTeam) {
   teamForm.managerUserIds = managerIds(team)
   teamForm.newManagerName = ''
   teamForm.newManagerEmail = ''
+  void loadTeamMembers(team.id)
 }
 
 function teamPayload() {
@@ -268,6 +359,55 @@ function teamPayload() {
     status: teamForm.status,
     managerUserIds: teamForm.managerUserIds,
     newManager
+  }
+}
+
+async function loadTeamMembers(teamId: string) {
+  isLoadingMembers.value = true
+
+  try {
+    const response = await $fetch<TeamMembersResponse>(`/api/admin/teams/${teamId}/members`)
+
+    if (editingTeamId.value === teamId) {
+      teamMembers.value = response.members
+    }
+  } catch {
+    if (editingTeamId.value === teamId) {
+      showError('No se pudieron cargar los integrantes del equipo.')
+    }
+  } finally {
+    if (editingTeamId.value === teamId) {
+      isLoadingMembers.value = false
+    }
+  }
+}
+
+function editMember(member: Player) {
+  editingMemberId.value = member.id
+  memberForm.firstName = member.firstName
+  memberForm.lastName = member.lastName
+  memberForm.curp = member.curp ?? ''
+  memberForm.birthDate = member.birthDate?.slice(0, 10) ?? ''
+  memberForm.number = member.number?.toString() ?? ''
+  memberForm.memberRole = member.memberRole
+  memberForm.position = member.position ?? ''
+  memberForm.bats = member.bats
+  memberForm.throws = member.throws
+  memberForm.status = member.status
+}
+
+function memberPayload() {
+  return {
+    firstName: memberForm.firstName,
+    lastName: memberForm.lastName,
+    curp: memberForm.curp,
+    birthDate: memberForm.birthDate,
+    number: memberForm.number ? Number(memberForm.number) : null,
+    memberRole: memberForm.memberRole,
+    position: memberForm.memberRole === 'PLAYER' ? memberForm.position : null,
+    bats: memberForm.bats,
+    throws: memberForm.throws,
+    status: memberForm.status
   }
 }
 
@@ -364,6 +504,103 @@ async function uploadTeamLogo(event: Event) {
   } finally {
     isUploadingTeamLogo.value = false
     input.value = ''
+  }
+}
+
+async function saveMember() {
+  if (!editingTeamId.value) {
+    showError('Primero selecciona un equipo.')
+
+    return
+  }
+
+  if (!canSaveMember.value) {
+    showError('Completa nombre, apellido, CURP, fecha de nacimiento y posición si el integrante es jugador.')
+
+    return
+  }
+
+  if (hasDuplicateMemberNumber.value) {
+    showError('Ese número ya está registrado para otro integrante de este equipo.')
+
+    return
+  }
+
+  if (curpError.value) {
+    showError(curpError.value)
+
+    return
+  }
+
+  const teamId = editingTeamId.value
+  isSavingMember.value = true
+
+  try {
+    if (editingMemberId.value) {
+      await $fetch(`/api/admin/teams/${teamId}/members/${editingMemberId.value}`, {
+        method: 'PATCH',
+        body: memberPayload()
+      })
+      showFeedback('Integrante actualizado.')
+    } else {
+      await $fetch(`/api/admin/teams/${teamId}/members`, {
+        method: 'POST',
+        body: memberPayload()
+      })
+      showFeedback('Integrante agregado.')
+    }
+
+    await Promise.all([
+      loadTeamMembers(teamId),
+      refresh()
+    ])
+    resetMemberForm()
+  } catch (error) {
+    const statusMessage = typeof error === 'object' && error && 'data' in error
+      ? String((error as { data?: { statusMessage?: unknown } }).data?.statusMessage ?? '')
+      : ''
+
+    showError(statusMessage || 'No se pudo guardar el integrante. Revisa los datos e inténtalo de nuevo.')
+  } finally {
+    isSavingMember.value = false
+  }
+}
+
+function deleteMember(member: Player) {
+  memberPendingDelete.value = member
+}
+
+async function confirmDeleteMember() {
+  const member = memberPendingDelete.value
+  const teamId = editingTeamId.value
+
+  if (!member || !teamId) return
+
+  isDeletingMember.value = true
+
+  try {
+    await $fetch(`/api/admin/teams/${teamId}/members/${member.id}`, {
+      method: 'DELETE'
+    })
+    await Promise.all([
+      loadTeamMembers(teamId),
+      refresh()
+    ])
+
+    if (editingMemberId.value === member.id) {
+      resetMemberForm()
+    }
+
+    showFeedback('Integrante eliminado.')
+    memberPendingDelete.value = null
+  } catch (error) {
+    const statusMessage = typeof error === 'object' && error && 'data' in error
+      ? String((error as { data?: { statusMessage?: unknown } }).data?.statusMessage ?? '')
+      : ''
+
+    showError(statusMessage || 'No se pudo eliminar el integrante.')
+  } finally {
+    isDeletingMember.value = false
   }
 }
 
@@ -887,6 +1124,262 @@ async function confirmDeleteTeam() {
       </section>
     </section>
 
+    <section
+      v-if="editingTeam"
+      class="mt-4 grid gap-4 xl:grid-cols-[0.85fr_1.15fr]"
+    >
+      <form
+        class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3"
+        @submit.prevent="saveMember"
+      >
+        <div class="mb-2.5 flex items-center justify-between gap-2">
+          <div>
+            <h2 class="text-base font-bold text-highlighted">
+              {{ editingMember ? 'Editar integrante' : 'Nuevo integrante' }}
+            </h2>
+            <p class="text-xs text-muted">
+              {{ editingTeam.name }}
+            </p>
+          </div>
+
+          <UButton
+            v-if="editingMember"
+            icon="i-lucide-plus"
+            label="Nuevo"
+            color="neutral"
+            variant="outline"
+            size="sm"
+            @click="resetMemberForm"
+          />
+        </div>
+
+        <div class="grid gap-2 sm:grid-cols-2">
+          <label class="grid gap-1.5 text-sm">
+            <span class="font-medium text-highlighted">Nombre</span>
+            <UInput
+              v-model="memberForm.firstName"
+              required
+            />
+          </label>
+
+          <label class="grid gap-1.5 text-sm">
+            <span class="font-medium text-highlighted">Apellido</span>
+            <UInput
+              v-model="memberForm.lastName"
+              required
+            />
+          </label>
+
+          <label class="grid gap-1.5 text-sm">
+            <span class="font-medium text-highlighted">CURP</span>
+            <UInput
+              v-model="memberForm.curp"
+              autocomplete="off"
+              maxlength="18"
+              placeholder="ABCD010101HDFXXX01"
+              :color="curpError ? 'error' : 'neutral'"
+              class="uppercase"
+              required
+            />
+            <span
+              v-if="curpError"
+              class="text-xs font-medium text-error"
+            >
+              {{ curpError }}
+            </span>
+          </label>
+
+          <label class="grid gap-1.5 text-sm">
+            <span class="font-medium text-highlighted">Fecha de nacimiento</span>
+            <UInput
+              v-model="memberForm.birthDate"
+              type="date"
+              :max="new Date().toISOString().slice(0, 10)"
+              required
+            />
+          </label>
+
+          <label class="grid gap-1.5 text-sm">
+            <span class="font-medium text-highlighted">Tipo</span>
+            <select
+              v-model="memberForm.memberRole"
+              class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
+            >
+              <option
+                v-for="option in TEAM_MEMBER_ROLE_OPTIONS"
+                :key="option.value"
+                :value="option.value"
+              >
+                {{ option.label }}
+              </option>
+            </select>
+          </label>
+
+          <label class="grid gap-1.5 text-sm">
+            <span class="font-medium text-highlighted">Estado</span>
+            <select
+              v-model="memberForm.status"
+              class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
+            >
+              <option
+                v-for="option in statusOptions"
+                :key="option.value"
+                :value="option.value"
+              >
+                {{ option.label }}
+              </option>
+            </select>
+          </label>
+
+          <label
+            v-if="memberForm.memberRole === 'PLAYER'"
+            class="grid gap-1.5 text-sm"
+          >
+            <span class="font-medium text-highlighted">Número</span>
+            <UInput
+              v-model="memberForm.number"
+              type="number"
+              min="0"
+              max="999"
+              placeholder="24"
+            />
+          </label>
+
+          <label
+            v-if="memberForm.memberRole === 'PLAYER'"
+            class="grid gap-1.5 text-sm"
+          >
+            <span class="font-medium text-highlighted">Posición</span>
+            <select
+              v-model="memberForm.position"
+              required
+              class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
+            >
+              <option value="">
+                Selecciona posición
+              </option>
+              <option
+                v-for="position in PLAYER_POSITION_OPTIONS"
+                :key="position"
+                :value="position"
+              >
+                {{ playerPositionLabel(position) }}
+              </option>
+            </select>
+          </label>
+        </div>
+
+        <UButton
+          type="submit"
+          icon="i-lucide-save"
+          :label="editingMember ? 'Actualizar integrante' : 'Agregar integrante'"
+          color="primary"
+          class="mt-2.5"
+          :disabled="!canSaveMember"
+          :loading="isSavingMember"
+          block
+        />
+      </form>
+
+      <section class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 xl:flex xl:max-h-140 xl:flex-col">
+        <div class="mb-2.5 flex items-center justify-between gap-2">
+          <div>
+            <h2 class="text-base font-bold text-highlighted">
+              Integrantes
+            </h2>
+            <p class="text-xs text-muted">
+              {{ categoryLabel(editingTeam.category) }} · {{ branchLabel(editingTeam.branch) }}
+            </p>
+          </div>
+          <UBadge
+            color="neutral"
+            variant="outline"
+          >
+            {{ teamMembers.length }} registros
+          </UBadge>
+        </div>
+
+        <div
+          v-if="isLoadingMembers"
+          class="rounded-lg border border-dashed border-default px-3 py-8 text-center text-sm text-muted"
+        >
+          Cargando integrantes...
+        </div>
+
+        <div
+          v-else
+          class="grid gap-2 overflow-y-auto pr-1 xl:min-h-0 xl:flex-1"
+        >
+          <article
+            v-for="member in teamMembers"
+            :key="member.id"
+            class="rounded-lg border border-default p-2"
+          >
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div class="min-w-0">
+                <div class="mb-1 flex flex-wrap items-center gap-1.5">
+                  <UBadge
+                    :color="memberRoleColor(member.memberRole)"
+                    variant="subtle"
+                  >
+                    {{ memberRoleLabel(member.memberRole) }}
+                  </UBadge>
+                  <UBadge
+                    :color="member.status === 'ACTIVE' ? 'success' : 'neutral'"
+                    variant="outline"
+                  >
+                    {{ member.status === 'ACTIVE' ? 'Activo' : 'Inactivo' }}
+                  </UBadge>
+                </div>
+
+                <h3 class="truncate font-bold text-highlighted">
+                  {{ playerName(member) }}
+                </h3>
+                <p class="text-xs text-muted">
+                  <span v-if="member.memberRole === 'PLAYER'">
+                    #{{ member.number ?? '-' }} · {{ playerPositionLabel(member.position) }} · CURP {{ member.curp ?? '-' }} · Batea {{ handLabel(member.bats) }} · Lanza {{ handLabel(member.throws) }}
+                  </span>
+                  <span v-else>
+                    Staff del equipo · CURP {{ member.curp ?? '-' }}
+                  </span>
+                </p>
+              </div>
+
+              <div class="flex shrink-0 gap-1.5">
+                <UTooltip text="Editar integrante">
+                  <UButton
+                    icon="i-lucide-pencil"
+                    aria-label="Editar integrante"
+                    color="neutral"
+                    variant="outline"
+                    size="sm"
+                    @click="editMember(member)"
+                  />
+                </UTooltip>
+                <UTooltip text="Eliminar integrante">
+                  <UButton
+                    icon="i-lucide-trash-2"
+                    aria-label="Eliminar integrante"
+                    color="error"
+                    variant="subtle"
+                    size="sm"
+                    @click="deleteMember(member)"
+                  />
+                </UTooltip>
+              </div>
+            </div>
+          </article>
+
+          <p
+            v-if="!teamMembers.length"
+            class="rounded-lg border border-dashed border-default px-3 py-8 text-center text-sm text-muted"
+          >
+            Este equipo todavía no tiene integrantes.
+          </p>
+        </div>
+      </section>
+    </section>
+
     <UModal
       v-model:open="isDeleteModalOpen"
       title="Eliminar equipo"
@@ -906,6 +1399,29 @@ async function confirmDeleteTeam() {
           icon="i-lucide-trash-2"
           :loading="isDeletingTeam"
           @click="confirmDeleteTeam"
+        />
+      </template>
+    </UModal>
+
+    <UModal
+      v-model:open="isMemberDeleteModalOpen"
+      title="Eliminar integrante"
+      :description="memberPendingDelete ? `¿Seguro que deseas eliminar a ${playerName(memberPendingDelete)}? Esta acción no se puede deshacer.` : ''"
+    >
+      <template #footer="{ close }">
+        <UButton
+          label="Cancelar"
+          color="neutral"
+          variant="ghost"
+          :disabled="isDeletingMember"
+          @click="close"
+        />
+        <UButton
+          label="Eliminar"
+          color="error"
+          icon="i-lucide-trash-2"
+          :loading="isDeletingMember"
+          @click="confirmDeleteMember"
         />
       </template>
     </UModal>

@@ -55,6 +55,10 @@ const recentResultsQuery = computed(() => ({
   limit: 4,
   ...(user.value?.role !== 'ADMIN' && user.value?.activeTeam ? { scope: 'mine' } : {})
 }))
+const upcomingGamesQuery = computed(() => ({
+  limit: 4,
+  ...(user.value?.role !== 'ADMIN' && user.value?.activeTeam ? { scope: 'mine' } : {})
+}))
 
 const [
   { data: season },
@@ -66,7 +70,7 @@ const [
 ] = await Promise.all([
   useFetch<Season>('/api/seasons/active', { immediate: shouldLoadDashboard }),
   useFetch<Standing[]>('/api/standings', { immediate: shouldLoadDashboard }),
-  useFetch<Game[]>('/api/games/upcoming', { immediate: shouldLoadDashboard, query: { limit: 4 } }),
+  useFetch<Game[]>('/api/games/upcoming', { immediate: shouldLoadDashboard, query: upcomingGamesQuery }),
   useFetch<ResultGame[]>('/api/results/recent', { immediate: shouldLoadDashboard, query: recentResultsQuery }),
   useFetch<Team[]>('/api/teams', { immediate: shouldLoadDashboard }),
   useFetch<MatchupMatrixResponse>('/api/matchups/matrix', { immediate: shouldLoadDashboard })
