@@ -167,6 +167,63 @@ input:disabled {
   bottom: -0.45rem;
 }
 
+.manager-bottom-nav {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 50;
+  padding: 0.5rem 0.75rem calc(0.5rem + env(safe-area-inset-bottom));
+  border-top: 1px solid rgb(0 56 32 / 0.24);
+  background: rgb(255 255 255 / 0.94);
+  box-shadow: 0 -12px 28px rgb(0 56 32 / 0.14);
+  backdrop-filter: blur(16px);
+}
+
+.dark .manager-bottom-nav {
+  border-top-color: rgb(255 152 0 / 0.24);
+  background: rgb(7 26 20 / 0.94);
+  box-shadow: 0 -14px 32px rgb(0 0 0 / 0.32);
+}
+
+.manager-bottom-nav__inner {
+  display: grid;
+  max-width: 34rem;
+  margin-inline: auto;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.25rem;
+}
+
+.manager-bottom-nav__link {
+  display: inline-flex;
+  min-width: 0;
+  min-height: 3.35rem;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 0.25rem;
+  border-radius: 0.5rem;
+  color: var(--ui-text-muted);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.manager-bottom-nav__link:hover,
+.manager-bottom-nav__link.is-active {
+  background: rgb(0 95 61 / 0.11);
+  color: var(--ui-primary);
+}
+
+.manager-bottom-nav__link:active {
+  transform: scale(0.97);
+}
+
 table thead tr {
   border-color: transparent;
   background: linear-gradient(180deg, var(--league-green-700), var(--league-green-900));

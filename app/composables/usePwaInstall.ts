@@ -74,6 +74,11 @@ export function setPwaUpdateAvailable(registration: ServiceWorkerRegistration) {
   isUpdateAvailable.value = true
 }
 
+export function setPwaRefreshAvailable() {
+  updateRegistration.value = null
+  isUpdateAvailable.value = true
+}
+
 export function dismissPwaUpdate() {
   isUpdateAvailable.value = false
 }
@@ -114,6 +119,8 @@ export function usePwaInstall() {
 
     if (!worker) {
       isUpdateAvailable.value = false
+      isRefreshingForUpdate.value = true
+      window.location.reload()
 
       return
     }

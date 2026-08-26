@@ -1,9 +1,12 @@
-import { registerPwaInstallListeners, setPwaServiceWorkerReady, setPwaUpdateAvailable } from '~/composables/usePwaInstall'
+import { registerPwaInstallListeners, setPwaRefreshAvailable, setPwaServiceWorkerReady, setPwaUpdateAvailable } from '~/composables/usePwaInstall'
 
 export default defineNuxtPlugin(() => {
   registerPwaInstallListeners()
 
   if (!('serviceWorker' in navigator) || import.meta.dev) return
+
+  const hadController = Boolean(navigator.serviceWorker.controller)
+  let didHandleControllerChange = false
 
   const watchRegistration = (registration: ServiceWorkerRegistration) => {
     if (registration.waiting && navigator.serviceWorker.controller) {
@@ -22,6 +25,13 @@ export default defineNuxtPlugin(() => {
       })
     })
   }
+
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || didHandleControllerChange) return
+
+    didHandleControllerChange = true
+    setPwaRefreshAvailable()
+  })
 
   window.addEventListener('load', () => {
     navigator.serviceWorker

@@ -369,10 +369,10 @@ async function confirmDeleteMember() {
             </UBadge>
           </div>
 
-          <h1 class="max-w-full text-2xl font-bold leading-tight tracking-normal text-highlighted break-words sm:text-4xl">
+          <h1 class="max-w-full text-2xl font-bold leading-tight tracking-normal text-highlighted wrap-break-word sm:text-4xl">
             Administración de {{ team.name }}
           </h1>
-          <p class="mt-2 max-w-full text-base text-muted break-words sm:max-w-2xl">
+          <p class="mt-2 max-w-full text-base text-muted wrap-break-word sm:max-w-2xl">
             Actualiza los datos visibles del equipo y administra jugadores, manejadores y coaches.
           </p>
         </div>
@@ -425,7 +425,7 @@ async function confirmDeleteMember() {
               <h2 class="text-xl font-bold text-highlighted">
                 Datos del equipo
               </h2>
-              <p class="text-sm text-muted break-words">
+              <p class="text-sm text-muted wrap-break-word">
                 Categoría y rama las define la liga.
               </p>
             </div>
@@ -734,7 +734,7 @@ async function confirmDeleteMember() {
                   <h3 class="truncate font-bold text-highlighted">
                     {{ playerName(member) }}
                   </h3>
-                  <p class="text-xs text-muted break-words">
+                  <p class="text-xs text-muted wrap-break-word">
                     <span v-if="member.memberRole === 'PLAYER'">
                       #{{ member.number ?? '-' }} • {{ playerPositionLabel(member.position) }} • CURP {{ member.curp ?? '-' }} • Batea {{ handLabel(member.bats) }} • Lanza {{ handLabel(member.throws) }}
                     </span>

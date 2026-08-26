@@ -167,6 +167,7 @@ const search = ref('')
 const selectedStatus = ref<'ALL' | 'PENDING' | 'FINAL'>('ALL')
 const showBattingHighlights = ref(false)
 const showLineupEditor = ref(false)
+const resultPanelRef = ref<HTMLElement | null>(null)
 
 const resultForm = reactive({
   homeScore: 0,
@@ -317,6 +318,36 @@ function lineupRowsForTeam(game: AdminResultGame, teamId: string) {
 
 function selectedLineupCount(side: 'home' | 'away') {
   return lineupForm[side].filter(player => player.selected).length
+}
+
+function selectGame(gameId: string) {
+  selectedGameId.value = gameId
+
+  if (!import.meta.client || !window.matchMedia('(max-width: 1279px)').matches) return
+
+  void nextTick(() => {
+    resultPanelRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
+}
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max)
+}
+
+function adjustScore(side: 'home' | 'away', amount: number) {
+  if (resultForm.isForfeit) return
+
+  if (side === 'home') {
+    resultForm.homeScore = clampNumber(Number(resultForm.homeScore || 0) + amount, 0, 999)
+  } else {
+    resultForm.awayScore = clampNumber(Number(resultForm.awayScore || 0) + amount, 0, 999)
+  }
+}
+
+function adjustInnings(amount: number) {
+  if (resultForm.isForfeit) return
+
+  resultForm.innings = clampNumber(Number(resultForm.innings || 7) + amount, 1, 20)
 }
 
 function playoffStatus(playerId: string) {
@@ -598,7 +629,7 @@ function editSelectedResult() {
 </script>
 
 <template>
-  <UContainer class="py-6 sm:py-8">
+  <UContainer class="min-w-0 max-w-full overflow-x-hidden py-5 sm:py-8">
     <div class="mb-6 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
       <div>
         <UBadge
@@ -616,8 +647,8 @@ function editSelectedResult() {
         </p>
       </div>
 
-      <div class="grid grid-cols-3 gap-2 rounded-lg border border-default bg-default p-2 text-center shadow-sm">
-        <div class="rounded-md bg-muted/40 px-3 py-2">
+      <div class="grid min-w-0 grid-cols-3 gap-2 rounded-lg border border-default bg-default p-2 text-center shadow-sm">
+        <div class="min-w-0 rounded-md bg-muted/40 px-2 py-2 sm:px-3">
           <p class="text-xl font-bold text-highlighted">
             {{ games.length }}
           </p>
@@ -625,7 +656,7 @@ function editSelectedResult() {
             Juegos
           </p>
         </div>
-        <div class="rounded-md bg-muted/40 px-3 py-2">
+        <div class="min-w-0 rounded-md bg-muted/40 px-2 py-2 sm:px-3">
           <p class="text-xl font-bold text-highlighted">
             {{ finalGames }}
           </p>
@@ -633,7 +664,7 @@ function editSelectedResult() {
             Capturados
           </p>
         </div>
-        <div class="rounded-md bg-muted/40 px-3 py-2">
+        <div class="min-w-0 rounded-md bg-muted/40 px-2 py-2 sm:px-3">
           <p class="text-xl font-bold text-highlighted">
             {{ pendingGames }}
           </p>
@@ -659,9 +690,9 @@ function editSelectedResult() {
 
     <section
       v-else
-      class="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]"
+      class="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]"
     >
-      <section class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 xl:flex xl:max-h-192 xl:flex-col">
+      <section class="min-w-0 overflow-hidden rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 xl:flex xl:max-h-192 xl:flex-col">
         <div class="mb-2.5 grid gap-2 lg:grid-cols-[1fr_auto] lg:items-end">
           <div>
             <h2 class="text-base font-bold text-highlighted">
@@ -672,15 +703,16 @@ function editSelectedResult() {
             </p>
           </div>
 
-          <div class="grid gap-2 sm:grid-cols-2 lg:min-w-90">
+          <div class="grid min-w-0 gap-2 sm:grid-cols-2 lg:min-w-90">
             <UInput
               v-model="search"
               icon="i-lucide-search"
               placeholder="Buscar"
+              class="min-w-0"
             />
             <select
               v-model="selectedStatus"
-              class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
+              class="h-10 min-w-0 max-w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
             >
               <option value="ALL">
                 Todos
@@ -700,9 +732,9 @@ function editSelectedResult() {
             v-for="game in filteredGames"
             :key="game.id"
             type="button"
-            class="rounded-lg border p-2 text-left transition-colors"
+            class="min-w-0 rounded-lg border p-2 text-left transition-colors"
             :class="selectedGameId === game.id ? 'border-primary bg-primary/5' : 'border-default hover:border-primary'"
-            @click="selectedGameId = game.id"
+            @click="selectGame(game.id)"
           >
             <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
               <div class="flex flex-wrap gap-1.5">
@@ -757,7 +789,10 @@ function editSelectedResult() {
         </div>
       </section>
 
-      <div class="grid gap-4">
+      <div
+        ref="resultPanelRef"
+        class="grid min-w-0 scroll-mt-4 gap-4"
+      >
         <section
           v-if="selectedGame && selectedGame.result && !showResultForm"
           class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3"
@@ -979,7 +1014,7 @@ function editSelectedResult() {
 
         <form
           v-else-if="selectedGame && showResultForm"
-          class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3"
+          class="min-w-0 overflow-hidden rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3"
           @submit.prevent="saveResult"
         >
           <div class="mb-3 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -1038,8 +1073,8 @@ function editSelectedResult() {
             </div>
           </div>
 
-          <div class="mb-3 grid gap-2 sm:grid-cols-2">
-            <div class="rounded-lg border border-default p-2">
+          <div class="mb-3 grid min-w-0 gap-2 sm:grid-cols-2">
+            <div class="min-w-0 rounded-lg border border-default p-2">
               <div class="mb-2 flex items-center gap-2">
                 <span
                   class="flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
@@ -1056,15 +1091,37 @@ function editSelectedResult() {
                   </p>
                 </div>
               </div>
-              <UInput
-                v-model.number="resultForm.homeScore"
-                type="number"
-                min="0"
-                max="999"
-                required
-                :disabled="resultForm.isForfeit"
-                aria-label="Carreras local"
-              />
+              <div class="grid grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] gap-2">
+                <UButton
+                  type="button"
+                  icon="i-lucide-minus"
+                  aria-label="Restar carrera local"
+                  color="neutral"
+                  variant="outline"
+                  :disabled="resultForm.isForfeit || resultForm.homeScore <= 0"
+                  @click="adjustScore('home', -1)"
+                />
+                <UInput
+                  v-model.number="resultForm.homeScore"
+                  type="number"
+                  min="0"
+                  max="999"
+                  required
+                  :disabled="resultForm.isForfeit"
+                  aria-label="Carreras local"
+                  class="min-w-0 text-center"
+                  :ui="{ base: 'text-center text-2xl font-bold' }"
+                />
+                <UButton
+                  type="button"
+                  icon="i-lucide-plus"
+                  aria-label="Sumar carrera local"
+                  color="primary"
+                  variant="subtle"
+                  :disabled="resultForm.isForfeit"
+                  @click="adjustScore('home', 1)"
+                />
+              </div>
               <UButton
                 v-if="resultForm.isForfeit"
                 type="button"
@@ -1078,7 +1135,7 @@ function editSelectedResult() {
               />
             </div>
 
-            <div class="rounded-lg border border-default p-2">
+            <div class="min-w-0 rounded-lg border border-default p-2">
               <div class="mb-2 flex items-center gap-2">
                 <span
                   class="flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
@@ -1095,15 +1152,37 @@ function editSelectedResult() {
                   </p>
                 </div>
               </div>
-              <UInput
-                v-model.number="resultForm.awayScore"
-                type="number"
-                min="0"
-                max="999"
-                required
-                :disabled="resultForm.isForfeit"
-                aria-label="Carreras visitante"
-              />
+              <div class="grid grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] gap-2">
+                <UButton
+                  type="button"
+                  icon="i-lucide-minus"
+                  aria-label="Restar carrera visitante"
+                  color="neutral"
+                  variant="outline"
+                  :disabled="resultForm.isForfeit || resultForm.awayScore <= 0"
+                  @click="adjustScore('away', -1)"
+                />
+                <UInput
+                  v-model.number="resultForm.awayScore"
+                  type="number"
+                  min="0"
+                  max="999"
+                  required
+                  :disabled="resultForm.isForfeit"
+                  aria-label="Carreras visitante"
+                  class="min-w-0 text-center"
+                  :ui="{ base: 'text-center text-2xl font-bold' }"
+                />
+                <UButton
+                  type="button"
+                  icon="i-lucide-plus"
+                  aria-label="Sumar carrera visitante"
+                  color="primary"
+                  variant="subtle"
+                  :disabled="resultForm.isForfeit"
+                  @click="adjustScore('away', 1)"
+                />
+              </div>
               <UButton
                 v-if="resultForm.isForfeit"
                 type="button"
@@ -1118,22 +1197,44 @@ function editSelectedResult() {
             </div>
           </div>
 
-          <div class="mb-3 grid gap-2 sm:grid-cols-3">
-            <label class="grid gap-1.5 text-sm">
+          <div class="mb-3 grid min-w-0 gap-2 sm:grid-cols-3">
+            <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">Innings</span>
-              <UInput
-                v-model.number="resultForm.innings"
-                type="number"
-                min="1"
-                max="20"
-                required
-                :disabled="resultForm.isForfeit"
-              />
+              <div class="grid grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] gap-2">
+                <UButton
+                  type="button"
+                  icon="i-lucide-minus"
+                  aria-label="Restar inning"
+                  color="neutral"
+                  variant="outline"
+                  :disabled="resultForm.isForfeit || resultForm.innings <= 1"
+                  @click="adjustInnings(-1)"
+                />
+                <UInput
+                  v-model.number="resultForm.innings"
+                  type="number"
+                  min="1"
+                  max="20"
+                  required
+                  :disabled="resultForm.isForfeit"
+                  class="min-w-0 text-center"
+                  :ui="{ base: 'text-center font-bold' }"
+                />
+                <UButton
+                  type="button"
+                  icon="i-lucide-plus"
+                  aria-label="Sumar inning"
+                  color="primary"
+                  variant="subtle"
+                  :disabled="resultForm.isForfeit"
+                  @click="adjustInnings(1)"
+                />
+              </div>
             </label>
 
-            <label class="grid gap-1.5 text-sm sm:col-span-2">
+            <label class="grid min-w-0 gap-1.5 text-sm sm:col-span-2">
               <span class="font-medium text-highlighted">Forfeit</span>
-              <label class="flex h-10 items-center gap-2 rounded-md border border-default px-3 text-sm">
+              <label class="flex min-h-10 items-center gap-2 rounded-md border border-default px-3 py-2 text-sm">
                 <input
                   v-model="resultForm.isForfeit"
                   type="checkbox"
@@ -1153,25 +1254,27 @@ function editSelectedResult() {
 
           <div
             v-if="winnerTeam && loserTeam"
-            class="mb-3 grid gap-2 lg:grid-cols-2"
+            class="mb-3 grid min-w-0 gap-2 lg:grid-cols-2"
           >
-            <label class="grid gap-1.5 text-sm">
+            <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">Pitcher ganador · {{ winnerTeam.name }}</span>
               <UInput
                 v-model="resultForm.winningPitcherName"
                 required
                 maxlength="80"
                 placeholder="Nombre del pitcher ganador"
+                class="min-w-0"
               />
             </label>
 
-            <label class="grid gap-1.5 text-sm">
+            <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">Pitcher derrotado · {{ loserTeam.name }}</span>
               <UInput
                 v-model="resultForm.losingPitcherName"
                 required
                 maxlength="80"
                 placeholder="Nombre del pitcher derrotado"
+                class="min-w-0"
               />
             </label>
           </div>
@@ -1202,16 +1305,16 @@ function editSelectedResult() {
               color="neutral"
               variant="outline"
               size="sm"
-              class="w-fit"
+              class="w-full justify-center sm:w-fit"
               @click="showBattingHighlights = !showBattingHighlights"
             />
           </div>
 
           <div
             v-if="!resultForm.isForfeit && showBattingHighlights"
-            class="mb-3 grid gap-3 lg:grid-cols-2"
+            class="mb-3 grid min-w-0 gap-3 lg:grid-cols-2"
           >
-            <section class="rounded-lg border border-default p-2">
+            <section class="min-w-0 rounded-lg border border-default p-2">
               <h3 class="mb-2 text-sm font-bold text-highlighted">
                 Bateadores destacados · {{ winnerTeam?.name ?? 'Ganador' }}
               </h3>
@@ -1225,40 +1328,56 @@ function editSelectedResult() {
                 <div
                   v-for="(highlight, index) in resultForm.winnerHighlights"
                   :key="`winner-${index}`"
-                  class="grid gap-2 rounded-md bg-muted/30 p-2 sm:grid-cols-[1fr_4rem_4rem_4rem]"
+                  class="grid min-w-0 gap-2 rounded-md bg-muted/30 p-2 sm:grid-cols-[1fr_4rem_4rem_4rem]"
                 >
-                  <UInput
-                    v-model="highlight.playerName"
-                    maxlength="80"
-                    :placeholder="`Bateador ${index + 1}`"
-                    aria-label="Bateador ganador"
-                  />
-                  <UInput
-                    v-model.number="highlight.atBats"
-                    type="number"
-                    min="0"
-                    max="20"
-                    aria-label="Turnos"
-                  />
-                  <UInput
-                    v-model.number="highlight.hits"
-                    type="number"
-                    min="0"
-                    max="20"
-                    aria-label="Hits"
-                  />
-                  <UInput
-                    v-model.number="highlight.homeRuns"
-                    type="number"
-                    min="0"
-                    max="20"
-                    aria-label="Home runs"
-                  />
+                  <label class="grid min-w-0 gap-1 text-xs font-medium text-muted sm:block">
+                    <span class="sm:hidden">Jugador</span>
+                    <UInput
+                      v-model="highlight.playerName"
+                      maxlength="80"
+                      :placeholder="`Bateador ${index + 1}`"
+                      aria-label="Bateador ganador"
+                      class="min-w-0"
+                    />
+                  </label>
+                  <label class="grid min-w-0 gap-1 text-xs font-medium text-muted sm:block">
+                    <span class="sm:hidden">Turnos</span>
+                    <UInput
+                      v-model.number="highlight.atBats"
+                      type="number"
+                      min="0"
+                      max="20"
+                      aria-label="Turnos"
+                      class="min-w-0"
+                    />
+                  </label>
+                  <label class="grid min-w-0 gap-1 text-xs font-medium text-muted sm:block">
+                    <span class="sm:hidden">Hits</span>
+                    <UInput
+                      v-model.number="highlight.hits"
+                      type="number"
+                      min="0"
+                      max="20"
+                      aria-label="Hits"
+                      class="min-w-0"
+                    />
+                  </label>
+                  <label class="grid min-w-0 gap-1 text-xs font-medium text-muted sm:block">
+                    <span class="sm:hidden">HR</span>
+                    <UInput
+                      v-model.number="highlight.homeRuns"
+                      type="number"
+                      min="0"
+                      max="20"
+                      aria-label="Home runs"
+                      class="min-w-0"
+                    />
+                  </label>
                 </div>
               </div>
             </section>
 
-            <section class="rounded-lg border border-default p-2">
+            <section class="min-w-0 rounded-lg border border-default p-2">
               <h3 class="mb-2 text-sm font-bold text-highlighted">
                 Bateadores destacados · {{ loserTeam?.name ?? 'Derrotado' }}
               </h3>
@@ -1272,46 +1391,62 @@ function editSelectedResult() {
                 <div
                   v-for="(highlight, index) in resultForm.loserHighlights"
                   :key="`loser-${index}`"
-                  class="grid gap-2 rounded-md bg-muted/30 p-2 sm:grid-cols-[1fr_4rem_4rem_4rem]"
+                  class="grid min-w-0 gap-2 rounded-md bg-muted/30 p-2 sm:grid-cols-[1fr_4rem_4rem_4rem]"
                 >
-                  <UInput
-                    v-model="highlight.playerName"
-                    maxlength="80"
-                    :placeholder="`Bateador ${index + 1}`"
-                    aria-label="Bateador derrotado"
-                  />
-                  <UInput
-                    v-model.number="highlight.atBats"
-                    type="number"
-                    min="0"
-                    max="20"
-                    aria-label="Turnos"
-                  />
-                  <UInput
-                    v-model.number="highlight.hits"
-                    type="number"
-                    min="0"
-                    max="20"
-                    aria-label="Hits"
-                  />
-                  <UInput
-                    v-model.number="highlight.homeRuns"
-                    type="number"
-                    min="0"
-                    max="20"
-                    aria-label="Home runs"
-                  />
+                  <label class="grid min-w-0 gap-1 text-xs font-medium text-muted sm:block">
+                    <span class="sm:hidden">Jugador</span>
+                    <UInput
+                      v-model="highlight.playerName"
+                      maxlength="80"
+                      :placeholder="`Bateador ${index + 1}`"
+                      aria-label="Bateador derrotado"
+                      class="min-w-0"
+                    />
+                  </label>
+                  <label class="grid min-w-0 gap-1 text-xs font-medium text-muted sm:block">
+                    <span class="sm:hidden">Turnos</span>
+                    <UInput
+                      v-model.number="highlight.atBats"
+                      type="number"
+                      min="0"
+                      max="20"
+                      aria-label="Turnos"
+                      class="min-w-0"
+                    />
+                  </label>
+                  <label class="grid min-w-0 gap-1 text-xs font-medium text-muted sm:block">
+                    <span class="sm:hidden">Hits</span>
+                    <UInput
+                      v-model.number="highlight.hits"
+                      type="number"
+                      min="0"
+                      max="20"
+                      aria-label="Hits"
+                      class="min-w-0"
+                    />
+                  </label>
+                  <label class="grid min-w-0 gap-1 text-xs font-medium text-muted sm:block">
+                    <span class="sm:hidden">HR</span>
+                    <UInput
+                      v-model.number="highlight.homeRuns"
+                      type="number"
+                      min="0"
+                      max="20"
+                      aria-label="Home runs"
+                      class="min-w-0"
+                    />
+                  </label>
                 </div>
               </div>
             </section>
           </div>
 
-          <label class="grid gap-1.5 text-sm">
+          <label class="grid min-w-0 gap-1.5 text-sm">
             <span class="font-medium text-highlighted">Notas</span>
             <textarea
               v-model="resultForm.notes"
               rows="3"
-              class="w-full rounded-md border border-default bg-default px-3 py-2 text-sm text-highlighted outline-none focus:border-primary"
+              class="min-w-0 max-w-full rounded-md border border-default bg-default px-3 py-2 text-sm text-highlighted outline-none focus:border-primary"
               placeholder="Opcional"
             />
           </label>

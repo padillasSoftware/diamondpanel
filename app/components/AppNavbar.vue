@@ -33,6 +33,13 @@ const adminNavigation: NavigationItem[] = [
   { label: 'Ajustes', to: '/admin/configuracion', icon: 'i-lucide-settings' }
 ]
 
+const managerBottomNavigation: NavigationItem[] = [
+  { label: 'Rol', to: '/rol', icon: 'i-lucide-calendar-days' },
+  { label: 'Resultados', to: '/resultados', icon: 'i-lucide-table-2' },
+  { label: 'Mi equipo', to: '/mi-equipo', icon: 'i-lucide-clipboard-pen' },
+  { label: 'Elegibles', to: '/elegibles', icon: 'i-lucide-badge-check', requiresEligibility: true }
+]
+
 const route = useRoute()
 const { user, isAdmin, logout } = useAuth()
 const { public: { leagueName } } = useRuntimeConfig()
@@ -58,9 +65,16 @@ const isActive = (to: string) => to === '/'
   : route.path === to || route.path.startsWith(`${to}/`)
 
 const isAdminSection = computed(() => route.path === '/admin' || route.path.startsWith('/admin/'))
+const showManagerBottomNav = computed(() =>
+  !isAdmin.value
+  && !isAdminSection.value
+  && managedTeams.value.length > 0
+)
 const visibleNavigation = computed(() =>
   isAdmin.value || isAdminSection.value ? filterNavigation(adminNavigation) : navigation.value
 )
+const visibleManagerBottomNavigation = computed(() => filterNavigation(managerBottomNavigation))
+const showMobileTopNavigation = computed(() => !showManagerBottomNav.value && visibleNavigation.value.length > 0)
 
 const isNavigationItemActive = (to: string) => to === '/admin'
   ? route.path === '/admin'
@@ -184,7 +198,7 @@ const handleActiveTeamChange = (event: Event) => {
     </UHeader>
 
     <div
-      v-if="visibleNavigation.length || hasMultipleManagedTeams"
+      v-if="showMobileTopNavigation || hasMultipleManagedTeams"
       class="league-mobile-nav max-w-full overflow-hidden lg:hidden"
     >
       <UContainer class="min-w-0 max-w-full overflow-hidden py-2">
@@ -215,7 +229,10 @@ const handleActiveTeamChange = (event: Event) => {
           </select>
         </label>
 
-        <nav class="flex min-w-0 max-w-full gap-1 overflow-x-auto overscroll-x-contain pb-1 scrollbar-none [&::-webkit-scrollbar]:hidden">
+        <nav
+          v-if="showMobileTopNavigation"
+          class="flex min-w-0 max-w-full gap-1 overflow-x-auto overscroll-x-contain pb-1 scrollbar-none [&::-webkit-scrollbar]:hidden"
+        >
           <NuxtLink
             v-for="item in visibleNavigation"
             :key="item.to"
@@ -231,5 +248,29 @@ const handleActiveTeamChange = (event: Event) => {
         </nav>
       </UContainer>
     </div>
+
+    <nav
+      v-if="showManagerBottomNav"
+      class="manager-bottom-nav lg:hidden"
+      aria-label="Accesos rápidos de manejador"
+    >
+      <div
+        class="manager-bottom-nav__inner"
+        :style="{ gridTemplateColumns: `repeat(${visibleManagerBottomNavigation.length}, minmax(0, 1fr))` }"
+      >
+        <NuxtLink
+          v-for="item in visibleManagerBottomNavigation"
+          :key="item.to"
+          :to="item.to"
+          :class="['manager-bottom-nav__link', { 'is-active': isNavigationItemActive(item.to) }]"
+        >
+          <UIcon
+            :name="item.icon"
+            class="size-5"
+          />
+          <span>{{ item.label }}</span>
+        </NuxtLink>
+      </div>
+    </nav>
   </template>
 </template>

@@ -83,6 +83,37 @@ const featuredTeams = computed(() => teams.value?.slice(0, 6) ?? [])
 const matchupGroups = computed(() => matchupMatrix.value?.groups ?? [])
 const selectedMatchupGroupId = ref('')
 const showMatchupMatrix = ref(false)
+const isManagerDashboard = computed(() =>
+  user.value?.role !== 'ADMIN'
+  && Boolean(user.value?.managedTeams.length)
+)
+const managerQuickActions = computed(() => [
+  {
+    label: 'Rol',
+    description: nextGame.value ? formatGameDate(nextGame.value.scheduledAt) : 'Próximos juegos',
+    to: '/rol',
+    icon: 'i-lucide-calendar-days'
+  },
+  {
+    label: 'Resultados',
+    description: completedGames.value ? `${completedGames.value} capturados` : 'Marcadores',
+    to: '/resultados',
+    icon: 'i-lucide-table-2'
+  },
+  {
+    label: 'Mi equipo',
+    description: user.value?.activeTeam?.name ?? 'Roster',
+    to: '/mi-equipo',
+    icon: 'i-lucide-clipboard-pen'
+  },
+  {
+    label: 'Elegibles',
+    description: 'Playoffs',
+    to: '/elegibles',
+    icon: 'i-lucide-badge-check',
+    hidden: season.value?.playoffEligibilityMode === 'OPEN_ROSTER'
+  }
+].filter(action => !action.hidden))
 const selectedMatchupGroup = computed(() =>
   matchupGroups.value.find(group => group.id === selectedMatchupGroupId.value) ?? matchupGroups.value[0] ?? null
 )
@@ -184,6 +215,34 @@ function matchupCellClass(state: MatchupCellState) {
         </div>
       </div>
     </div>
+
+    <section
+      v-if="isManagerDashboard"
+      class="mb-4 grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-4"
+      aria-label="Accesos rápidos"
+    >
+      <NuxtLink
+        v-for="action in managerQuickActions"
+        :key="action.to"
+        :to="action.to"
+        class="group flex min-w-0 items-center gap-3 rounded-lg border border-default bg-default p-3 shadow-sm transition hover:border-primary hover:bg-primary/5"
+      >
+        <span class="flex size-11 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary transition group-hover:bg-primary group-hover:text-white">
+          <UIcon
+            :name="action.icon"
+            class="size-5"
+          />
+        </span>
+        <span class="min-w-0">
+          <span class="block font-bold text-highlighted">
+            {{ action.label }}
+          </span>
+          <span class="block truncate text-sm text-muted">
+            {{ action.description }}
+          </span>
+        </span>
+      </NuxtLink>
+    </section>
 
     <section class="mb-4 min-w-0 rounded-lg border border-default bg-default p-4 shadow-sm sm:p-5">
       <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
