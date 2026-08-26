@@ -235,7 +235,7 @@ function refreshEligibility() {
         </div>
       </div>
 
-      <section class="mb-4 rounded-lg border border-default bg-default p-3 shadow-sm">
+      <section class="mb-4 min-w-0 rounded-lg border border-default bg-default p-3 shadow-sm">
         <div class="grid gap-3 sm:grid-cols-[1fr_auto]">
           <UInput
             v-model="search"
@@ -260,7 +260,7 @@ function refreshEligibility() {
         </div>
       </section>
 
-      <section class="rounded-lg border border-default bg-default p-3 shadow-sm sm:p-5">
+      <section class="min-w-0 overflow-hidden rounded-lg border border-default bg-default p-3 shadow-sm sm:p-5">
         <div
           v-if="pending"
           class="rounded-lg border border-dashed border-default p-8 text-center"
@@ -289,9 +289,9 @@ function refreshEligibility() {
 
         <div
           v-else
-          class="overflow-x-auto"
+          class="max-w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]"
         >
-          <table class="w-full min-w-155 text-sm">
+          <table class="w-full min-w-[42rem] text-sm">
             <thead>
               <tr class="border-b border-default text-left text-xs uppercase text-muted">
                 <th class="py-3 pr-3">

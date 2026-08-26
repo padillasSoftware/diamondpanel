@@ -240,7 +240,7 @@ function refreshEligibility() {
         </div>
       </div>
 
-      <section class="mb-4 rounded-lg border border-default bg-default p-3 shadow-sm">
+      <section class="mb-4 min-w-0 rounded-lg border border-default bg-default p-3 shadow-sm">
         <div class="grid gap-3 lg:grid-cols-[1.2fr_1fr_1fr_1fr]">
           <UInput
             v-model="search"
@@ -291,7 +291,7 @@ function refreshEligibility() {
         </div>
       </section>
 
-      <section class="grid gap-3">
+      <section class="grid min-w-0 gap-3">
         <div
           v-if="pending"
           class="rounded-lg border border-dashed border-default bg-default p-8 text-center"
@@ -322,7 +322,7 @@ function refreshEligibility() {
           v-for="team in filteredTeams"
           v-else
           :key="team.id"
-          class="rounded-lg border border-default bg-default p-3 shadow-sm"
+          class="min-w-0 overflow-hidden rounded-lg border border-default bg-default p-3 shadow-sm"
         >
           <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -354,8 +354,8 @@ function refreshEligibility() {
             </UBadge>
           </div>
 
-          <div class="overflow-x-auto">
-            <table class="w-full min-w-175 text-sm">
+          <div class="max-w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+            <table class="w-full min-w-[44rem] text-sm">
               <thead>
                 <tr class="border-b border-default text-left text-xs uppercase text-muted">
                   <th class="py-3 pr-3">

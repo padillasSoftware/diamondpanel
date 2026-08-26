@@ -587,7 +587,7 @@ async function confirmDeleteGame() {
       </div>
     </div>
 
-    <section class="mb-4 grid gap-3 rounded-lg border border-default bg-default p-3 shadow-sm lg:grid-cols-[auto_1fr_auto_auto_auto] lg:items-end">
+    <section class="mb-4 grid min-w-0 gap-3 overflow-hidden rounded-lg border border-default bg-default p-3 shadow-sm lg:grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] lg:items-end">
       <div class="flex items-center gap-1.5">
         <UButton
           type="button"
@@ -607,16 +607,16 @@ async function confirmDeleteGame() {
         />
       </div>
 
-      <label class="grid gap-1.5 text-sm">
+      <label class="grid min-w-0 gap-1.5 text-sm">
         <span class="font-medium text-highlighted">Semana</span>
         <input
           v-model="weekStart"
           type="date"
-          class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
+          class="box-border h-10 min-w-0 max-w-full appearance-none rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
         >
       </label>
 
-      <div class="rounded-md bg-muted/30 px-3 py-2 text-sm text-highlighted">
+      <div class="min-w-0 rounded-md bg-muted/30 px-3 py-2 text-sm text-highlighted">
         {{ formatDateInput(weekStart) }} - {{ formatDateInput(weekEndInclusive) }}
       </div>
 
@@ -643,7 +643,7 @@ async function confirmDeleteGame() {
     <section class="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
       <div class="grid gap-4">
         <form
-          class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3"
+          class="min-w-0 rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3"
           @submit.prevent="saveGame"
         >
           <div class="mb-2.5 flex items-center justify-between gap-2">
@@ -668,8 +668,8 @@ async function confirmDeleteGame() {
             />
           </div>
 
-          <div class="grid gap-2 sm:grid-cols-2">
-            <label class="grid gap-1.5 text-sm">
+          <div class="grid min-w-0 gap-2 sm:grid-cols-2">
+            <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">Rol</span>
               <UInput
                 v-model.number="gameForm.round"
@@ -680,21 +680,21 @@ async function confirmDeleteGame() {
               />
             </label>
 
-            <label class="grid gap-1.5 text-sm">
+            <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">Fecha y hora</span>
               <input
                 v-model="gameForm.scheduledAt"
                 type="datetime-local"
                 required
-                class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
+                class="box-border h-10 min-w-0 max-w-full appearance-none rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
               >
             </label>
 
-            <label class="grid gap-1.5 text-sm">
+            <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">Categoría</span>
               <select
                 v-model="gameForm.category"
-                class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
+                class="h-10 min-w-0 max-w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
               >
                 <option
                   v-for="option in categoryOptions"
@@ -706,11 +706,11 @@ async function confirmDeleteGame() {
               </select>
             </label>
 
-            <label class="grid gap-1.5 text-sm">
+            <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">Rama</span>
               <select
                 v-model="gameForm.branch"
-                class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
+                class="h-10 min-w-0 max-w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
               >
                 <option
                   v-for="option in branchOptions"
@@ -722,12 +722,12 @@ async function confirmDeleteGame() {
               </select>
             </label>
 
-            <label class="grid gap-1.5 text-sm">
+            <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">Local</span>
               <select
                 v-model="gameForm.homeTeamId"
                 required
-                class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
+                class="h-10 min-w-0 max-w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
               >
                 <option value="">
                   Seleccionar
@@ -742,12 +742,12 @@ async function confirmDeleteGame() {
               </select>
             </label>
 
-            <label class="grid gap-1.5 text-sm">
+            <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">Visitante</span>
               <select
                 v-model="gameForm.awayTeamId"
                 required
-                class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
+                class="h-10 min-w-0 max-w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
               >
                 <option value="">
                   Seleccionar
@@ -762,11 +762,11 @@ async function confirmDeleteGame() {
               </select>
             </label>
 
-            <label class="grid gap-1.5 text-sm">
+            <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">Campo</span>
               <select
                 v-model="gameForm.fieldId"
-                class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
+                class="h-10 min-w-0 max-w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
               >
                 <option value="">
                   Por definir
@@ -781,11 +781,11 @@ async function confirmDeleteGame() {
               </select>
             </label>
 
-            <label class="grid gap-1.5 text-sm">
+            <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">Estado</span>
               <select
                 v-model="gameForm.status"
-                class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
+                class="h-10 min-w-0 max-w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
               >
                 <option
                   v-for="option in statusOptions"
@@ -797,12 +797,12 @@ async function confirmDeleteGame() {
               </select>
             </label>
 
-            <label class="grid gap-1.5 text-sm sm:col-span-2">
+            <label class="grid min-w-0 gap-1.5 text-sm sm:col-span-2">
               <span class="font-medium text-highlighted">Notas</span>
               <textarea
                 v-model="gameForm.notes"
                 rows="3"
-                class="w-full rounded-md border border-default bg-default px-3 py-2 text-sm text-highlighted outline-none focus:border-primary"
+                class="min-w-0 max-w-full rounded-md border border-default bg-default px-3 py-2 text-sm text-highlighted outline-none focus:border-primary"
                 placeholder="Opcional"
               />
             </label>

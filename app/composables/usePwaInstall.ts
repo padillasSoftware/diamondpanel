@@ -18,6 +18,9 @@ const isSupported = ref(false)
 const isServiceWorkerReady = ref(false)
 const isIos = ref(false)
 const isInstalling = ref(false)
+const updateRegistration = shallowRef<ServiceWorkerRegistration | null>(null)
+const isUpdateAvailable = ref(false)
+const isRefreshingForUpdate = ref(false)
 let listenersRegistered = false
 
 function detectStandaloneMode() {
@@ -66,6 +69,15 @@ export function setPwaServiceWorkerReady(value: boolean) {
   isServiceWorkerReady.value = value
 }
 
+export function setPwaUpdateAvailable(registration: ServiceWorkerRegistration) {
+  updateRegistration.value = registration
+  isUpdateAvailable.value = true
+}
+
+export function dismissPwaUpdate() {
+  isUpdateAvailable.value = false
+}
+
 export function usePwaInstall() {
   registerPwaInstallListeners()
 
@@ -95,10 +107,44 @@ export function usePwaInstall() {
     }
   }
 
+  const applyPwaUpdate = () => {
+    if (!import.meta.client || isRefreshingForUpdate.value) return
+
+    const worker = updateRegistration.value?.waiting
+
+    if (!worker) {
+      isUpdateAvailable.value = false
+
+      return
+    }
+
+    let didReload = false
+
+    isRefreshingForUpdate.value = true
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (didReload) return
+
+      didReload = true
+      window.location.reload()
+    }, { once: true })
+
+    worker.postMessage({ type: 'SKIP_WAITING' })
+
+    window.setTimeout(() => {
+      if (!didReload) {
+        window.location.reload()
+      }
+    }, 1500)
+  }
+
   return {
+    applyPwaUpdate,
     canInstall,
     canShowManualInstallHelp,
+    dismissPwaUpdate,
     installApp,
+    isPwaUpdateAvailable: readonly(isUpdateAvailable),
+    isRefreshingForUpdate: readonly(isRefreshingForUpdate),
     isInstalling,
     isIos: readonly(isIos),
     isPwaStandalone: readonly(isStandalone),

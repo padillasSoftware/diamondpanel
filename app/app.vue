@@ -121,6 +121,8 @@ useSeoMeta({
       <AppRouteLoading :visible="isRouteLoading" />
     </ClientOnly>
 
+    <PwaUpdatePrompt />
+
     <NuxtLayout>
       <NuxtPage />
     </NuxtLayout>
