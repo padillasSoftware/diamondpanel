@@ -329,7 +329,7 @@ function refreshEligibility() {
           </div>
 
           <div class="hidden max-w-full overflow-x-auto overscroll-x-contain sm:block [-webkit-overflow-scrolling:touch]">
-            <table class="w-full min-w-[42rem] text-sm">
+            <table class="w-full min-w-2xl text-sm">
               <thead>
                 <tr class="border-b border-default text-left text-xs uppercase text-muted">
                   <th class="py-3 pr-3">

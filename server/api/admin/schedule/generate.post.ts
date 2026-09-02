@@ -39,17 +39,9 @@ type CancelledMatchupSeed = {
 const weekendSlots = [
   { dayOffset: 4, hour: 19 },
   { dayOffset: 4, hour: 21 },
-  { dayOffset: 5, hour: 10 },
-  { dayOffset: 5, hour: 12 },
-  { dayOffset: 5, hour: 14 },
-  { dayOffset: 5, hour: 16 },
   { dayOffset: 5, hour: 18 },
   { dayOffset: 5, hour: 20 },
   { dayOffset: 5, hour: 22 },
-  { dayOffset: 6, hour: 10 },
-  { dayOffset: 6, hour: 12 },
-  { dayOffset: 6, hour: 14 },
-  { dayOffset: 6, hour: 16 },
   { dayOffset: 6, hour: 18 },
   { dayOffset: 6, hour: 20 },
   { dayOffset: 6, hour: 22 }

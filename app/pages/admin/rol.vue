@@ -835,7 +835,7 @@ async function confirmDeleteGame() {
           </p>
         </div>
 
-        <div class="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] xl:min-w-[34rem]">
+        <div class="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] xl:min-w-136">
           <label class="grid min-w-0 gap-1.5 text-sm">
             <span class="font-medium text-highlighted">Categoría</span>
             <select
