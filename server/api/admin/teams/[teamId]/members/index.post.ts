@@ -1,8 +1,10 @@
 import { prisma } from '../../../../../utils/db'
+import { assertLeagueCategoryActive } from '../../../../../utils/categories'
 import { requireAdmin } from '../../../../../utils/session'
 import {
   assertCurpMatchesTeamBranch,
   assertPlayerCategoryEligibility,
+  assertTeamPlayerLimit,
   buildMemberCreateData,
   adminTeamMemberSelect
 } from '../../../../../utils/team-members'
@@ -34,6 +36,8 @@ export default defineEventHandler(async (event) => {
     })
   }
 
+  await assertLeagueCategoryActive(prisma, team.category)
+
   const body = await readBody<Record<string, unknown>>(event)
 
   try {
@@ -42,6 +46,11 @@ export default defineEventHandler(async (event) => {
     if (member.memberRole === 'PLAYER' && member.curp) {
       assertCurpMatchesTeamBranch(member.curp, team.branch)
       await assertPlayerCategoryEligibility(prisma, member.curp, team)
+      await assertTeamPlayerLimit(prisma, {
+        teamId: team.id,
+        memberRole: member.memberRole,
+        status: member.status
+      })
     }
 
     return await prisma.player.create({

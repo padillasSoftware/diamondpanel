@@ -1,6 +1,7 @@
 import { GameStatus } from '../../../generated/prisma/enums'
 import type { TeamBranch as TeamBranchValue, TeamCategory as TeamCategoryValue } from '../../../generated/prisma/enums'
 import { prisma } from '../../../utils/db'
+import { getActiveCategories } from '../../../utils/categories'
 import { requireAdmin } from '../../../utils/session'
 import {
   addLeagueDays,
@@ -156,9 +157,19 @@ export default defineEventHandler(async (event) => {
 
   return prisma.$transaction(async (tx) => {
     const season = await getActiveSeasonForSchedule(tx)
+    const activeCategories = await getActiveCategories(tx)
+    const activeCategorySet = new Set(activeCategories)
+    const activeCategoryFilter = { in: activeCategories }
 
     if (configRows) {
       for (const row of configRows) {
+        if (!activeCategorySet.has(row.category)) {
+          throw createError({
+            statusCode: 409,
+            statusMessage: `La categoría ${row.category} está desactivada. Actívala en Ajustes para usarla.`
+          })
+        }
+
         const currentMaxPairGames = await getMaxPairGamesForGroup({
           prisma: tx,
           seasonId: season.id,
@@ -208,6 +219,16 @@ export default defineEventHandler(async (event) => {
           scheduledAt: {
             gte: weekRange.startsAt,
             lt: weekRange.endsAt
+          },
+          homeTeam: {
+            is: {
+              category: activeCategoryFilter
+            }
+          },
+          awayTeam: {
+            is: {
+              category: activeCategoryFilter
+            }
           }
         },
         select: {
@@ -221,7 +242,17 @@ export default defineEventHandler(async (event) => {
       }),
       tx.game.findMany({
         where: {
-          seasonId: season.id
+          seasonId: season.id,
+          homeTeam: {
+            is: {
+              category: activeCategoryFilter
+            }
+          },
+          awayTeam: {
+            is: {
+              category: activeCategoryFilter
+            }
+          }
         },
         select: {
           round: true,

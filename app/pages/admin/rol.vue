@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import {
   TEAM_BRANCH_OPTIONS,
-  TEAM_CATEGORY_OPTIONS,
   branchColor,
   branchLabel,
   categoryColor,
@@ -132,6 +131,7 @@ const editableConfigs = ref<ScheduleConfig[]>([])
 const mobileSection = ref<'WEEK' | 'FORM'>('WEEK')
 const matchupCategoryFilter = ref<'ALL' | TeamCategory>('A')
 const matchupBranchFilter = ref<'ALL' | TeamBranch>('ALL')
+const { categoryOptions, categoryOptionsWithAll, firstActiveCategory } = useLeagueCategories()
 
 const { data, pending, refresh } = await useFetch<ScheduleResponse>('/api/admin/schedule', {
   query: computed(() => ({
@@ -169,13 +169,10 @@ const isReleasingGame = ref(false)
 const gamePendingDelete = ref<ScheduleGame | null>(null)
 const gamePendingRelease = ref<ScheduleGame | null>(null)
 
-const categoryOptions = TEAM_CATEGORY_OPTIONS.filter(
-  (option): option is { label: string, value: TeamCategory } => option.value !== 'ALL'
-)
 const branchOptions = TEAM_BRANCH_OPTIONS.filter(
   (option): option is { label: string, value: TeamBranch } => option.value !== 'ALL'
 )
-const matchupCategoryOptions = TEAM_CATEGORY_OPTIONS
+const matchupCategoryOptions = categoryOptionsWithAll
 const matchupBranchOptions = TEAM_BRANCH_OPTIONS
 const statusOptions = [
   { label: 'Programado', value: 'SCHEDULED' },
@@ -266,6 +263,16 @@ watch(() => data.value?.weekStart, (normalizedWeekStart) => {
 
 watch(() => data.value?.configs, (configs) => {
   editableConfigs.value = (configs ?? []).map(config => ({ ...config }))
+}, { immediate: true })
+
+watch(categoryOptions, (options) => {
+  if (!options.some(option => option.value === gameForm.category)) {
+    gameForm.category = options[0]?.value ?? 'A'
+  }
+
+  if (matchupCategoryFilter.value !== 'ALL' && !options.some(option => option.value === matchupCategoryFilter.value)) {
+    matchupCategoryFilter.value = options[0]?.value ?? 'ALL'
+  }
 }, { immediate: true })
 
 watch(() => data.value?.suggestedRound, (suggestedRound) => {
@@ -485,7 +492,7 @@ function resetGameForm() {
   editingGameId.value = null
   gameForm.round = data.value?.suggestedRound ?? 1
   gameForm.scheduledAt = defaultScheduledAt()
-  gameForm.category = selectedConfig.value?.category ?? 'A'
+  gameForm.category = editableConfigs.value[0]?.category ?? firstActiveCategory.value
   gameForm.branch = selectedConfig.value?.branch ?? 'VARONIL'
   gameForm.homeTeamId = ''
   gameForm.awayTeamId = ''

@@ -1,4 +1,5 @@
 import { prisma } from '../../../utils/db'
+import { assertLeagueCategoryActive } from '../../../utils/categories'
 import { hashPassword } from '../../../utils/password'
 import { requireAdmin } from '../../../utils/session'
 import { buildAppUrl } from '../../../utils/app-url'
@@ -38,6 +39,7 @@ export default defineEventHandler(async (event) => {
 
   try {
     const team = buildTeamUpdateData(body, current)
+    await assertLeagueCategoryActive(prisma, team.category)
     const managerUserIds = cleanManagerUserIds(body.managerUserIds)
     const newManager = cleanNewManagerInput(body.newManager)
     const { managerTempPassword } = useRuntimeConfig()

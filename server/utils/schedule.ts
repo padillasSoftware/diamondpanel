@@ -1,5 +1,6 @@
 import { GameStatus, SeasonStatus, TeamBranch, TeamCategory, TeamStatus } from '../generated/prisma/enums'
 import type { Prisma } from '../generated/prisma/client'
+import { assertLeagueCategoryActive, getActiveCategories, leagueCategories } from './categories'
 import { cleanEnum, cleanNumber, cleanOptionalText, cleanRequiredText } from './validation'
 
 const leagueTimeZone = 'America/Tijuana'
@@ -54,14 +55,7 @@ export const adminScheduleGameSelect = {
   }
 } as const
 
-export const scheduleCategories = [
-  TeamCategory.A,
-  TeamCategory.B,
-  TeamCategory.C,
-  TeamCategory.D,
-  TeamCategory.E,
-  TeamCategory.R
-] as const
+export const scheduleCategories = leagueCategories
 
 export const scheduleBranches = [
   TeamBranch.VARONIL,
@@ -333,8 +327,11 @@ export function getSuggestedRound(games: { round: number | null }[], latestRound
 }
 
 export async function getScheduleTeams(prisma: Prisma.TransactionClient, seasonId: string) {
+  const activeCategories = await getActiveCategories(prisma)
+
   return prisma.team.findMany({
     where: {
+      category: { in: activeCategories },
       status: TeamStatus.ACTIVE,
       seasons: {
         some: { seasonId }
@@ -407,6 +404,8 @@ export async function getScheduleTeamPair(
       statusMessage: 'Teams must belong to the same category and branch'
     })
   }
+
+  await assertLeagueCategoryActive(prisma, homeTeam.category)
 
   return {
     homeTeam,
@@ -578,6 +577,7 @@ export async function getMaxPairGamesForGroup(input: {
 }
 
 export async function getScheduleConfigs(prisma: Prisma.TransactionClient, seasonId: string) {
+  const activeCategories = await getActiveCategories(prisma)
   const [storedConfigs, teams] = await Promise.all([
     prisma.scheduleRoundConfig.findMany({
       where: { seasonId },
@@ -590,6 +590,7 @@ export async function getScheduleConfigs(prisma: Prisma.TransactionClient, seaso
     }),
     prisma.team.findMany({
       where: {
+        category: { in: activeCategories },
         status: TeamStatus.ACTIVE,
         seasons: {
           some: { seasonId }
@@ -609,7 +610,7 @@ export async function getScheduleConfigs(prisma: Prisma.TransactionClient, seaso
     teamCountByGroup.set(key, (teamCountByGroup.get(key) ?? 0) + 1)
   }
 
-  return scheduleCategories.flatMap(category =>
+  return activeCategories.flatMap(category =>
     scheduleBranches.map((branch) => {
       const key = `${category}:${branch}`
       const config = storedConfigByGroup.get(key)

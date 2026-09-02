@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import {
   TEAM_BRANCH_OPTIONS,
-  TEAM_CATEGORY_OPTIONS,
   branchColor,
   branchLabel,
   categoryColor,
@@ -68,8 +67,9 @@ const search = ref('')
 const selectedCategory = ref<'ALL' | TeamCategory>('ALL')
 const selectedBranch = ref<'ALL' | TeamBranch>('ALL')
 const selectedStatus = ref<'ALL' | 'ELIGIBLE' | 'PENDING'>('ALL')
+const { categoryOptionsWithAll } = useLeagueCategories()
 
-const categoryOptions = TEAM_CATEGORY_OPTIONS
+const categoryOptions = categoryOptionsWithAll
 const branchOptions = TEAM_BRANCH_OPTIONS
 const minimumGames = computed(() => data.value?.minimumGames ?? 5)
 const teams = computed(() => data.value?.teams ?? [])

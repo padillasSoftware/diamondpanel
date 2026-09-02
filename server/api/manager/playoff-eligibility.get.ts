@@ -1,4 +1,5 @@
 import { GameStatus, PlayerStatus, PlayoffEligibilityMode, TeamMemberRole } from '../../generated/prisma/enums'
+import { getActiveCategories } from '../../utils/categories'
 import { prisma } from '../../utils/db'
 import { getActiveSeasonForResults, resultPlayerSelect } from '../../utils/results'
 import { requireTeamManager } from '../../utils/session'
@@ -19,11 +20,13 @@ export default defineEventHandler(async (event) => {
 
   const isOpenRoster = season.playoffEligibilityMode === PlayoffEligibilityMode.OPEN_ROSTER
   const minimumGames = season.playoffMinimumLineupGames
+  const activeCategories = await getActiveCategories(prisma)
 
   const [team, lineupCounts] = await Promise.all([
-    prisma.team.findUnique({
+    prisma.team.findFirst({
       where: {
-        id: user.activeTeamId
+        id: user.activeTeamId,
+        category: { in: activeCategories }
       },
       select: {
         id: true,
@@ -64,10 +67,13 @@ export default defineEventHandler(async (event) => {
   ])
 
   if (!team) {
-    throw createError({
-      statusCode: 404,
-      statusMessage: 'Managed team not found'
-    })
+    return {
+      season,
+      eligibilityMode: season.playoffEligibilityMode,
+      isOpenRoster,
+      minimumGames,
+      team: null
+    }
   }
 
   const countsByPlayerId = new Map(lineupCounts.map(row => [row.playerId, row._count.playerId]))

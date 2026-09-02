@@ -4,6 +4,7 @@ import {
   branchLabel,
   categoryColor,
   categoryLabel,
+  TEAM_CATEGORY_OPTIONS,
   type PlayoffEligibilityMode,
   type TeamBranch,
   type TeamCategory
@@ -26,11 +27,18 @@ type SettingsConfig = {
   teamCount: number
 }
 
+type CategorySetting = {
+  category: TeamCategory
+  active: boolean
+}
+
 type SettingsResponse = {
   league: {
     primaryLogoUrl: string | null
     secondaryLogoUrl: string | null
+    maxPlayersPerTeam: number
   }
+  categories: CategorySetting[]
   season: {
     id: string
     name: string
@@ -48,9 +56,11 @@ const { data, pending, refresh } = await useFetch<SettingsResponse>('/api/admin/
 
 const settingsForm = reactive({
   playoffEligibilityMode: 'LINEUP_GAMES' as PlayoffEligibilityMode,
-  playoffMinimumLineupGames: 5
+  playoffMinimumLineupGames: 5,
+  maxPlayersPerTeam: 25
 })
 const editableConfigs = ref<SettingsConfig[]>([])
+const categorySettings = ref<CategorySetting[]>([])
 const isSaving = ref(false)
 const logoUploadState = reactive({
   primary: false,
@@ -58,6 +68,13 @@ const logoUploadState = reactive({
 })
 
 const isOpenRoster = computed(() => settingsForm.playoffEligibilityMode === 'OPEN_ROSTER')
+const activeCategoryCount = computed(() => categorySettings.value.filter(setting => setting.active).length)
+const activeCategorySet = computed(() =>
+  new Set(categorySettings.value.filter(setting => setting.active).map(setting => setting.category))
+)
+const visibleEditableConfigs = computed(() =>
+  editableConfigs.value.filter(config => activeCategorySet.value.has(config.category))
+)
 const seasonTitle = computed(() =>
   data.value?.season ? `${data.value.season.name} ${data.value.season.year}` : 'Temporada activa requerida'
 )
@@ -65,10 +82,13 @@ const seasonTitle = computed(() =>
 watch(data, (settings) => {
   if (!settings?.season) {
     editableConfigs.value = []
+    categorySettings.value = settings?.categories.map(setting => ({ ...setting })) ?? []
 
     return
   }
 
+  categorySettings.value = settings.categories.map(setting => ({ ...setting }))
+  settingsForm.maxPlayersPerTeam = settings.league.maxPlayersPerTeam
   settingsForm.playoffEligibilityMode = settings.season.playoffEligibilityMode
   settingsForm.playoffMinimumLineupGames = settings.season.playoffMinimumLineupGames
   editableConfigs.value = settings.configs.map(config => ({ ...config }))
@@ -93,6 +113,20 @@ function showError(message: string) {
 
 function setPlayoffEligibilityMode(mode: PlayoffEligibilityMode) {
   settingsForm.playoffEligibilityMode = mode
+}
+
+function categoryOptionLabel(category: TeamCategory) {
+  return TEAM_CATEGORY_OPTIONS.find(option => option.value === category)?.label ?? categoryLabel(category)
+}
+
+function toggleCategory(setting: CategorySetting) {
+  if (setting.active && activeCategoryCount.value <= 1) {
+    showError('Deja al menos una categoría activa.')
+
+    return
+  }
+
+  setting.active = !setting.active
 }
 
 function currentLogoUrl(slot: LogoSlot) {
@@ -142,6 +176,12 @@ async function uploadLeagueLogo(slot: LogoSlot, event: Event) {
 async function saveSettings() {
   if (!data.value?.season) return
 
+  if (!activeCategoryCount.value) {
+    showError('Deja al menos una categoría activa.')
+
+    return
+  }
+
   isSaving.value = true
 
   try {
@@ -150,7 +190,12 @@ async function saveSettings() {
       body: {
         playoffEligibilityMode: settingsForm.playoffEligibilityMode,
         playoffMinimumLineupGames: Number(settingsForm.playoffMinimumLineupGames) || 5,
-        configs: editableConfigs.value.map(config => ({
+        maxPlayersPerTeam: Number(settingsForm.maxPlayersPerTeam) || 25,
+        categories: categorySettings.value.map(setting => ({
+          category: setting.category,
+          active: setting.active
+        })),
+        configs: visibleEditableConfigs.value.map(config => ({
           category: config.category,
           branch: config.branch,
           rounds: Number(config.rounds)
@@ -199,7 +244,7 @@ async function saveSettings() {
         color="primary"
         class="w-full justify-center lg:w-fit"
         :loading="isSaving"
-        :disabled="pending || !data?.season"
+        :disabled="pending || !data?.season || !activeCategoryCount"
         @click="saveSettings"
       />
     </div>
@@ -301,6 +346,79 @@ async function saveSettings() {
           >
             Con cédula abierta se oculta Elegibles del menú y no se usa el mínimo de juegos.
           </div>
+        </section>
+
+        <section class="rounded-lg border border-default bg-default p-3 shadow-sm sm:p-4">
+          <div class="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h2 class="text-lg font-bold text-highlighted">
+                Categorías activas
+              </h2>
+              <p class="text-sm text-muted">
+                Solo las categorías encendidas aparecen en equipos, rol, resultados y posiciones.
+              </p>
+            </div>
+            <UIcon
+              name="i-lucide-list-filter"
+              class="size-5 text-primary"
+            />
+          </div>
+
+          <div class="grid gap-2 sm:grid-cols-2">
+            <button
+              v-for="setting in categorySettings"
+              :key="setting.category"
+              type="button"
+              class="flex items-center justify-between gap-3 rounded-lg border p-3 text-left transition-colors"
+              :class="setting.active ? 'border-primary bg-primary/10' : 'border-default bg-muted/20 opacity-70'"
+              @click="toggleCategory(setting)"
+            >
+              <span class="min-w-0">
+                <span class="block font-semibold text-highlighted">
+                  {{ categoryOptionLabel(setting.category) }}
+                </span>
+                <span class="block text-xs text-muted">
+                  {{ setting.active ? 'Visible en la liga' : 'Oculta temporalmente' }}
+                </span>
+              </span>
+              <USwitch
+                :model-value="setting.active"
+                aria-label="Activar categoría"
+                @click.stop="toggleCategory(setting)"
+              />
+            </button>
+          </div>
+        </section>
+
+        <section class="rounded-lg border border-default bg-default p-3 shadow-sm sm:p-4">
+          <div class="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h2 class="text-lg font-bold text-highlighted">
+                Registro de jugadores
+              </h2>
+              <p class="text-sm text-muted">
+                Limita cuántos jugadores activos puede tener cada equipo.
+              </p>
+            </div>
+            <UIcon
+              name="i-lucide-users-round"
+              class="size-5 text-primary"
+            />
+          </div>
+
+          <label class="grid gap-1.5 text-sm">
+            <span class="font-medium text-highlighted">Máximo de jugadores activos por equipo</span>
+            <UInput
+              v-model.number="settingsForm.maxPlayersPerTeam"
+              type="number"
+              min="1"
+              max="99"
+            />
+          </label>
+
+          <p class="mt-3 rounded-lg border border-default bg-muted/30 p-3 text-sm text-muted">
+            Los manejadores y coaches no cuentan para este límite. Si un jugador se desactiva, libera un espacio.
+          </p>
         </section>
 
         <section class="rounded-lg border border-default bg-default p-3 shadow-sm sm:p-4">
@@ -415,7 +533,7 @@ async function saveSettings() {
 
         <div class="grid gap-2 sm:grid-cols-2">
           <div
-            v-for="config in editableConfigs"
+            v-for="config in visibleEditableConfigs"
             :key="`${config.category}-${config.branch}`"
             class="grid grid-cols-[1fr_5.5rem] items-center gap-2 rounded-lg border border-default p-2"
           >

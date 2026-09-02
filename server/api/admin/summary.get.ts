@@ -1,4 +1,5 @@
 import { GameStatus, PlayerStatus, SeasonStatus, TeamMemberRole, TeamStatus } from '../../generated/prisma/enums'
+import { getActiveCategories } from '../../utils/categories'
 import { prisma } from '../../utils/db'
 import { requireAdmin } from '../../utils/session'
 
@@ -20,6 +21,8 @@ export default defineEventHandler(async (event) => {
     }
   })
 
+  const activeCategories = await getActiveCategories(prisma)
+  const activeCategoryFilter = { in: activeCategories }
   const [
     activeTeams,
     activePlayers,
@@ -27,23 +30,53 @@ export default defineEventHandler(async (event) => {
     finalGames,
     fields
   ] = await Promise.all([
-    prisma.team.count({ where: { status: TeamStatus.ACTIVE } }),
+    prisma.team.count({
+      where: {
+        category: activeCategoryFilter,
+        status: TeamStatus.ACTIVE
+      }
+    }),
     prisma.player.count({
       where: {
         status: PlayerStatus.ACTIVE,
-        memberRole: TeamMemberRole.PLAYER
+        memberRole: TeamMemberRole.PLAYER,
+        team: {
+          is: {
+            category: activeCategoryFilter
+          }
+        }
       }
     }),
     prisma.game.count({
       where: {
         ...(activeSeason ? { seasonId: activeSeason.id } : {}),
-        status: { in: [GameStatus.SCHEDULED, GameStatus.POSTPONED] }
+        status: { in: [GameStatus.SCHEDULED, GameStatus.POSTPONED] },
+        homeTeam: {
+          is: {
+            category: activeCategoryFilter
+          }
+        },
+        awayTeam: {
+          is: {
+            category: activeCategoryFilter
+          }
+        }
       }
     }),
     prisma.game.count({
       where: {
         ...(activeSeason ? { seasonId: activeSeason.id } : {}),
-        status: GameStatus.FINAL
+        status: GameStatus.FINAL,
+        homeTeam: {
+          is: {
+            category: activeCategoryFilter
+          }
+        },
+        awayTeam: {
+          is: {
+            category: activeCategoryFilter
+          }
+        }
       }
     }),
     prisma.field.count({ where: { isActive: true } })

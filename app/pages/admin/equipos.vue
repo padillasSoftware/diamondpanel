@@ -2,7 +2,6 @@
 import {
   PLAYER_POSITION_OPTIONS,
   TEAM_BRANCH_OPTIONS,
-  TEAM_CATEGORY_OPTIONS,
   TEAM_MEMBER_ROLE_OPTIONS,
   branchLabel,
   categoryColor,
@@ -71,6 +70,7 @@ type TeamMembersResponse = {
 }
 
 const { data, refresh } = await useFetch<TeamsResponse>('/api/admin/teams')
+const { categoryOptions, firstActiveCategory } = useLeagueCategories()
 const toast = useToast()
 
 const teamForm = reactive({
@@ -107,9 +107,6 @@ const statusOptions = [
   { label: 'Inactivo', value: 'INACTIVE' }
 ] satisfies { label: string, value: TeamStatus }[]
 
-const categoryOptions = TEAM_CATEGORY_OPTIONS.filter(
-  (option): option is { label: string, value: TeamCategory } => option.value !== 'ALL'
-)
 const branchOptions = TEAM_BRANCH_OPTIONS.filter(
   (option): option is { label: string, value: TeamBranch } => option.value !== 'ALL'
 )
@@ -215,6 +212,16 @@ watch(() => memberForm.memberRole, (role) => {
   }
 })
 
+watch(categoryOptions, (options) => {
+  if (!options.some(option => option.value === teamForm.category)) {
+    teamForm.category = options[0]?.value ?? 'A'
+  }
+
+  if (selectedCategory.value !== 'ALL' && !options.some(option => option.value === selectedCategory.value)) {
+    selectedCategory.value = 'ALL'
+  }
+}, { immediate: true })
+
 function slugify(value: string) {
   return value
     .normalize('NFD')
@@ -313,7 +320,7 @@ function resetTeamForm() {
   teamForm.primaryColor = '#047857'
   teamForm.secondaryColor = '#0F172A'
   teamForm.managerName = ''
-  teamForm.category = 'A'
+  teamForm.category = firstActiveCategory.value
   teamForm.branch = 'VARONIL'
   teamForm.status = 'ACTIVE'
   teamForm.managerUserIds = []

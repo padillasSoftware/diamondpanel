@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import {
   TEAM_BRANCH_OPTIONS,
-  TEAM_CATEGORY_OPTIONS,
   branchColor,
   branchLabel,
   categoryColor,
@@ -25,13 +24,13 @@ const [
   useFetch<Season>('/api/seasons/active'),
   useFetch<Team[]>('/api/teams')
 ])
+const { categoryOptions } = useLeagueCategories()
 
 const teamRows = computed(() => teams.value ?? [])
 const playerCount = computed(() => teamRows.value.reduce((total, team) => total + (team.players?.length ?? 0), 0))
 const activeTeams = computed(() => teamRows.value.filter(team => team.status === 'ACTIVE').length)
 const categoryGroups = computed(() =>
-  TEAM_CATEGORY_OPTIONS
-    .filter(option => option.value !== 'ALL')
+  categoryOptions.value
     .map((category) => {
       const branches = TEAM_BRANCH_OPTIONS
         .filter(option => option.value !== 'ALL')

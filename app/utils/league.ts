@@ -5,6 +5,8 @@ export type TeamMemberRole = 'PLAYER' | 'MANAGER' | 'COACH'
 export type GameBattingHighlightSide = 'WINNER' | 'LOSER'
 export type PlayoffEligibilityMode = 'LINEUP_GAMES' | 'OPEN_ROSTER'
 
+export const TEAM_CATEGORY_VALUES: TeamCategory[] = ['A', 'B', 'C', 'D', 'E', 'R']
+
 export const TEAM_CATEGORY_OPTIONS: { label: string, value: 'ALL' | TeamCategory }[] = [
   { label: 'Todas', value: 'ALL' },
   { label: 'Categoría A', value: 'A' },

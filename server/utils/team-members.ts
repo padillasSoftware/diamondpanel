@@ -10,6 +10,7 @@ import type { Prisma } from '../generated/prisma/client'
 import { cleanEnum, cleanNumber, cleanRequiredText } from './validation'
 
 const playerPositions = ['FIELDER', 'INFIELDER', 'PITCHER', 'CATCHER', 'UTILITY'] as const
+const defaultMaxPlayersPerTeam = 25
 
 // Ordered by competitive level so adjacency can be measured by index distance.
 const categoryOrder: TeamCategory[] = ['A', 'B', 'C', 'D', 'E', 'R']
@@ -193,6 +194,44 @@ export function assertCurpMatchesTeamBranch(curp: string, branch: (typeof TeamBr
       statusMessage: branch === TeamBranch.FEMENIL
         ? 'CURP indicates this player is not eligible for a women\'s branch team'
         : 'CURP indicates this player is not eligible for a men\'s branch team'
+    })
+  }
+}
+
+export async function getMaxPlayersPerTeam(prisma: Prisma.TransactionClient) {
+  const settings = await prisma.leagueSettings.findUnique({
+    where: { id: 'default' },
+    select: { maxPlayersPerTeam: true }
+  })
+
+  return settings?.maxPlayersPerTeam ?? defaultMaxPlayersPerTeam
+}
+
+export async function assertTeamPlayerLimit(
+  prisma: Prisma.TransactionClient,
+  input: {
+    teamId: string
+    memberRole: (typeof TeamMemberRole)[keyof typeof TeamMemberRole]
+    status: (typeof PlayerStatus)[keyof typeof PlayerStatus]
+    excludedMemberId?: string
+  }
+) {
+  if (input.memberRole !== TeamMemberRole.PLAYER || input.status !== PlayerStatus.ACTIVE) return
+
+  const maxPlayers = await getMaxPlayersPerTeam(prisma)
+  const activePlayers = await prisma.player.count({
+    where: {
+      teamId: input.teamId,
+      memberRole: TeamMemberRole.PLAYER,
+      status: PlayerStatus.ACTIVE,
+      id: input.excludedMemberId ? { not: input.excludedMemberId } : undefined
+    }
+  })
+
+  if (activePlayers >= maxPlayers) {
+    throw createError({
+      statusCode: 409,
+      statusMessage: `Este equipo ya alcanzó el límite de ${maxPlayers} jugadores activos.`
     })
   }
 }

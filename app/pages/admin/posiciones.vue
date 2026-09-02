@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import {
   TEAM_BRANCH_OPTIONS,
-  TEAM_CATEGORY_OPTIONS,
   branchColor,
   branchLabel,
   categoryColor,
@@ -25,10 +24,7 @@ useSeoMeta({
   description: 'Tabla de posiciones administrativa por categoría y rama.'
 })
 
-const categoryOptions = TEAM_CATEGORY_OPTIONS.filter(
-  (option): option is { label: string, value: TeamCategory } => option.value !== 'ALL'
-)
-
+const { categoryOptions, firstActiveCategory } = useLeagueCategories()
 const selectedCategory = ref<TeamCategory>('A')
 const selectedBranch = ref<'ALL' | TeamBranch>('ALL')
 
@@ -51,6 +47,12 @@ const totalTeams = computed(() => standingRows.value.length)
 const totalGames = computed(() => standingRows.value.reduce((total, standing) => total + standing.played, 0) / 2)
 const bestOffense = computed(() => [...standingRows.value].sort((a, b) => b.runsFor - a.runsFor)[0])
 const bestDefense = computed(() => [...standingRows.value].sort((a, b) => a.runsAgainst - b.runsAgainst)[0])
+
+watch(categoryOptions, (options) => {
+  if (!options.some(option => option.value === selectedCategory.value)) {
+    selectedCategory.value = options[0]?.value ?? firstActiveCategory.value
+  }
+}, { immediate: true })
 
 function refreshStandings() {
   void refresh()

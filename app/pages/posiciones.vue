@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import {
   TEAM_BRANCH_OPTIONS,
-  TEAM_CATEGORY_OPTIONS,
   branchColor,
   branchLabel,
   categoryColor,
@@ -17,6 +16,7 @@ import {
 } from '~/utils/league'
 
 const { user } = useAuth()
+const { categoryOptions: activeCategoryOptions, firstActiveCategory } = useLeagueCategories()
 
 useSeoMeta({
   title: 'Posiciones | DiamondPanel',
@@ -27,13 +27,11 @@ const managedTeamCategory = computed(() => user.value?.activeTeam?.category ?? n
 const managedTeamBranch = computed(() => user.value?.activeTeam?.branch ?? null)
 const showStandingsFilters = computed(() => user.value?.role === 'ADMIN')
 const categoryOptions = computed(() =>
-  TEAM_CATEGORY_OPTIONS.filter(
-    (option): option is { label: string, value: TeamCategory } =>
-      option.value !== 'ALL'
-      && (showStandingsFilters.value || !managedTeamCategory.value || option.value === managedTeamCategory.value)
+  activeCategoryOptions.value.filter(
+    option => showStandingsFilters.value || !managedTeamCategory.value || option.value === managedTeamCategory.value
   )
 )
-const selectedCategory = ref<TeamCategory>(managedTeamCategory.value ?? 'A')
+const selectedCategory = ref<TeamCategory>(managedTeamCategory.value ?? firstActiveCategory.value)
 const selectedBranch = ref<'ALL' | TeamBranch>(managedTeamBranch.value ?? 'ALL')
 
 watch([managedTeamCategory, showStandingsFilters], ([category, showFilters]) => {
