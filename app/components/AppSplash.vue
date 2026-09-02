@@ -54,8 +54,9 @@ defineProps<{
   place-items: center;
   padding: 1.5rem;
   background:
-    linear-gradient(180deg, rgb(0 106 67 / 0.94), rgb(0 56 32 / 0.98)),
-    #004a31;
+    radial-gradient(circle at top left, rgb(122 220 226 / 0.18), transparent 20rem),
+    linear-gradient(180deg, rgb(2 90 96 / 0.94), rgb(1 52 58 / 0.98)),
+    #025a60;
   color: #fff;
 }
 
