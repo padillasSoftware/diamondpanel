@@ -8,7 +8,6 @@ import {
   formatRunDifferential,
   streakColor,
   streakLabel,
-  teamInitials,
   type TeamBranch,
   type TeamCategory,
   type Season,
@@ -258,12 +257,10 @@ const bestDefense = computed(() => [...standingRows.value].sort((a, b) => a.runs
               </td>
               <td class="py-4 pr-3">
                 <div class="flex items-center gap-3">
-                  <span
-                    class="flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                    :style="{ backgroundColor: standing.team.primaryColor ?? '#047857' }"
-                  >
-                    {{ teamInitials(standing.team) }}
-                  </span>
+                  <TeamAvatar
+                    :team="standing.team"
+                    class="size-9 text-xs font-bold"
+                  />
                   <div class="min-w-0">
                     <p class="truncate font-semibold text-highlighted">
                       {{ standing.team.name }}

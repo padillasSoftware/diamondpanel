@@ -20,7 +20,11 @@ type SessionPayload = {
 export type AuthManagedTeam = {
   id: string
   name: string
+  shortName: string | null
   slug: string
+  logoUrl: string | null
+  primaryColor: string | null
+  secondaryColor: string | null
   category: TeamCategory
   branch: TeamBranch
 }
@@ -48,7 +52,11 @@ export type AuthTeamManager = AuthUser & {
 const managedTeamSelect = {
   id: true,
   name: true,
+  shortName: true,
   slug: true,
+  logoUrl: true,
+  primaryColor: true,
+  secondaryColor: true,
   category: true,
   branch: true
 } as const

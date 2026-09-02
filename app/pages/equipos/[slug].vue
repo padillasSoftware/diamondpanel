@@ -7,7 +7,6 @@ import {
   categoryLabel,
   playerPositionLabel,
   playerName,
-  teamInitials,
   teamStatusColor,
   teamStatusLabel,
   type TeamDetail
@@ -57,12 +56,10 @@ function playerEligibilityDetail(player: TeamDetail['players'][number]) {
           class="mb-4"
         />
 
-        <div
-          class="mb-4 flex size-24 items-center justify-center rounded-full text-3xl font-bold text-white shadow-sm"
-          :style="{ backgroundColor: team.primaryColor ?? '#047857' }"
-        >
-          {{ teamInitials(team) }}
-        </div>
+        <TeamAvatar
+          :team="team"
+          class="mb-4 size-24 text-3xl font-bold"
+        />
 
         <div class="mb-4">
           <div class="mb-2 flex flex-wrap items-center gap-2">

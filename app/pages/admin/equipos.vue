@@ -11,7 +11,6 @@ import {
   memberRoleLabel,
   playerPositionLabel,
   playerName,
-  teamInitials,
   teamStatusColor,
   teamStatusLabel,
   type AdminPlayer,
@@ -77,7 +76,7 @@ const teamForm = reactive({
   shortName: '',
   slug: '',
   logoUrl: '',
-  primaryColor: '#047857',
+  primaryColor: '#025a60',
   secondaryColor: '#0F172A',
   managerName: '',
   category: 'A' as TeamCategory,
@@ -316,7 +315,7 @@ function resetTeamForm() {
   teamForm.shortName = ''
   teamForm.slug = ''
   teamForm.logoUrl = ''
-  teamForm.primaryColor = '#047857'
+  teamForm.primaryColor = '#025a60'
   teamForm.secondaryColor = '#0F172A'
   teamForm.managerName = ''
   teamForm.category = firstActiveCategory.value
@@ -343,7 +342,7 @@ function editTeam(team: AdminTeam) {
   teamForm.shortName = team.shortName ?? ''
   teamForm.slug = team.slug
   teamForm.logoUrl = team.logoUrl ?? ''
-  teamForm.primaryColor = team.primaryColor ?? '#047857'
+  teamForm.primaryColor = team.primaryColor ?? '#025a60'
   teamForm.secondaryColor = team.secondaryColor ?? '#0F172A'
   teamForm.managerName = team.managerName ?? ''
   teamForm.category = team.category
@@ -965,7 +964,7 @@ async function confirmDeleteTeam() {
                   <span
                     v-else
                     class="flex size-16 shrink-0 items-center justify-center rounded-md text-sm font-bold text-white"
-                    :style="{ backgroundColor: teamForm.primaryColor || '#047857' }"
+                    :style="{ backgroundColor: teamForm.primaryColor || '#025a60' }"
                   >
                     {{ teamFormInitials() }}
                   </span>
@@ -1120,19 +1119,10 @@ async function confirmDeleteTeam() {
           >
             <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div class="flex min-w-0 gap-3">
-                <img
-                  v-if="team.logoUrl"
-                  :src="team.logoUrl"
-                  :alt="`Logo de ${team.name}`"
-                  class="size-10 shrink-0 object-contain"
-                >
-                <span
-                  v-else
-                  class="flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                  :style="{ backgroundColor: team.primaryColor ?? '#047857' }"
-                >
-                  {{ teamInitials(team) }}
-                </span>
+                <TeamAvatar
+                  :team="team"
+                  class="size-10 text-xs font-bold"
+                />
 
                 <div class="min-w-0">
                   <div class="mb-1 flex flex-wrap items-center gap-1.5">

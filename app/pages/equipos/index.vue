@@ -5,7 +5,6 @@ import {
   branchLabel,
   categoryColor,
   categoryLabel,
-  teamInitials,
   teamStatusColor,
   teamStatusLabel,
   type Season,
@@ -160,12 +159,10 @@ const categoryGroups = computed(() =>
                 >
                   <div class="mb-4 flex items-start justify-between gap-3">
                     <div class="flex min-w-0 items-center gap-3">
-                      <span
-                        class="flex size-12 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
-                        :style="{ backgroundColor: team.primaryColor ?? '#047857' }"
-                      >
-                        {{ teamInitials(team) }}
-                      </span>
+                      <TeamAvatar
+                        :team="team"
+                        class="size-12 text-sm font-bold"
+                      />
                       <div class="min-w-0">
                         <p class="truncate text-lg font-bold text-highlighted">
                           {{ team.name }}

@@ -8,7 +8,6 @@ import {
   formatRunDifferential,
   streakColor,
   streakLabel,
-  teamInitials,
   type Season,
   type Standing,
   type TeamBranch,
@@ -261,12 +260,10 @@ function refreshStandings() {
               </span>
               <div class="min-w-0 flex-1">
                 <div class="mb-1 flex items-center gap-2">
-                  <span
-                    class="flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                    :style="{ backgroundColor: standing.team.primaryColor ?? '#047857' }"
-                  >
-                    {{ teamInitials(standing.team) }}
-                  </span>
+                  <TeamAvatar
+                    :team="standing.team"
+                    class="size-9 text-xs font-bold"
+                  />
                   <div class="min-w-0">
                     <p class="truncate font-bold text-highlighted">
                       {{ standing.team.name }}
@@ -389,12 +386,10 @@ function refreshStandings() {
                 </td>
                 <td class="py-4 pr-3">
                   <div class="flex items-center gap-3">
-                    <span
-                      class="flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                      :style="{ backgroundColor: standing.team.primaryColor ?? '#047857' }"
-                    >
-                      {{ teamInitials(standing.team) }}
-                    </span>
+                    <TeamAvatar
+                      :team="standing.team"
+                      class="size-9 text-xs font-bold"
+                    />
                     <div class="min-w-0">
                       <p class="truncate font-semibold text-highlighted">
                         {{ standing.team.name }}

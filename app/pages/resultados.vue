@@ -11,7 +11,6 @@ import {
   resultWinnerLabel,
   roundLabel,
   scoreClass,
-  teamInitials,
   type GameBattingHighlightSide,
   type ResultGame,
   type Season
@@ -249,12 +248,10 @@ function loserTeamName(game: ResultGame) {
           <div class="grid gap-2">
             <div class="grid grid-cols-[1fr_auto] items-center gap-3 rounded-md bg-muted/30 px-3 py-2">
               <div class="flex min-w-0 items-center gap-3">
-                <span
-                  class="flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                  :style="{ backgroundColor: game.homeTeam.primaryColor ?? '#047857' }"
-                >
-                  {{ teamInitials(game.homeTeam) }}
-                </span>
+                <TeamAvatar
+                  :team="game.homeTeam"
+                  class="size-9 text-xs font-bold"
+                />
                 <p
                   class="truncate font-semibold"
                   :class="scoreClass(game, 'home')"
@@ -272,12 +269,10 @@ function loserTeamName(game: ResultGame) {
 
             <div class="grid grid-cols-[1fr_auto] items-center gap-3 rounded-md bg-muted/30 px-3 py-2">
               <div class="flex min-w-0 items-center gap-3">
-                <span
-                  class="flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                  :style="{ backgroundColor: game.awayTeam.primaryColor ?? '#f97316' }"
-                >
-                  {{ teamInitials(game.awayTeam) }}
-                </span>
+                <TeamAvatar
+                  :team="game.awayTeam"
+                  class="size-9 text-xs font-bold"
+                />
                 <p
                   class="truncate font-semibold"
                   :class="scoreClass(game, 'away')"

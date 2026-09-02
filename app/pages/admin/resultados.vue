@@ -325,10 +325,6 @@ function savedPlayerName(name: string | null | undefined, player?: AdminResultPl
   return name?.trim() || (player ? playerLabel(player) : '')
 }
 
-function adminTeamInitials(team: AdminResultTeam) {
-  return team.shortName ?? team.name.slice(0, 2).toUpperCase()
-}
-
 function battingLine(highlight: AdminResultHighlight) {
   const hrText = highlight.homeRuns ? `, ${highlight.homeRuns} HR` : ''
 
@@ -1253,12 +1249,10 @@ function editSelectedResult() {
           <div class="mb-3 grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
             <div class="rounded-lg border border-default p-3">
               <div class="mb-3 flex items-center gap-2">
-                <span
-                  class="flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                  :style="{ backgroundColor: selectedGame.homeTeam.primaryColor ?? '#047857' }"
-                >
-                  {{ adminTeamInitials(selectedGame.homeTeam) }}
-                </span>
+                <TeamAvatar
+                  :team="selectedGame.homeTeam"
+                  class="size-10 text-xs font-bold"
+                />
                 <div class="min-w-0">
                   <p class="truncate font-semibold text-highlighted">
                     {{ selectedGame.homeTeam.name }}
@@ -1279,12 +1273,10 @@ function editSelectedResult() {
 
             <div class="rounded-lg border border-default p-3">
               <div class="mb-3 flex items-center gap-2">
-                <span
-                  class="flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                  :style="{ backgroundColor: selectedGame.awayTeam.primaryColor ?? '#f97316' }"
-                >
-                  {{ adminTeamInitials(selectedGame.awayTeam) }}
-                </span>
+                <TeamAvatar
+                  :team="selectedGame.awayTeam"
+                  class="size-10 text-xs font-bold"
+                />
                 <div class="min-w-0">
                   <p class="truncate font-semibold text-highlighted">
                     {{ selectedGame.awayTeam.name }}
@@ -1458,12 +1450,10 @@ function editSelectedResult() {
           <div class="mb-3 grid min-w-0 gap-2 sm:grid-cols-2">
             <div class="min-w-0 rounded-lg border border-default p-2">
               <div class="mb-2 flex items-center gap-2">
-                <span
-                  class="flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                  :style="{ backgroundColor: selectedGame.homeTeam.primaryColor ?? '#047857' }"
-                >
-                  {{ adminTeamInitials(selectedGame.homeTeam) }}
-                </span>
+                <TeamAvatar
+                  :team="selectedGame.homeTeam"
+                  class="size-10 text-xs font-bold"
+                />
                 <div class="min-w-0">
                   <p class="truncate font-semibold text-highlighted">
                     {{ selectedGame.homeTeam.name }}
@@ -1519,12 +1509,10 @@ function editSelectedResult() {
 
             <div class="min-w-0 rounded-lg border border-default p-2">
               <div class="mb-2 flex items-center gap-2">
-                <span
-                  class="flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                  :style="{ backgroundColor: selectedGame.awayTeam.primaryColor ?? '#f97316' }"
-                >
-                  {{ adminTeamInitials(selectedGame.awayTeam) }}
-                </span>
+                <TeamAvatar
+                  :team="selectedGame.awayTeam"
+                  class="size-10 text-xs font-bold"
+                />
                 <div class="min-w-0">
                   <p class="truncate font-semibold text-highlighted">
                     {{ selectedGame.awayTeam.name }}

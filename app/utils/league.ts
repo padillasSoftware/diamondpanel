@@ -237,7 +237,7 @@ export function roundLabel(round: number | null) {
   return round ? `Rol #${round}` : 'Rol por definir'
 }
 
-export function teamInitials(team: TeamSummary) {
+export function teamInitials(team: { name: string, shortName?: string | null }) {
   return team.shortName ?? team.name.slice(0, 2).toUpperCase()
 }
 

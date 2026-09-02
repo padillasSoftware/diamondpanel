@@ -11,7 +11,6 @@ import {
   gameStatusLabel,
   roundLabel,
   scheduleDateKey,
-  teamInitials,
   type Game,
   type Season
 } from '~/utils/league'
@@ -171,12 +170,10 @@ const gamesByDate = computed(() => {
 
       <div class="grid gap-3 lg:grid-cols-[1fr_auto_1fr] lg:items-center">
         <div class="flex items-center gap-3 rounded-lg border border-default bg-muted/30 p-3 sm:p-4">
-          <span
-            class="flex size-12 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white sm:size-14"
-            :style="{ backgroundColor: nextGame.homeTeam.primaryColor ?? '#047857' }"
-          >
-            {{ teamInitials(nextGame.homeTeam) }}
-          </span>
+          <TeamAvatar
+            :team="nextGame.homeTeam"
+            class="size-12 text-sm font-bold sm:size-14"
+          />
           <div class="min-w-0">
             <p class="text-sm text-muted">
               Local
@@ -200,12 +197,10 @@ const gamesByDate = computed(() => {
         </div>
 
         <div class="flex items-center gap-3 rounded-lg border border-default bg-muted/30 p-3 sm:p-4 lg:flex-row-reverse lg:text-right">
-          <span
-            class="flex size-12 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white sm:size-14"
-            :style="{ backgroundColor: nextGame.awayTeam.primaryColor ?? '#f97316' }"
-          >
-            {{ teamInitials(nextGame.awayTeam) }}
-          </span>
+          <TeamAvatar
+            :team="nextGame.awayTeam"
+            class="size-12 text-sm font-bold sm:size-14"
+          />
           <div class="min-w-0">
             <p class="text-sm text-muted">
               Visitante
@@ -298,12 +293,10 @@ const gamesByDate = computed(() => {
               <div class="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
                 <div class="min-w-0 rounded-md bg-muted/30 p-2">
                   <div class="mb-1 flex items-center gap-2">
-                    <span
-                      class="flex size-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white"
-                      :style="{ backgroundColor: game.homeTeam.primaryColor ?? '#047857' }"
-                    >
-                      {{ teamInitials(game.homeTeam) }}
-                    </span>
+                    <TeamAvatar
+                      :team="game.homeTeam"
+                      class="size-8 text-[11px] font-bold"
+                    />
                     <p class="min-w-0 truncate font-semibold text-highlighted">
                       {{ game.homeTeam.name }}
                     </p>
@@ -319,12 +312,10 @@ const gamesByDate = computed(() => {
 
                 <div class="min-w-0 rounded-md bg-muted/30 p-2 text-right">
                   <div class="mb-1 flex flex-row-reverse items-center gap-2">
-                    <span
-                      class="flex size-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white"
-                      :style="{ backgroundColor: game.awayTeam.primaryColor ?? '#f97316' }"
-                    >
-                      {{ teamInitials(game.awayTeam) }}
-                    </span>
+                    <TeamAvatar
+                      :team="game.awayTeam"
+                      class="size-8 text-[11px] font-bold"
+                    />
                     <p class="min-w-0 truncate font-semibold text-highlighted">
                       {{ game.awayTeam.name }}
                     </p>

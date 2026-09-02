@@ -7,7 +7,6 @@ import {
   formatGameDate,
   formatRunDifferential,
   scoreClass,
-  teamInitials,
   type Game,
   type ResultGame,
   type Season,
@@ -589,12 +588,10 @@ function isActiveMatchupTeam(teamId: string) {
 
           <div class="grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
             <div class="flex min-w-0 items-center gap-3 rounded-md bg-default p-3 sm:block sm:bg-transparent sm:p-0 sm:text-center">
-              <div
-                class="flex size-12 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white shadow-sm sm:mx-auto sm:size-16 sm:text-lg"
-                :style="{ backgroundColor: nextGame.homeTeam.primaryColor ?? '#047857' }"
-              >
-                {{ teamInitials(nextGame.homeTeam) }}
-              </div>
+              <TeamAvatar
+                :team="nextGame.homeTeam"
+                class="size-12 text-sm font-bold sm:mx-auto sm:size-16 sm:text-lg"
+              />
               <div class="min-w-0 sm:mt-2">
                 <p class="truncate font-semibold text-highlighted sm:overflow-visible sm:text-clip sm:whitespace-normal">
                   {{ nextGame.homeTeam.name }}
@@ -610,12 +607,10 @@ function isActiveMatchupTeam(teamId: string) {
             </div>
 
             <div class="flex min-w-0 items-center gap-3 rounded-md bg-default p-3 sm:block sm:bg-transparent sm:p-0 sm:text-center">
-              <div
-                class="flex size-12 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white shadow-sm sm:mx-auto sm:size-16 sm:text-lg"
-                :style="{ backgroundColor: nextGame.awayTeam.primaryColor ?? '#f97316' }"
-              >
-                {{ teamInitials(nextGame.awayTeam) }}
-              </div>
+              <TeamAvatar
+                :team="nextGame.awayTeam"
+                class="size-12 text-sm font-bold sm:mx-auto sm:size-16 sm:text-lg"
+              />
               <div class="min-w-0 sm:mt-2">
                 <p class="truncate font-semibold text-highlighted sm:overflow-visible sm:text-clip sm:whitespace-normal">
                   {{ nextGame.awayTeam.name }}
@@ -710,12 +705,10 @@ function isActiveMatchupTeam(teamId: string) {
                 </td>
                 <td class="py-3 pr-3">
                   <div class="flex items-center gap-2">
-                    <span
-                      class="flex size-7 items-center justify-center rounded-full text-xs font-bold text-white"
-                      :style="{ backgroundColor: standing.team.primaryColor ?? '#047857' }"
-                    >
-                      {{ teamInitials(standing.team) }}
-                    </span>
+                    <TeamAvatar
+                      :team="standing.team"
+                      class="size-7 text-xs font-bold"
+                    />
                     <span class="font-semibold text-highlighted">{{ standing.team.name }}</span>
                   </div>
                 </td>
@@ -821,12 +814,10 @@ function isActiveMatchupTeam(teamId: string) {
             class="rounded-lg border border-default p-3"
           >
             <div class="flex items-center gap-3">
-              <span
-                class="flex size-11 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
-                :style="{ backgroundColor: team.primaryColor ?? '#047857' }"
-              >
-                {{ teamInitials(team) }}
-              </span>
+              <TeamAvatar
+                :team="team"
+                class="size-11 text-sm font-bold"
+              />
               <div class="min-w-0">
                 <p class="truncate font-semibold text-highlighted">
                   {{ team.name }}

@@ -48,6 +48,9 @@ const { data: activeSeason } = await useFetch<NavigationSeason>('/api/seasons/ac
   immediate: Boolean(user.value)
 })
 const managedTeams = computed(() => isAdmin.value ? [] : (user.value?.managedTeams ?? []))
+const activeManagedTeam = computed(() =>
+  managedTeams.value.find(team => team.id === user.value?.activeTeamId) ?? user.value?.activeTeam ?? null
+)
 const hasMultipleManagedTeams = computed(() => managedTeams.value.length > 1)
 const isSwitchingTeam = ref(false)
 const showEligibilityNavigation = computed(() => activeSeason.value?.playoffEligibilityMode !== 'OPEN_ROSTER')
@@ -164,11 +167,12 @@ const handleActiveTeamChange = (event: Event) => {
 
         <label
           v-if="hasMultipleManagedTeams"
-          class="hidden items-center gap-2 rounded-full bg-white/95 px-3 py-1.5 text-sm font-medium text-green-800 ring-1 ring-white/30 md:flex"
+          class="hidden items-center gap-2 rounded-full bg-white/95 px-3 py-1.5 text-sm font-medium text-[#025a60] ring-1 ring-white/30 md:flex"
         >
-          <UIcon
-            name="i-lucide-shuffle"
-            class="size-4 shrink-0"
+          <TeamAvatar
+            v-if="activeManagedTeam"
+            :team="activeManagedTeam"
+            class="size-6 text-[10px] font-bold"
           />
           <select
             :value="user.activeTeamId ?? ''"
@@ -224,10 +228,11 @@ const handleActiveTeamChange = (event: Event) => {
           v-if="hasMultipleManagedTeams"
           class="mb-2 grid min-w-0 gap-1 overflow-hidden rounded-lg border border-default bg-default p-2 text-sm"
         >
-          <span class="flex items-center gap-2 text-xs font-semibold uppercase tracking-normal text-muted">
-            <UIcon
-              name="i-lucide-shuffle"
-              class="size-3.5"
+          <span class="flex min-w-0 items-center gap-2 text-xs font-semibold uppercase tracking-normal text-muted">
+            <TeamAvatar
+              v-if="activeManagedTeam"
+              :team="activeManagedTeam"
+              class="size-6 text-[10px] font-bold"
             />
             Equipo activo
           </span>

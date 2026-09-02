@@ -57,7 +57,7 @@ const teamForm = reactive({
   name: '',
   shortName: '',
   logoUrl: '',
-  primaryColor: '#047857',
+  primaryColor: '#025a60',
   secondaryColor: '#0F172A',
   managerName: ''
 })
@@ -95,7 +95,7 @@ watch(team, (value) => {
   teamForm.name = value.name
   teamForm.shortName = value.shortName ?? ''
   teamForm.logoUrl = value.logoUrl ?? ''
-  teamForm.primaryColor = value.primaryColor ?? '#047857'
+  teamForm.primaryColor = value.primaryColor ?? '#025a60'
   teamForm.secondaryColor = value.secondaryColor ?? '#0F172A'
   teamForm.managerName = value.managerName ?? ''
 }, { immediate: true })
@@ -498,19 +498,10 @@ async function confirmDeleteMember() {
       >
         <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div class="flex min-w-0 items-center gap-3">
-            <img
-              v-if="teamForm.logoUrl"
-              :src="teamForm.logoUrl"
-              :alt="`Logo de ${team.name}`"
-              class="size-12 shrink-0 object-contain"
-            >
-            <span
-              v-else
-              class="flex size-12 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
-              :style="{ backgroundColor: teamForm.primaryColor || '#047857' }"
-            >
-              {{ teamInitials(team) }}
-            </span>
+            <TeamAvatar
+              :team="team"
+              class="size-12 text-sm font-bold"
+            />
             <div class="min-w-0">
               <h2 class="text-xl font-bold text-highlighted">
                 Datos del equipo
@@ -571,7 +562,7 @@ async function confirmDeleteMember() {
               <span
                 v-else
                 class="flex size-16 shrink-0 items-center justify-center rounded-md text-sm font-bold text-white"
-                :style="{ backgroundColor: teamForm.primaryColor || '#047857' }"
+                :style="{ backgroundColor: teamForm.primaryColor || '#025a60' }"
               >
                 {{ teamFormInitials() }}
               </span>

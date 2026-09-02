@@ -11,7 +11,6 @@ import {
   gameStatusLabel,
   roundLabel,
   scheduleDateKey,
-  teamInitials,
   type TeamBranch,
   type TeamCategory,
   type TeamSummary
@@ -1460,12 +1459,10 @@ async function confirmDeleteGame() {
 
                 <div class="grid gap-2 md:grid-cols-[1fr_auto_1fr] md:items-center">
                   <div class="flex min-w-0 items-center gap-3 rounded-md bg-muted/30 p-2">
-                    <span
-                      class="flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                      :style="{ backgroundColor: game.homeTeam.primaryColor ?? '#047857' }"
-                    >
-                      {{ teamInitials(game.homeTeam) }}
-                    </span>
+                    <TeamAvatar
+                      :team="game.homeTeam"
+                      class="size-10 text-xs font-bold"
+                    />
                     <div class="min-w-0">
                       <p class="truncate font-semibold text-highlighted">
                         {{ game.homeTeam.name }}
@@ -1486,12 +1483,10 @@ async function confirmDeleteGame() {
                   </div>
 
                   <div class="flex min-w-0 items-center gap-3 rounded-md bg-muted/30 p-2 md:flex-row-reverse md:text-right">
-                    <span
-                      class="flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                      :style="{ backgroundColor: game.awayTeam.primaryColor ?? '#f97316' }"
-                    >
-                      {{ teamInitials(game.awayTeam) }}
-                    </span>
+                    <TeamAvatar
+                      :team="game.awayTeam"
+                      class="size-10 text-xs font-bold"
+                    />
                     <div class="min-w-0">
                       <p class="truncate font-semibold text-highlighted">
                         {{ game.awayTeam.name }}
