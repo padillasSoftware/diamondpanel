@@ -60,6 +60,8 @@ export type Player = {
   bats: string
   throws: string
   status: string
+  lineupGames?: number
+  isPlayoffEligible?: boolean
 }
 
 export type AdminPlayer = Player & {
@@ -89,6 +91,8 @@ export type Team = TeamSummary & {
 }
 
 export type TeamDetail = Team & {
+  playoffEligibilityMode?: PlayoffEligibilityMode
+  playoffMinimumLineupGames?: number
   seasons: {
     season: Season
   }[]

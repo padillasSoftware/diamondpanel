@@ -19,11 +19,22 @@ type MatchupCellState = 'SELF' | 'PENDING' | 'SCHEDULED' | 'POSTPONED' | 'WON' |
 
 type MatchupMatrixTeam = Pick<Team, 'id' | 'name' | 'shortName' | 'slug' | 'logoUrl' | 'primaryColor' | 'secondaryColor' | 'category' | 'branch'>
 
+type MatchupMatrixMeeting = {
+  state: MatchupCellState
+  label: string
+  gameId: string | null
+  title: string
+  round: number | null
+}
+
 type MatchupMatrixCell = {
   state: MatchupCellState
   label: string
   gameId: string | null
   title: string
+  expectedMeetings: number
+  playedMeetings: number
+  meetings: MatchupMatrixMeeting[]
   column: number
   opponentId: string
   opponentName: string
@@ -34,6 +45,7 @@ type MatchupMatrixGroup = {
   label: string
   category: string
   branch: string
+  configuredRounds: number
   teams: MatchupMatrixTeam[]
   rows: {
     team: MatchupMatrixTeam
@@ -218,6 +230,33 @@ function matchupStatusLabel(state: MatchupCellState) {
 
 function matchupCellsForRow(row: MatchupMatrixRow) {
   return row.cells.filter(cell => cell.state !== 'SELF')
+}
+
+function matchupMeetingsForCell(cell: MatchupMatrixCell): MatchupMatrixMeeting[] {
+  if (cell.state === 'SELF') return []
+  if (cell.meetings.length) return cell.meetings
+
+  return [{
+    state: 'PENDING',
+    label: '-',
+    gameId: null,
+    title: 'Cruce pendiente',
+    round: null
+  }]
+}
+
+function matchupRemainingCount(cell: MatchupMatrixCell) {
+  if (cell.state === 'SELF') return 0
+
+  return Math.max(0, cell.expectedMeetings - cell.playedMeetings)
+}
+
+function matchupProgressLabel(cell: MatchupMatrixCell) {
+  if (cell.state === 'SELF') return ''
+
+  const expectedMeetings = Math.max(cell.expectedMeetings, cell.playedMeetings, 1)
+
+  return `${cell.playedMeetings}/${expectedMeetings} juegos`
 }
 
 function isActiveMatchupTeam(teamId: string) {
@@ -412,15 +451,26 @@ function isActiveMatchupTeam(teamId: string) {
                       vs {{ cell.opponentName }}
                     </p>
                     <p class="truncate text-xs text-muted">
-                      {{ matchupStatusLabel(cell.state) }}{{ cell.title && cell.title !== cell.label ? ` · ${cell.title}` : '' }}
+                      {{ matchupProgressLabel(cell) }}
                     </p>
                   </div>
-                  <span
-                    class="rounded-md px-2 py-1 text-xs font-bold"
-                    :class="matchupBadgeClass(cell.state)"
-                  >
-                    {{ cell.label || matchupStatusLabel(cell.state) }}
-                  </span>
+                  <div class="flex min-w-0 max-w-36 flex-wrap justify-end gap-1">
+                    <span
+                      v-for="(meeting, meetingIndex) in matchupMeetingsForCell(cell)"
+                      :key="`${row.team.id}-${cell.opponentId}-${meeting.gameId ?? meetingIndex}`"
+                      class="rounded-md px-2 py-1 text-[11px] font-bold leading-none"
+                      :class="matchupBadgeClass(meeting.state)"
+                      :title="meeting.title"
+                    >
+                      {{ meeting.label || matchupStatusLabel(meeting.state) }}
+                    </span>
+                    <span
+                      v-if="matchupRemainingCount(cell)"
+                      class="rounded-md bg-muted px-2 py-1 text-[11px] font-bold leading-none text-muted"
+                    >
+                      +{{ matchupRemainingCount(cell) }}
+                    </span>
+                  </div>
                 </div>
               </div>
             </article>
@@ -462,11 +512,36 @@ function isActiveMatchupTeam(teamId: string) {
                   <td
                     v-for="cell in row.cells"
                     :key="`${row.team.id}-${cell.opponentId}`"
-                    class="h-8 w-16 rounded-md px-1 text-center text-[11px] font-semibold"
-                    :class="matchupCellClass(cell.state)"
+                    class="min-h-11 w-28 rounded-md px-1 py-1 text-center align-middle text-[11px] font-semibold"
+                    :class="cell.state === 'SELF' ? matchupCellClass(cell.state) : 'border border-default bg-default/80'"
                     :title="`${row.team.name} vs ${cell.opponentName}: ${cell.title}`"
                   >
-                    {{ cell.label }}
+                    <div
+                      v-if="cell.state === 'SELF'"
+                      class="h-8"
+                    />
+                    <div
+                      v-else
+                      class="grid min-h-8 place-items-center gap-1"
+                    >
+                      <div class="flex max-w-24 flex-wrap justify-center gap-1">
+                        <span
+                          v-for="(meeting, meetingIndex) in matchupMeetingsForCell(cell)"
+                          :key="`${row.team.id}-${cell.opponentId}-${meeting.gameId ?? meetingIndex}`"
+                          class="min-w-8 rounded px-1.5 py-0.5 text-[10px] font-bold leading-none"
+                          :class="matchupBadgeClass(meeting.state)"
+                          :title="meeting.title"
+                        >
+                          {{ meeting.label || matchupStatusLabel(meeting.state) }}
+                        </span>
+                      </div>
+                      <span
+                        v-if="matchupRemainingCount(cell)"
+                        class="text-[10px] font-semibold leading-none text-muted"
+                      >
+                        +{{ matchupRemainingCount(cell) }} pendientes
+                      </span>
+                    </div>
                   </td>
                 </tr>
               </tbody>

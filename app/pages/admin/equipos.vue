@@ -7,7 +7,6 @@ import {
   categoryColor,
   categoryLabel,
   formatShortDate,
-  handLabel,
   memberRoleColor,
   memberRoleLabel,
   playerPositionLabel,
@@ -1432,7 +1431,7 @@ async function confirmDeleteTeam() {
                 </h3>
                 <p class="text-xs text-muted">
                   <span v-if="member.memberRole === 'PLAYER'">
-                    #{{ member.number ?? '-' }} · {{ playerPositionLabel(member.position) }} · CURP {{ member.curp ?? '-' }} · Batea {{ handLabel(member.bats) }} · Lanza {{ handLabel(member.throws) }}
+                    #{{ member.number ?? '-' }} · {{ playerPositionLabel(member.position) }} · CURP {{ member.curp ?? '-' }}
                   </span>
                   <span v-else>
                     Staff del equipo · CURP {{ member.curp ?? '-' }}

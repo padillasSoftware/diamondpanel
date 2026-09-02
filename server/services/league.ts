@@ -1,5 +1,5 @@
 import { prisma } from '../utils/db'
-import { GameStatus, PlayerStatus, SeasonStatus, TeamBranch, TeamCategory, TeamMemberRole } from '../generated/prisma/enums'
+import { GameStatus, PlayerStatus, PlayoffEligibilityMode, SeasonStatus, TeamBranch, TeamCategory, TeamMemberRole } from '../generated/prisma/enums'
 import { getActiveCategories, getCategoryFilter, type TeamCategoryValue } from '../utils/categories'
 
 type TeamBranchValue = (typeof TeamBranch)[keyof typeof TeamBranch]
@@ -30,6 +30,28 @@ type TeamStanding = {
 }
 
 type MatrixCellState = 'SELF' | 'PENDING' | 'SCHEDULED' | 'POSTPONED' | 'WON' | 'TIED' | 'LOST' | 'DEFAULT' | 'CANCELLED'
+
+type MatrixGame = {
+  id: string
+  round: number | null
+  scheduledAt: Date
+  status: (typeof GameStatus)[keyof typeof GameStatus]
+  homeTeamId: string
+  awayTeamId: string
+  result: {
+    homeScore: number
+    awayScore: number
+    isForfeit: boolean
+  } | null
+}
+
+type MatrixMeeting = {
+  state: MatrixCellState
+  label: string
+  gameId: string | null
+  title: string
+  round: number | null
+}
 
 export async function getActiveSeason() {
   const activeSeason = await prisma.season.findFirst({
@@ -123,9 +145,12 @@ export async function getTeamsForSeason(options: { seasonId?: string, category?:
 }
 
 export async function getTeamBySlug(slug: string) {
-  const activeCategories = await getActiveCategories(prisma)
+  const [activeCategories, activeSeason] = await Promise.all([
+    getActiveCategories(prisma),
+    getActiveSeason()
+  ])
 
-  return prisma.team.findFirst({
+  const team = await prisma.team.findFirst({
     where: {
       slug,
       category: { in: activeCategories }
@@ -149,7 +174,9 @@ export async function getTeamBySlug(slug: string) {
               id: true,
               name: true,
               year: true,
-              status: true
+              status: true,
+              playoffEligibilityMode: true,
+              playoffMinimumLineupGames: true
             }
           }
         }
@@ -170,13 +197,62 @@ export async function getTeamBySlug(slug: string) {
           number: true,
           memberRole: true,
           position: true,
-          bats: true,
-          throws: true,
           status: true
         }
       }
     }
   })
+
+  if (!team) return null
+
+  const eligibilityMode = activeSeason?.playoffEligibilityMode ?? PlayoffEligibilityMode.LINEUP_GAMES
+  const minimumGames = activeSeason?.playoffMinimumLineupGames ?? 5
+  const isOpenRoster = eligibilityMode === PlayoffEligibilityMode.OPEN_ROSTER
+
+  if (isOpenRoster || !activeSeason) {
+    return {
+      ...team,
+      playoffEligibilityMode: eligibilityMode,
+      playoffMinimumLineupGames: minimumGames,
+      players: team.players.map(player => ({
+        ...player,
+        lineupGames: 0,
+        isPlayoffEligible: isOpenRoster
+      }))
+    }
+  }
+
+  const lineupCounts = await prisma.gameLineupEntry.groupBy({
+    by: ['playerId'],
+    where: {
+      teamId: team.id,
+      game: {
+        seasonId: activeSeason.id,
+        status: {
+          not: GameStatus.CANCELLED
+        }
+      }
+    },
+    _count: {
+      playerId: true
+    }
+  })
+  const countsByPlayerId = new Map(lineupCounts.map(row => [row.playerId, row._count.playerId]))
+
+  return {
+    ...team,
+    playoffEligibilityMode: eligibilityMode,
+    playoffMinimumLineupGames: minimumGames,
+    players: team.players.map((player) => {
+      const lineupGames = countsByPlayerId.get(player.id) ?? 0
+
+      return {
+        ...player,
+        lineupGames,
+        isPlayoffEligible: lineupGames >= minimumGames
+      }
+    })
+  }
 }
 
 export async function getUpcomingGames(options: { seasonId?: string, category?: string, branch?: string, teamId?: string, limit?: number } = {}) {
@@ -360,33 +436,48 @@ export async function getMatchupMatrix(options: { seasonId?: string, category?: 
     }
   }
 
-  const games = await prisma.game.findMany({
-    where: {
-      seasonId: season.id,
-      homeTeamId: { in: teamIds },
-      awayTeamId: { in: teamIds }
-    },
-    orderBy: [
-      { scheduledAt: 'asc' },
-      { round: 'asc' }
-    ],
-    select: {
-      id: true,
-      round: true,
-      scheduledAt: true,
-      status: true,
-      homeTeamId: true,
-      awayTeamId: true,
-      result: {
-        select: {
-          homeScore: true,
-          awayScore: true,
-          isForfeit: true
+  const [games, configs] = await Promise.all([
+    prisma.game.findMany({
+      where: {
+        seasonId: season.id,
+        homeTeamId: { in: teamIds },
+        awayTeamId: { in: teamIds }
+      },
+      orderBy: [
+        { round: 'asc' },
+        { scheduledAt: 'asc' }
+      ],
+      select: {
+        id: true,
+        round: true,
+        scheduledAt: true,
+        status: true,
+        homeTeamId: true,
+        awayTeamId: true,
+        result: {
+          select: {
+            homeScore: true,
+            awayScore: true,
+            isForfeit: true
+          }
         }
       }
-    }
-  })
+    }),
+    prisma.scheduleRoundConfig.findMany({
+      where: {
+        seasonId: season.id,
+        category: categoryWhere,
+        ...(branch ? { branch } : {})
+      },
+      select: {
+        category: true,
+        branch: true,
+        rounds: true
+      }
+    })
+  ])
   const gamesByPair = new Map<string, typeof games>()
+  const configByGroup = new Map(configs.map(config => [`${config.category}:${config.branch}`, config.rounds]))
 
   for (const game of games) {
     const key = matchupKey(game.homeTeamId, game.awayTeamId)
@@ -411,12 +502,14 @@ export async function getMatchupMatrix(options: { seasonId?: string, category?: 
     groups: [...groups.entries()]
       .map(([id, groupTeams]) => {
         const firstTeam = groupTeams[0]
+        const configuredRounds = configByGroup.get(id) ?? 1
 
         return {
           id,
           label: firstTeam ? `${categoryText(firstTeam.category)} · ${branchText(firstTeam.branch)}` : id,
           category: firstTeam?.category ?? TeamCategory.A,
           branch: firstTeam?.branch ?? TeamBranch.VARONIL,
+          configuredRounds,
           teams: groupTeams,
           rows: groupTeams.map((team, rowIndex) => ({
             team,
@@ -425,7 +518,8 @@ export async function getMatchupMatrix(options: { seasonId?: string, category?: 
               ...buildMatchupCell({
                 rowTeamId: team.id,
                 opponentTeamId: opponent.id,
-                games: gamesByPair.get(matchupKey(team.id, opponent.id)) ?? []
+                games: gamesByPair.get(matchupKey(team.id, opponent.id)) ?? [],
+                expectedMeetings: configuredRounds
               }),
               column: columnIndex + 1,
               opponentId: opponent.id,
@@ -573,46 +667,73 @@ function matchupKey(leftTeamId: string, rightTeamId: string) {
 function buildMatchupCell(input: {
   rowTeamId: string
   opponentTeamId: string
-  games: {
-    id: string
-    round: number | null
-    scheduledAt: Date
-    status: (typeof GameStatus)[keyof typeof GameStatus]
-    homeTeamId: string
-    awayTeamId: string
-    result: {
-      homeScore: number
-      awayScore: number
-      isForfeit: boolean
-    } | null
-  }[]
-}): { state: MatrixCellState, label: string, gameId: string | null, title: string } {
+  games: MatrixGame[]
+  expectedMeetings: number
+}): {
+  state: MatrixCellState
+  label: string
+  gameId: string | null
+  title: string
+  expectedMeetings: number
+  playedMeetings: number
+  meetings: MatrixMeeting[]
+} {
+  const expectedMeetings = Math.max(1, input.expectedMeetings)
+
   if (input.rowTeamId === input.opponentTeamId) {
     return {
       state: 'SELF',
       label: '',
       gameId: null,
-      title: 'Mismo equipo'
+      title: 'Mismo equipo',
+      expectedMeetings: 0,
+      playedMeetings: 0,
+      meetings: []
     }
   }
 
-  const game = pickMatrixGame(input.games)
+  const meetings = input.games.map(game => buildMatchupMeeting({
+    rowTeamId: input.rowTeamId,
+    game
+  }))
+  const playedMeetings = meetings.filter(meeting => meeting.state !== 'CANCELLED').length
+  const meeting = pickMatrixMeeting(meetings)
 
-  if (!game) {
+  if (!meeting) {
     return {
       state: 'PENDING',
       label: '-',
       gameId: null,
-      title: 'Cruce pendiente'
+      title: `0/${expectedMeetings} cruces pendientes`,
+      expectedMeetings,
+      playedMeetings,
+      meetings
     }
   }
+
+  return {
+    ...meeting,
+    title: `${meeting.title} · ${playedMeetings}/${Math.max(expectedMeetings, playedMeetings)} cruces`,
+    expectedMeetings,
+    playedMeetings,
+    meetings
+  }
+}
+
+function buildMatchupMeeting(input: {
+  rowTeamId: string
+  game: MatrixGame
+}): MatrixMeeting {
+  const game = input.game
+  const round = game.round ? `Rol #${game.round}` : 'Rol sin número'
 
   if (game.status === GameStatus.CANCELLED) {
     return {
       state: 'CANCELLED',
       label: 'Canc.',
       gameId: game.id,
-      title: 'Partido cancelado'
+      title: `${round} · Partido cancelado`,
+      round: game.round
     }
   }
 
@@ -621,7 +742,8 @@ function buildMatchupCell(input: {
       state: game.status === GameStatus.POSTPONED ? 'POSTPONED' : 'SCHEDULED',
       label: game.round ? `R${game.round}` : 'Prog.',
       gameId: game.id,
-      title: game.status === GameStatus.POSTPONED ? 'Partido suspendido' : 'Partido programado'
+      title: game.status === GameStatus.POSTPONED ? `${round} · Partido suspendido` : `${round} · Partido programado`,
+      round: game.round
     }
   }
 
@@ -640,24 +762,26 @@ function buildMatchupCell(input: {
     state,
     label: `${rowScore}-${opponentScore}`,
     gameId: game.id,
-    title: game.result.isForfeit ? 'Resultado por default' : 'Resultado final'
+    title: game.result.isForfeit ? `${round} · Resultado por default` : `${round} · Resultado final`,
+    round: game.round
   }
 }
 
-function pickMatrixGame<T extends {
-  scheduledAt: Date
-  status: (typeof GameStatus)[keyof typeof GameStatus]
-  result: unknown
-}>(games: T[]) {
-  const finalGames = games.filter(game => game.status === GameStatus.FINAL && game.result)
+function pickMatrixMeeting(meetings: MatrixMeeting[]) {
+  const finalGames = meetings.filter(meeting =>
+    meeting.state === 'WON'
+    || meeting.state === 'TIED'
+    || meeting.state === 'LOST'
+    || meeting.state === 'DEFAULT'
+  )
 
   if (finalGames.length) return finalGames.at(-1) ?? null
 
-  const scheduledGame = games.find(game => game.status === GameStatus.SCHEDULED || game.status === GameStatus.POSTPONED)
+  const scheduledGame = meetings.find(meeting => meeting.state === 'SCHEDULED' || meeting.state === 'POSTPONED')
 
   if (scheduledGame) return scheduledGame
 
-  return null
+  return meetings.find(meeting => meeting.state === 'CANCELLED') ?? null
 }
 
 function categoryText(category: TeamCategoryValue) {

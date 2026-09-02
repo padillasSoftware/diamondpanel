@@ -2,14 +2,16 @@
 import {
   PLAYER_POSITION_OPTIONS,
   TEAM_MEMBER_ROLE_OPTIONS,
+  type BadgeColor,
+  type PlayoffEligibilityMode,
   branchLabel,
   categoryColor,
   categoryLabel,
-  handLabel,
   memberRoleColor,
   memberRoleLabel,
   playerPositionLabel,
   playerName,
+  type Season,
   teamInitials,
   type Player,
   type Team
@@ -28,7 +30,28 @@ type ManagerTeam = Team & {
   players: Player[]
 }
 
-const { data: team, refresh } = await useFetch<ManagerTeam>('/api/manager/team')
+type PlayerEligibility = Pick<Player, 'id'> & {
+  lineupGames: number
+  isPlayoffEligible: boolean
+}
+
+type PlayoffEligibilityResponse = {
+  season: Season | null
+  eligibilityMode: PlayoffEligibilityMode
+  isOpenRoster: boolean
+  minimumGames: number
+  team: {
+    players: PlayerEligibility[]
+  } | null
+}
+
+const [
+  { data: team, refresh },
+  { data: playoffEligibility, refresh: refreshPlayoffEligibility }
+] = await Promise.all([
+  useFetch<ManagerTeam>('/api/manager/team'),
+  useFetch<PlayoffEligibilityResponse>('/api/manager/playoff-eligibility')
+])
 
 const teamForm = reactive({
   name: '',
@@ -89,6 +112,9 @@ watch(() => memberForm.memberRole, (role) => {
 const members = computed(() => team.value?.players ?? [])
 const activePlayers = computed(() => members.value.filter(member => member.memberRole === 'PLAYER' && member.status === 'ACTIVE'))
 const staffMembers = computed(() => members.value.filter(member => member.memberRole !== 'PLAYER'))
+const playoffEligibilityByPlayerId = computed(() =>
+  new Map((playoffEligibility.value?.team?.players ?? []).map(player => [player.id, player]))
+)
 const editingMember = computed(() => members.value.find(member => member.id === editingMemberId.value) ?? null)
 const canSaveMember = computed(() => {
   const hasBase = Boolean(memberForm.firstName.trim() && memberForm.lastName.trim())
@@ -137,6 +163,33 @@ function showError(message: string) {
     color: 'error',
     icon: 'i-lucide-circle-alert'
   })
+}
+
+function playerLineupGames(member: Player) {
+  return playoffEligibilityByPlayerId.value.get(member.id)?.lineupGames ?? 0
+}
+
+function isPlayerPlayoffEligible(member: Player) {
+  return playoffEligibility.value?.isOpenRoster
+    || Boolean(playoffEligibilityByPlayerId.value.get(member.id)?.isPlayoffEligible)
+}
+
+function playerEligibilityColor(member: Player): BadgeColor {
+  if (member.status !== 'ACTIVE') return 'neutral'
+
+  return isPlayerPlayoffEligible(member) ? 'success' : 'warning'
+}
+
+function playerEligibilityLabel(member: Player) {
+  if (member.status !== 'ACTIVE') return 'Inactivo'
+
+  return isPlayerPlayoffEligible(member) ? 'Elegible' : 'No elegible'
+}
+
+function playerEligibilityDetail(member: Player) {
+  if (playoffEligibility.value?.isOpenRoster) return 'Cédula abierta'
+
+  return `${playerLineupGames(member)}/${playoffEligibility.value?.minimumGames ?? 5} juegos en lineup`
 }
 
 function resetMemberForm() {
@@ -296,7 +349,10 @@ async function saveMember() {
       })
     }
 
-    await refresh()
+    await Promise.all([
+      refresh(),
+      refreshPlayoffEligibility()
+    ])
     resetMemberForm()
   } catch (error) {
     const statusMessage = typeof error === 'object' && error && 'data' in error
@@ -324,7 +380,10 @@ async function confirmDeleteMember() {
     await $fetch(`/api/manager/team/members/${member.id}`, {
       method: 'DELETE'
     })
-    await refresh()
+    await Promise.all([
+      refresh(),
+      refreshPlayoffEligibility()
+    ])
 
     if (editingMemberId.value === member.id) {
       resetMemberForm()
@@ -763,6 +822,14 @@ async function confirmDeleteMember() {
                     >
                       {{ member.status === 'ACTIVE' ? 'Activo' : 'Inactivo' }}
                     </UBadge>
+                    <UBadge
+                      v-if="member.memberRole === 'PLAYER'"
+                      :color="playerEligibilityColor(member)"
+                      variant="subtle"
+                      :icon="member.status === 'ACTIVE' && isPlayerPlayoffEligible(member) ? 'i-lucide-badge-check' : 'i-lucide-clock-3'"
+                    >
+                      {{ playerEligibilityLabel(member) }}
+                    </UBadge>
                   </div>
 
                   <h3 class="truncate font-bold text-highlighted">
@@ -770,7 +837,7 @@ async function confirmDeleteMember() {
                   </h3>
                   <p class="text-xs text-muted wrap-break-word">
                     <span v-if="member.memberRole === 'PLAYER'">
-                      #{{ member.number ?? '-' }} • {{ playerPositionLabel(member.position) }} • CURP {{ member.curp ?? '-' }} • Batea {{ handLabel(member.bats) }} • Lanza {{ handLabel(member.throws) }}
+                      #{{ member.number ?? '-' }} • {{ playerPositionLabel(member.position) }} • CURP {{ member.curp ?? '-' }} • {{ playerEligibilityDetail(member) }}
                     </span>
                     <span v-else>
                       Staff del equipo
