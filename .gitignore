@@ -20,6 +20,7 @@ logs
 .idea
 public/uploads/league-logos/
 public/uploads/team-logos/
+public/uploads/player-photos/
 
 # Local env files
 .env

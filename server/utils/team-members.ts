@@ -23,6 +23,7 @@ export const teamMemberSelect = {
   curp: true,
   birthDate: true,
   number: true,
+  photoUrl: true,
   memberRole: true,
   position: true,
   bats: true,

@@ -22,7 +22,26 @@ useSeoMeta({
   description: () => `Roster y datos internos de ${team.value?.name ?? 'equipo'} en DiamondPanel.`
 })
 
+type PlayerPhotoPreviewPlayer = {
+  firstName: string
+  lastName: string
+  photoUrl?: string | null
+}
+
 const activePlayers = computed(() => team.value?.players.filter(player => player.status === 'ACTIVE') ?? [])
+const selectedPlayerPhoto = ref<PlayerPhotoPreviewPlayer | null>(null)
+const isPlayerPhotoModalOpen = ref(false)
+
+watch(isPlayerPhotoModalOpen, (open) => {
+  if (!open) selectedPlayerPhoto.value = null
+})
+
+function openPlayerPhotoModal(player: PlayerPhotoPreviewPlayer) {
+  selectedPlayerPhoto.value = player
+  isPlayerPhotoModalOpen.value = true
+  console.log(123)
+  return true
+}
 
 function playerEligibilityColor(player: TeamDetail['players'][number]): BadgeColor {
   return player.isPlayoffEligible ? 'success' : 'warning'
@@ -176,7 +195,17 @@ function playerEligibilityDetail(player: TeamDetail['players'][number]) {
                   {{ player.number ?? '-' }}
                 </td>
                 <td class="py-3 pr-3 font-semibold text-highlighted">
-                  {{ playerName(player) }}
+                  <div class="flex min-w-0 items-center gap-2">
+                    <PlayerAvatar
+                      :player="player"
+                      class="size-8 text-[10px]"
+                      :preview="player.photoUrl !== null && player.photoUrl !== ''"
+                      @preview="openPlayerPhotoModal"
+                    />
+                    <span class="truncate">
+                      {{ playerName(player) }}
+                    </span>
+                  </div>
                 </td>
                 <td class="py-3 pr-3 text-muted">
                   {{ playerPositionLabel(player.position) }}
@@ -201,5 +230,10 @@ function playerEligibilityDetail(player: TeamDetail['players'][number]) {
         </div>
       </section>
     </div>
+
+    <PlayerPhotoModal
+      v-model:open="isPlayerPhotoModalOpen"
+      :player="selectedPlayerPhoto"
+    />
   </UContainer>
 </template>

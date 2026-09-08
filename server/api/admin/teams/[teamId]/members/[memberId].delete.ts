@@ -1,5 +1,6 @@
 import { prisma } from '../../../../../utils/db'
 import { requireAdmin } from '../../../../../utils/session'
+import { removeUploadedPlayerPhoto } from '../../../../../utils/player-photo-upload'
 
 export default defineEventHandler(async (event) => {
   await requireAdmin(event)
@@ -18,7 +19,10 @@ export default defineEventHandler(async (event) => {
       id: memberId,
       teamId
     },
-    select: { id: true }
+    select: {
+      id: true,
+      photoUrl: true
+    }
   })
 
   if (!member) {
@@ -29,6 +33,7 @@ export default defineEventHandler(async (event) => {
   }
 
   await prisma.player.delete({ where: { id: member.id } })
+  await removeUploadedPlayerPhoto(member.photoUrl)
 
   return { ok: true }
 })

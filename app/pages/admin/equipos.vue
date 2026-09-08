@@ -67,6 +67,12 @@ type TeamMembersResponse = {
   members: AdminPlayer[]
 }
 
+type PlayerPhotoPreviewPlayer = {
+  firstName: string
+  lastName: string
+  photoUrl?: string | null
+}
+
 const { data, refresh } = await useFetch<TeamsResponse>('/api/admin/teams')
 const { categoryOptions, firstActiveCategory } = useLeagueCategories()
 const toast = useToast()
@@ -112,6 +118,9 @@ const branchOptions = TEAM_BRANCH_OPTIONS.filter(
 const editingTeamId = ref<string | null>(null)
 const isSavingTeam = ref(false)
 const isUploadingTeamLogo = ref(false)
+const isUploadingMemberPhoto = ref(false)
+const memberPhotoFile = ref<File | null>(null)
+const memberPhotoPreviewUrl = ref<string | null>(null)
 const isLoadingMembers = ref(false)
 const isSavingMember = ref(false)
 const isDeletingMember = ref(false)
@@ -119,6 +128,8 @@ const togglingTeamId = ref<string | null>(null)
 const isDeletingTeam = ref(false)
 const teamPendingDelete = ref<AdminTeam | null>(null)
 const memberPendingDelete = ref<AdminPlayer | null>(null)
+const selectedPlayerPhoto = ref<PlayerPhotoPreviewPlayer | null>(null)
+const isPlayerPhotoModalOpen = ref(false)
 const teamMembers = ref<AdminPlayer[]>([])
 const editingMemberId = ref<string | null>(null)
 const isSlugDirty = ref(false)
@@ -133,6 +144,11 @@ const teams = computed(() => data.value?.teams ?? [])
 const managerOptions = computed(() => data.value?.managerOptions ?? [])
 const editingTeam = computed(() => teams.value.find(team => team.id === editingTeamId.value) ?? null)
 const editingMember = computed(() => teamMembers.value.find(member => member.id === editingMemberId.value) ?? null)
+const memberPhotoPreviewPlayer = computed(() => ({
+  firstName: memberForm.firstName.trim() || editingMember.value?.firstName || 'Nuevo',
+  lastName: memberForm.lastName.trim() || editingMember.value?.lastName || 'Integrante',
+  photoUrl: memberPhotoPreviewUrl.value ?? editingMember.value?.photoUrl ?? null
+}))
 const activeTeams = computed(() => teams.value.filter(team => team.status === 'ACTIVE').length)
 const teamsWithManagers = computed(() => teams.value.filter(team => team.managerAssignments.length).length)
 const hasNewManagerData = computed(() => Boolean(
@@ -193,6 +209,10 @@ const isMemberDeleteModalOpen = computed({
   set: (value) => {
     if (!value) memberPendingDelete.value = null
   }
+})
+
+watch(isPlayerPhotoModalOpen, (open) => {
+  if (!open) selectedPlayerPhoto.value = null
 })
 
 watch(() => teamForm.name, (name) => {
@@ -270,6 +290,11 @@ function memberRegisteredAt(member: AdminPlayer) {
   return formatShortDate(member.createdAt)
 }
 
+function openPlayerPhotoModal(player: PlayerPhotoPreviewPlayer) {
+  selectedPlayerPhoto.value = player
+  isPlayerPhotoModalOpen.value = true
+}
+
 function canDeleteTeam(team: AdminTeam) {
   return team._count.players === 0 && gameCount(team) === 0
 }
@@ -293,6 +318,7 @@ function showError(message: string) {
 
 function resetMemberForm() {
   editingMemberId.value = null
+  clearPendingMemberPhoto()
   memberForm.firstName = ''
   memberForm.lastName = ''
   memberForm.curp = ''
@@ -400,6 +426,7 @@ async function loadTeamMembers(teamId: string) {
 }
 
 function editMember(member: AdminPlayer) {
+  clearPendingMemberPhoto()
   editingMemberId.value = member.id
   memberForm.firstName = member.firstName
   memberForm.lastName = member.lastName
@@ -526,6 +553,65 @@ async function uploadTeamLogo(event: Event) {
   }
 }
 
+function clearPendingMemberPhoto() {
+  if (import.meta.client && memberPhotoPreviewUrl.value?.startsWith('blob:')) {
+    URL.revokeObjectURL(memberPhotoPreviewUrl.value)
+  }
+
+  memberPhotoFile.value = null
+  memberPhotoPreviewUrl.value = null
+}
+
+function selectMemberPhoto(event: Event) {
+  const input = event.target
+
+  if (!(input instanceof HTMLInputElement)) return
+
+  const file = input.files?.[0]
+
+  if (!file) return
+
+  if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+    showError('La foto debe ser PNG, JPG o WebP.')
+    input.value = ''
+
+    return
+  }
+
+  if (file.size > 3 * 1024 * 1024) {
+    showError('La foto debe pesar máximo 3 MB.')
+    input.value = ''
+
+    return
+  }
+
+  clearPendingMemberPhoto()
+  memberPhotoFile.value = file
+  memberPhotoPreviewUrl.value = URL.createObjectURL(file)
+  input.value = ''
+}
+
+async function uploadMemberPhotoFile(teamId: string, memberId: string, file: File) {
+  isUploadingMemberPhoto.value = true
+
+  try {
+    const formData = new FormData()
+
+    formData.append('photo', file)
+
+    const response = await $fetch<{ photoUrl: string, member: AdminPlayer }>(`/api/admin/teams/${teamId}/members/${memberId}/photo`, {
+      method: 'POST',
+      body: formData
+    })
+
+    teamMembers.value = teamMembers.value.map(member => member.id === response.member.id ? response.member : member)
+
+    return response.member
+  } finally {
+    isUploadingMemberPhoto.value = false
+  }
+}
+
 async function saveMember() {
   if (!editingTeamId.value) {
     showError('Primero selecciona un equipo.')
@@ -555,18 +641,29 @@ async function saveMember() {
   isSavingMember.value = true
 
   try {
+    const pendingPhoto = memberPhotoFile.value
+    const wasEditingMember = Boolean(editingMemberId.value)
+    let savedMember: AdminPlayer
+    let photoUploadFailed = false
+
     if (editingMemberId.value) {
-      await $fetch(`/api/admin/teams/${teamId}/members/${editingMemberId.value}`, {
+      savedMember = await $fetch<AdminPlayer>(`/api/admin/teams/${teamId}/members/${editingMemberId.value}`, {
         method: 'PATCH',
         body: memberPayload()
       })
-      showFeedback('Integrante actualizado.')
     } else {
-      await $fetch(`/api/admin/teams/${teamId}/members`, {
+      savedMember = await $fetch<AdminPlayer>(`/api/admin/teams/${teamId}/members`, {
         method: 'POST',
         body: memberPayload()
       })
-      showFeedback('Integrante agregado.')
+    }
+
+    if (pendingPhoto) {
+      try {
+        await uploadMemberPhotoFile(teamId, savedMember.id, pendingPhoto)
+      } catch {
+        photoUploadFailed = true
+      }
     }
 
     await Promise.all([
@@ -574,6 +671,16 @@ async function saveMember() {
       refresh()
     ])
     resetMemberForm()
+
+    if (photoUploadFailed) {
+      showError('El integrante se guardó, pero no se pudo subir la foto. Intenta editarlo y subirla otra vez.')
+
+      return
+    }
+
+    showFeedback(pendingPhoto
+      ? `${wasEditingMember ? 'Integrante actualizado' : 'Integrante agregado'} con foto.`
+      : wasEditingMember ? 'Integrante actualizado.' : 'Integrante agregado.')
   } catch (error) {
     const statusMessage = typeof error === 'object' && error && 'data' in error
       ? String((error as { data?: { statusMessage?: unknown } }).data?.statusMessage ?? '')
@@ -584,6 +691,10 @@ async function saveMember() {
     isSavingMember.value = false
   }
 }
+
+onBeforeUnmount(() => {
+  clearPendingMemberPhoto()
+})
 
 function deleteMember(member: AdminPlayer) {
   memberPendingDelete.value = member
@@ -1229,6 +1340,30 @@ async function confirmDeleteTeam() {
           />
         </div>
 
+        <div class="mb-3 grid gap-2 rounded-md border border-default bg-muted/20 p-2 text-sm">
+          <span class="font-medium text-highlighted">Foto del integrante</span>
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <PlayerAvatar
+              :player="memberPhotoPreviewPlayer"
+              class="size-16 text-sm"
+              :preview="memberPhotoPreviewPlayer.photoUrl !== null && memberPhotoPreviewPlayer.photoUrl !== ''"
+              @preview="openPlayerPhotoModal"
+            />
+            <div class="min-w-0 flex-1">
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                class="block w-full cursor-pointer text-sm text-muted file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-2 file:text-sm file:font-medium file:text-white disabled:opacity-60"
+                :disabled="isSavingMember || isUploadingMemberPhoto"
+                @change="selectMemberPhoto"
+              >
+              <p class="mt-1 text-xs text-muted">
+                {{ memberPhotoFile ? 'La foto se subirá cuando guardes el integrante.' : 'PNG, JPG o WebP. Máximo 3 MB. Cuando tenga foto, tócala para verla en grande.' }}
+              </p>
+            </div>
+          </div>
+        </div>
+
         <div class="grid gap-2 sm:grid-cols-2">
           <label class="grid gap-1.5 text-sm">
             <span class="font-medium text-highlighted">Nombre</span>
@@ -1352,7 +1487,7 @@ async function confirmDeleteTeam() {
           color="primary"
           class="mt-2.5"
           :disabled="!canSaveMember"
-          :loading="isSavingMember"
+          :loading="isSavingMember || isUploadingMemberPhoto"
           block
         />
       </form>
@@ -1392,41 +1527,49 @@ async function confirmDeleteTeam() {
             class="rounded-lg border border-default p-2"
           >
             <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-              <div class="min-w-0">
-                <div class="mb-1 flex flex-wrap items-center gap-1.5">
-                  <UBadge
-                    :color="memberRoleColor(member.memberRole)"
-                    variant="subtle"
-                  >
-                    {{ memberRoleLabel(member.memberRole) }}
-                  </UBadge>
-                  <UBadge
-                    :color="member.status === 'ACTIVE' ? 'success' : 'neutral'"
-                    variant="outline"
-                  >
-                    {{ member.status === 'ACTIVE' ? 'Activo' : 'Inactivo' }}
-                  </UBadge>
-                  <UBadge
-                    v-if="member.memberRole === 'PLAYER'"
-                    color="info"
-                    variant="subtle"
-                    icon="i-lucide-calendar-plus"
-                  >
-                    Alta {{ memberRegisteredAt(member) }}
-                  </UBadge>
-                </div>
+              <div class="flex min-w-0 gap-3">
+                <PlayerAvatar
+                  :player="member"
+                  class="size-10 text-xs"
+                  :preview="member.photoUrl !== null && member.photoUrl !== ''"
+                  @preview="openPlayerPhotoModal"
+                />
+                <div class="min-w-0">
+                  <div class="mb-1 flex flex-wrap items-center gap-1.5">
+                    <UBadge
+                      :color="memberRoleColor(member.memberRole)"
+                      variant="subtle"
+                    >
+                      {{ memberRoleLabel(member.memberRole) }}
+                    </UBadge>
+                    <UBadge
+                      :color="member.status === 'ACTIVE' ? 'success' : 'neutral'"
+                      variant="outline"
+                    >
+                      {{ member.status === 'ACTIVE' ? 'Activo' : 'Inactivo' }}
+                    </UBadge>
+                    <UBadge
+                      v-if="member.memberRole === 'PLAYER'"
+                      color="info"
+                      variant="subtle"
+                      icon="i-lucide-calendar-plus"
+                    >
+                      Alta {{ memberRegisteredAt(member) }}
+                    </UBadge>
+                  </div>
 
-                <h3 class="truncate font-bold text-highlighted">
-                  {{ playerName(member) }}
-                </h3>
-                <p class="text-xs text-muted">
-                  <span v-if="member.memberRole === 'PLAYER'">
-                    #{{ member.number ?? '-' }} · {{ playerPositionLabel(member.position) }} · CURP {{ member.curp ?? '-' }}
-                  </span>
-                  <span v-else>
-                    Staff del equipo · CURP {{ member.curp ?? '-' }}
-                  </span>
-                </p>
+                  <h3 class="truncate font-bold text-highlighted">
+                    {{ playerName(member) }}
+                  </h3>
+                  <p class="text-xs text-muted">
+                    <span v-if="member.memberRole === 'PLAYER'">
+                      #{{ member.number ?? '-' }} · {{ playerPositionLabel(member.position) }} · CURP {{ member.curp ?? '-' }}
+                    </span>
+                    <span v-else>
+                      Staff del equipo · CURP {{ member.curp ?? '-' }}
+                    </span>
+                  </p>
+                </div>
               </div>
 
               <div class="flex shrink-0 gap-1.5">
@@ -1463,6 +1606,11 @@ async function confirmDeleteTeam() {
         </div>
       </section>
     </section>
+
+    <PlayerPhotoModal
+      v-model:open="isPlayerPhotoModalOpen"
+      :player="selectedPlayerPhoto"
+    />
 
     <UModal
       v-model:open="isDeleteModalOpen"

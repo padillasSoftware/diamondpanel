@@ -1329,7 +1329,7 @@ function editSelectedResult() {
               <p class="text-xs font-semibold uppercase text-muted">
                 Pitcher ganador
               </p>
-              <p class="font-semibold text-highlighted">
+              <p class="truncate font-semibold text-highlighted">
                 {{ savedPlayerName(selectedGame.result.winningPitcherName, selectedGame.result.winningPitcher) || 'Sin captura' }}
               </p>
             </div>
@@ -1337,7 +1337,7 @@ function editSelectedResult() {
               <p class="text-xs font-semibold uppercase text-muted">
                 Pitcher derrotado
               </p>
-              <p class="font-semibold text-highlighted">
+              <p class="truncate font-semibold text-highlighted">
                 {{ savedPlayerName(selectedGame.result.losingPitcherName, selectedGame.result.losingPitcher) || 'Sin captura' }}
               </p>
             </div>
@@ -1354,7 +1354,7 @@ function editSelectedResult() {
               <p
                 v-for="highlight in selectedGame.result.battingHighlights.filter(item => item.side === 'WINNER')"
                 :key="highlight.id"
-                class="text-muted"
+                class="truncate text-muted"
               >
                 {{ battingLine(highlight) }}
               </p>
@@ -1366,7 +1366,7 @@ function editSelectedResult() {
               <p
                 v-for="highlight in selectedGame.result.battingHighlights.filter(item => item.side === 'LOSER')"
                 :key="highlight.id"
-                class="text-muted"
+                class="truncate text-muted"
               >
                 {{ battingLine(highlight) }}
               </p>
@@ -1832,6 +1832,7 @@ function editSelectedResult() {
               <p
                 v-for="highlight in selectedGame.result.battingHighlights.filter(item => item.side === 'WINNER')"
                 :key="highlight.id"
+                class="truncate"
               >
                 {{ battingLine(highlight) }}
               </p>
@@ -1843,6 +1844,7 @@ function editSelectedResult() {
               <p
                 v-for="highlight in selectedGame.result.battingHighlights.filter(item => item.side === 'LOSER')"
                 :key="highlight.id"
+                class="truncate"
               >
                 {{ battingLine(highlight) }}
               </p>

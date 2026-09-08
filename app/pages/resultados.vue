@@ -304,10 +304,10 @@ function loserTeamName(game: ResultGame) {
               <p class="font-semibold text-highlighted">
                 Pitchers
               </p>
-              <p class="text-muted">
+              <p class="truncate text-muted">
                 PG: {{ resultPersonName(game.result.winningPitcherName, game.result.winningPitcher) }}
               </p>
-              <p class="text-muted">
+              <p class="truncate text-muted">
                 PD: {{ resultPersonName(game.result.losingPitcherName, game.result.losingPitcher) }}
               </p>
             </div>
@@ -335,6 +335,7 @@ function loserTeamName(game: ResultGame) {
                 <p
                   v-for="highlight in battingHighlightsBySide(game, 'WINNER')"
                   :key="highlight.id"
+                  class="truncate"
                 >
                   {{ battingHighlightLabel(highlight) }}
                 </p>
@@ -349,6 +350,7 @@ function loserTeamName(game: ResultGame) {
                 <p
                   v-for="highlight in battingHighlightsBySide(game, 'LOSER')"
                   :key="highlight.id"
+                  class="truncate"
                 >
                   {{ battingHighlightLabel(highlight) }}
                 </p>
