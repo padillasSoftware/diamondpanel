@@ -68,19 +68,16 @@ function playerEligibilityDetail(player: TeamDetail['players'][number]) {
         <UButton
           to="/equipos"
           icon="i-lucide-arrow-left"
-          label="Equipos"
           color="neutral"
           variant="ghost"
           size="sm"
           class="mb-4"
         />
-
-        <TeamAvatar
-          :team="team"
-          class="mb-4 size-24 text-3xl font-bold"
-        />
-
         <div class="mb-4">
+          <TeamAvatar
+            :team="team"
+            class="mb-4 size-24 text-3xl font-bold"
+          />
           <div class="mb-2 flex flex-wrap items-center gap-2">
             <UBadge
               :color="teamStatusColor(team.status)"
