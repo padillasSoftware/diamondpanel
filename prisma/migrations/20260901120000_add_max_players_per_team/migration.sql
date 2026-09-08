@@ -1,0 +1,1 @@
+ALTER TABLE "LeagueSettings" ADD COLUMN "maxPlayersPerTeam" INTEGER NOT NULL DEFAULT 25;

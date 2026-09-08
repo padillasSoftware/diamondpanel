@@ -61,36 +61,40 @@ function matrixCellClass(state: string) {
 </script>
 
 <template>
-  <main class="landing-shell min-h-screen bg-[#f6f8f4] text-[#14231b] dark:bg-[#061610] dark:text-white">
-    <section class="landing-hero relative isolate min-h-[88svh] overflow-hidden">
+  <main class="landing-shell min-h-screen bg-[#effbfb] text-[#071e22] dark:bg-[#025a60] dark:text-white">
+    <section class="landing-hero relative isolate overflow-hidden">
       <img
         src="/images/landing-softball-dashboard.png"
         alt="Campo de softball de noche con tablero digital de gestión"
-        class="absolute inset-0 -z-20 size-full object-cover"
+        class="landing-hero-image absolute inset-0 -z-20 size-full object-cover"
       >
-      <div class="absolute inset-0 -z-10 bg-[#04140f]/72" />
-      <div class="absolute inset-y-0 left-0 -z-10 w-full bg-[linear-gradient(90deg,rgb(4_20_15/0.95),rgb(4_20_15/0.72),rgb(4_20_15/0.18))]" />
+      <div class="absolute inset-0 -z-10 bg-[#01282c]/72" />
+      <div class="absolute inset-y-0 left-0 -z-10 w-full bg-[linear-gradient(90deg,rgb(1_40_44/0.96),rgb(2_90_96/0.72),rgb(2_90_96/0.16))]" />
 
-      <UContainer class="flex min-h-[88svh] flex-col py-5 sm:py-6">
-        <header class="flex items-center justify-between gap-4">
+      <UContainer class="flex min-h-[84svh] flex-col px-4 py-4 sm:min-h-[88svh] sm:py-6">
+        <header class="flex min-w-0 items-center justify-between gap-3">
           <NuxtLink
             to="/"
-            class="flex items-center gap-3 text-white"
+            class="flex min-w-0 items-center gap-3 text-white"
             :aria-label="leagueName"
           >
-            <span class="flex size-10 items-center justify-center rounded-lg bg-white text-green-700 shadow-sm ring-1 ring-white/25">
+            <span class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-white text-[#025a60] shadow-sm ring-1 ring-white/25 sm:size-10">
               <UIcon
                 name="i-lucide-diamond"
                 class="size-5"
               />
             </span>
-            <span class="leading-tight">
+            <span class="min-w-0 leading-tight">
               <span class="block text-sm font-bold">DiamondPanel</span>
-              <span class="block text-xs text-emerald-100">{{ leagueName }}</span>
+              <span class="block text-xs text-cyan-100">{{ leagueName }}</span>
             </span>
           </NuxtLink>
 
-          <div class="flex items-center gap-2">
+          <div class="flex shrink-0 items-center gap-1.5 sm:gap-2">
+            <PwaInstallButton
+              tone="navbar"
+              compact
+            />
             <ColorModeButton tone="navbar" />
             <UButton
               to="/login"
@@ -98,12 +102,12 @@ function matrixCellClass(state: string) {
               label="Entrar"
               color="neutral"
               variant="solid"
-              class="bg-white text-green-800 hover:bg-emerald-50"
+              class="bg-white px-2.5 text-[#025a60] hover:bg-[#effbfb] sm:px-4"
             />
           </div>
         </header>
 
-        <div class="grid flex-1 items-center gap-8 py-12 lg:grid-cols-[0.95fr_1.05fr]">
+        <div class="grid flex-1 items-center gap-6 py-8 sm:py-12 lg:grid-cols-[0.95fr_1.05fr]">
           <div class="max-w-2xl">
             <UBadge
               color="warning"
@@ -112,21 +116,25 @@ function matrixCellClass(state: string) {
             >
               Operación viva de softball
             </UBadge>
-            <h1 class="mt-5 text-5xl font-black leading-none tracking-normal text-white sm:text-6xl">
+            <h1 class="mt-4 text-4xl font-black leading-none tracking-normal text-white sm:mt-5 sm:text-6xl">
               DiamondPanel
             </h1>
-            <p class="mt-5 max-w-xl text-lg leading-8 text-emerald-50">
+            <p class="mt-4 max-w-xl text-base leading-7 text-cyan-50 sm:mt-5 sm:text-lg sm:leading-8">
               Una app privada para convertir el rol, los resultados, las posiciones y la comunicación con manejadores en una sola mesa de control.
             </p>
 
-            <div class="mt-7 flex flex-col gap-3 sm:flex-row">
+            <div class="mt-6 flex flex-col gap-3 sm:mt-7 sm:flex-row">
               <UButton
                 to="/login"
                 icon="i-lucide-shield-check"
                 label="Iniciar sesión"
                 color="primary"
                 size="xl"
+                class="justify-center sm:justify-start"
               />
+              <div class="[&>button]:w-full sm:[&>button]:w-auto">
+                <PwaInstallButton />
+              </div>
               <UButton
                 to="#modulos"
                 icon="i-lucide-chevron-down"
@@ -134,8 +142,57 @@ function matrixCellClass(state: string) {
                 color="neutral"
                 variant="outline"
                 size="xl"
-                class="border-white/45 text-white hover:bg-white/10"
+                class="justify-center border-white/45 text-white hover:bg-white/10 sm:justify-start"
               />
+            </div>
+
+            <div class="mt-6 grid gap-2 rounded-lg border border-white/15 bg-black/25 p-3 text-white shadow-xl backdrop-blur-sm lg:hidden">
+              <div class="grid grid-cols-3 gap-2">
+                <div
+                  v-for="card in liveCards"
+                  :key="card.label"
+                  class="min-w-0 rounded-md border border-white/10 bg-white/10 p-2"
+                >
+                  <div class="mb-1 flex items-center justify-between gap-1 text-cyan-100">
+                    <span class="truncate text-[11px] font-medium">{{ card.label }}</span>
+                    <UIcon
+                      :name="card.icon"
+                      class="size-3.5 shrink-0"
+                    />
+                  </div>
+                  <p class="truncate text-sm font-black">
+                    {{ card.value }}
+                  </p>
+                </div>
+              </div>
+
+              <div class="rounded-md border border-white/10 bg-white/10 p-2">
+                <div class="mb-2 flex items-center justify-between gap-2">
+                  <p class="text-xs font-bold">
+                    Vista rápida
+                  </p>
+                  <span class="text-[11px] text-orange-200">Liga activa</span>
+                </div>
+                <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                  <div class="rounded-md bg-white/10 p-2 text-center">
+                    <p class="truncate text-xs text-cyan-100">
+                      Local
+                    </p>
+                    <p class="text-xl font-black">
+                      7
+                    </p>
+                  </div>
+                  <span class="rounded-md bg-orange-400 px-2 py-1 text-sm font-black text-orange-950">VS</span>
+                  <div class="rounded-md bg-white/10 p-2 text-center">
+                    <p class="truncate text-xs text-cyan-100">
+                      Visitante
+                    </p>
+                    <p class="text-xl font-black">
+                      4
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -147,7 +204,7 @@ function matrixCellClass(state: string) {
                   :key="card.label"
                   class="rounded-md border border-white/15 bg-white/10 p-3"
                 >
-                  <div class="mb-2 flex items-center justify-between gap-2 text-emerald-100">
+                  <div class="mb-2 flex items-center justify-between gap-2 text-cyan-100">
                     <span class="text-xs font-medium">{{ card.label }}</span>
                     <UIcon
                       :name="card.icon"
@@ -172,7 +229,7 @@ function matrixCellClass(state: string) {
                   <div
                     v-for="team in matrixTeams"
                     :key="team"
-                    class="truncate rounded-sm bg-white/10 px-1 py-1 text-emerald-50"
+                    class="truncate rounded-sm bg-white/10 px-1 py-1 text-cyan-50"
                   >
                     {{ team.slice(0, 3) }}
                   </div>
@@ -201,19 +258,19 @@ function matrixCellClass(state: string) {
 
     <section
       id="modulos"
-      class="border-y border-green-900/10 bg-white py-10 dark:border-white/10 dark:bg-[#0b2119]"
+      class="border-y border-[#025a60]/10 bg-white py-10 dark:border-white/10 dark:bg-[#01343a]"
     >
       <UContainer>
-        <div class="grid gap-3 md:grid-cols-5">
+        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
           <div
             v-for="(step, index) in flowSteps"
             :key="step"
-            class="rounded-lg border border-default bg-default p-4 shadow-sm"
+            class="rounded-lg border border-default bg-default p-3 shadow-sm sm:p-4"
           >
             <p class="text-sm font-black text-primary">
               {{ String(index + 1).padStart(2, '0') }}
             </p>
-            <p class="mt-2 font-bold text-highlighted">
+            <p class="mt-2 text-sm font-bold text-highlighted sm:text-base">
               {{ step }}
             </p>
           </div>
@@ -259,7 +316,7 @@ function matrixCellClass(state: string) {
       </UContainer>
     </section>
 
-    <section class="bg-[#12251c] py-12 text-white sm:py-16">
+    <section class="bg-[#02464c] py-12 text-white sm:py-16">
       <UContainer>
         <div class="grid gap-8 lg:grid-cols-[0.75fr_1.25fr] lg:items-center">
           <div>
@@ -273,7 +330,7 @@ function matrixCellClass(state: string) {
             <h2 class="mt-3 text-3xl font-black tracking-normal sm:text-4xl">
               Menos llamadas, menos hojas sueltas, más juego.
             </h2>
-            <p class="mt-4 text-base leading-7 text-emerald-50">
+            <p class="mt-4 text-base leading-7 text-cyan-50">
               El admin controla la operación completa; cada manejador entra a su equipo, captura integrantes y consulta solo lo que necesita.
             </p>
           </div>
@@ -287,7 +344,7 @@ function matrixCellClass(state: string) {
               <p class="font-bold">
                 Accesos por rol
               </p>
-              <p class="mt-2 text-sm text-emerald-100">
+              <p class="mt-2 text-sm text-cyan-100">
                 Admin y manejador viven experiencias separadas.
               </p>
             </div>
@@ -299,7 +356,7 @@ function matrixCellClass(state: string) {
               <p class="font-bold">
                 Captura rápida
               </p>
-              <p class="mt-2 text-sm text-emerald-100">
+              <p class="mt-2 text-sm text-cyan-100">
                 Resultado, pitchers, bateadores y lineups sin cambiar de sistema.
               </p>
             </div>
@@ -311,7 +368,7 @@ function matrixCellClass(state: string) {
               <p class="font-bold">
                 Reglas flexibles
               </p>
-              <p class="mt-2 text-sm text-emerald-100">
+              <p class="mt-2 text-sm text-cyan-100">
                 Vueltas por grupo y playoffs por juegos o cédula abierta.
               </p>
             </div>
@@ -320,7 +377,7 @@ function matrixCellClass(state: string) {
       </UContainer>
     </section>
 
-    <section class="bg-white py-10 dark:bg-[#071a14]">
+    <section class="bg-[#f7fdfd] py-10 dark:bg-[#021d20]">
       <UContainer>
         <div class="flex flex-col gap-4 rounded-lg border border-default bg-default p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -350,7 +407,11 @@ function matrixCellClass(state: string) {
 }
 
 .landing-hero {
-  background-color: #04140f;
+  background-color: #01282c;
+}
+
+.landing-hero-image {
+  object-position: 62% center;
 }
 
 .landing-control-panel {
@@ -359,8 +420,15 @@ function matrixCellClass(state: string) {
 }
 
 @media (max-width: 1023px) {
-  .landing-hero {
-    min-height: 86svh;
+  .landing-hero-image {
+    object-position: 68% center;
+    opacity: 0.92;
+  }
+}
+
+@media (max-width: 430px) {
+  .landing-hero-image {
+    object-position: 72% center;
   }
 }
 </style>

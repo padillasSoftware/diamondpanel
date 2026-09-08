@@ -313,6 +313,16 @@ async function main() {
     }
   })
 
+  await Promise.all(
+    teamCategories.map(category =>
+      prisma.leagueCategorySetting.upsert({
+        where: { category },
+        update: { active: true },
+        create: { category, active: true }
+      })
+    )
+  )
+
   const teams = await Promise.all(
     teamSeeds.map(({ players: _players, ...team }) =>
       prisma.team.upsert({

@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import {
   TEAM_BRANCH_OPTIONS,
-  TEAM_CATEGORY_OPTIONS,
   branchColor,
   branchLabel,
   categoryColor,
   categoryLabel,
-  teamInitials,
   teamStatusColor,
   teamStatusLabel,
   type Season,
@@ -25,13 +23,13 @@ const [
   useFetch<Season>('/api/seasons/active'),
   useFetch<Team[]>('/api/teams')
 ])
+const { categoryOptions } = useLeagueCategories()
 
 const teamRows = computed(() => teams.value ?? [])
 const playerCount = computed(() => teamRows.value.reduce((total, team) => total + (team.players?.length ?? 0), 0))
 const activeTeams = computed(() => teamRows.value.filter(team => team.status === 'ACTIVE').length)
 const categoryGroups = computed(() =>
-  TEAM_CATEGORY_OPTIONS
-    .filter(option => option.value !== 'ALL')
+  categoryOptions.value
     .map((category) => {
       const branches = TEAM_BRANCH_OPTIONS
         .filter(option => option.value !== 'ALL')
@@ -161,12 +159,10 @@ const categoryGroups = computed(() =>
                 >
                   <div class="mb-4 flex items-start justify-between gap-3">
                     <div class="flex min-w-0 items-center gap-3">
-                      <span
-                        class="flex size-12 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
-                        :style="{ backgroundColor: team.primaryColor ?? '#047857' }"
-                      >
-                        {{ teamInitials(team) }}
-                      </span>
+                      <TeamAvatar
+                        :team="team"
+                        class="size-12 text-sm font-bold"
+                      />
                       <div class="min-w-0">
                         <p class="truncate text-lg font-bold text-highlighted">
                           {{ team.name }}

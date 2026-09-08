@@ -12,6 +12,11 @@ import {
   type TeamBranch,
   type TeamCategory
 } from '~/utils/league'
+import {
+  isOfflineResultSyncError,
+  useOfflineAdminResults,
+  type OfflineAdminResultDraft
+} from '~/composables/useOfflineAdminResults'
 
 definePageMeta({
   middleware: 'admin'
@@ -157,6 +162,17 @@ const emptyHighlight = (): HighlightForm => ({
 const toast = useToast()
 const { data, pending, refresh } = await useFetch<ResultsResponse>('/api/admin/results')
 const { data: eligibilityData, refresh: refreshEligibility } = await useFetch<PlayoffEligibilityResponse>('/api/admin/playoff-eligibility')
+const {
+  drafts: offlineDrafts,
+  isOnline,
+  isSyncing: isSyncingOfflineDrafts,
+  lastSyncResult,
+  pendingCount: offlineDraftCount,
+  queueDraft: queueOfflineDraft,
+  removeDraft: removeOfflineDraft,
+  draftForGame,
+  syncPendingDrafts
+} = useOfflineAdminResults()
 
 const selectedGameId = ref<string | null>(null)
 const isSavingResult = ref(false)
@@ -167,6 +183,11 @@ const search = ref('')
 const selectedStatus = ref<'ALL' | 'PENDING' | 'FINAL'>('ALL')
 const showBattingHighlights = ref(false)
 const showLineupEditor = ref(false)
+const resultPanelRef = ref<HTMLElement | null>(null)
+const mobileSection = ref<'GAMES' | 'CAPTURE'>('GAMES')
+const isResultCardModalOpen = ref(false)
+const isSharingResultCard = ref(false)
+const isDownloadingResultCard = ref(false)
 
 const resultForm = reactive({
   homeScore: 0,
@@ -187,7 +208,10 @@ const lineupForm = reactive({
 const games = computed(() => data.value?.games ?? [])
 const selectedGame = computed(() => games.value.find(game => game.id === selectedGameId.value) ?? null)
 const resultCardHref = computed(() =>
-  selectedGame.value?.result ? `/api/admin/results/${selectedGame.value.id}/card.svg` : ''
+  selectedGame.value?.result ? `/api/admin/results/${selectedGame.value.id}/card.png` : ''
+)
+const selectedGameOfflineDrafts = computed(() =>
+  selectedGame.value ? offlineDrafts.value.filter(draft => draft.gameId === selectedGame.value?.id) : []
 )
 const showResultForm = computed(() => Boolean(
   selectedGame.value && (!selectedGame.value.result || editingResultId.value === selectedGame.value.id)
@@ -272,6 +296,25 @@ watch(() => resultForm.isForfeit, (isForfeit) => {
   showBattingHighlights.value = false
 })
 
+const lastObservedSyncResultAt = ref(0)
+
+watch(lastSyncResult, async (result) => {
+  if (!result || result.completedAt === lastObservedSyncResultAt.value) return
+
+  lastObservedSyncResultAt.value = result.completedAt
+
+  if (result.synced) {
+    await Promise.all([refresh(), refreshEligibility()])
+    showFeedback(result.synced === 1 ? 'Borrador sincronizado.' : `${result.synced} borradores sincronizados.`)
+  }
+
+  if (result.failed) {
+    showError(result.failed === 1
+      ? 'Un borrador no se pudo sincronizar. Revisa si hubo cambios en el servidor.'
+      : `${result.failed} borradores no se pudieron sincronizar. Revisa si hubo cambios en el servidor.`)
+  }
+})
+
 function playerLabel(player: AdminResultPlayer) {
   const number = player.number === null ? '' : `#${player.number} `
 
@@ -280,10 +323,6 @@ function playerLabel(player: AdminResultPlayer) {
 
 function savedPlayerName(name: string | null | undefined, player?: AdminResultPlayer | null) {
   return name?.trim() || (player ? playerLabel(player) : '')
-}
-
-function adminTeamInitials(team: AdminResultTeam) {
-  return team.shortName ?? team.name.slice(0, 2).toUpperCase()
 }
 
 function battingLine(highlight: AdminResultHighlight) {
@@ -317,6 +356,184 @@ function lineupRowsForTeam(game: AdminResultGame, teamId: string) {
 
 function selectedLineupCount(side: 'home' | 'away') {
   return lineupForm[side].filter(player => player.selected).length
+}
+
+function gameLabel(game: AdminResultGame) {
+  return `${game.homeTeam.name} vs ${game.awayTeam.name}`
+}
+
+function resultCardFilename() {
+  const game = selectedGame.value
+
+  if (!game) return 'resultado.png'
+
+  return `${slugifyFilename(gameLabel(game))}.png`
+}
+
+function slugifyFilename(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/gi, '-')
+    .replace(/^-|-$/g, '')
+    .toLowerCase()
+    .slice(0, 80) || 'resultado'
+}
+
+function openResultCardModal() {
+  if (!resultCardHref.value) return
+
+  isResultCardModalOpen.value = true
+}
+
+async function fetchResultCardBlob() {
+  if (!resultCardHref.value) {
+    throw new Error('Result card is not available')
+  }
+
+  const response = await fetch(resultCardHref.value)
+
+  if (!response.ok) {
+    throw new Error('Result card could not be loaded')
+  }
+
+  return await response.blob()
+}
+
+function triggerResultCardDownload(blob: Blob) {
+  const objectUrl = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+
+  link.href = objectUrl
+  link.download = resultCardFilename()
+  document.body.append(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(objectUrl)
+}
+
+async function downloadResultCard(options: { quiet?: boolean } = {}) {
+  if (!import.meta.client) return
+
+  isDownloadingResultCard.value = true
+
+  try {
+    const blob = await fetchResultCardBlob()
+
+    triggerResultCardDownload(blob)
+    if (!options.quiet) showFeedback('Imagen descargada.')
+  } catch {
+    showError('No se pudo descargar la imagen. Intenta abrirla en otra pestaña.')
+  } finally {
+    isDownloadingResultCard.value = false
+  }
+}
+
+async function shareResultCard() {
+  if (!import.meta.client || !selectedGame.value) return
+
+  isSharingResultCard.value = true
+
+  try {
+    const blob = await fetchResultCardBlob()
+    const file = new File([blob], resultCardFilename(), { type: 'image/png' })
+    const shareData: ShareData = {
+      title: 'Resultado de juego',
+      text: gameLabel(selectedGame.value),
+      files: [file]
+    }
+
+    if (navigator.share && (!navigator.canShare || navigator.canShare(shareData))) {
+      await navigator.share(shareData)
+
+      return
+    }
+
+    triggerResultCardDownload(blob)
+    showFeedback('Tu dispositivo no permite compartir directo; descargué la imagen.')
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') return
+
+    showError('No se pudo compartir la imagen. Intenta descargarla.')
+  } finally {
+    isSharingResultCard.value = false
+  }
+}
+
+function hasOfflineDraft(gameId: string, type?: OfflineAdminResultDraft['type']) {
+  return Boolean(draftForGame(gameId, type))
+}
+
+function offlineDraftTypeLabel(draft: OfflineAdminResultDraft) {
+  return draft.type === 'RESULT' ? 'Resultado' : 'Lineup'
+}
+
+function offlineDraftUpdatedText(draft: OfflineAdminResultDraft) {
+  return new Intl.DateTimeFormat('es-MX', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(new Date(draft.updatedAt))
+}
+
+function discardOfflineDraft(draft: OfflineAdminResultDraft) {
+  removeOfflineDraft(draft.id)
+  toast.add({
+    title: 'Borrador descartado',
+    description: draft.gameLabel,
+    color: 'neutral',
+    icon: 'i-lucide-trash-2'
+  })
+}
+
+async function syncOfflineDraftsManually() {
+  if (!isOnline.value) {
+    showError('Todavía no hay conexión. Los borradores se guardan en este dispositivo.')
+
+    return
+  }
+
+  const result = await syncPendingDrafts()
+
+  if (!result.synced && !result.failed) {
+    toast.add({
+      title: 'Sin borradores pendientes',
+      color: 'neutral',
+      icon: 'i-lucide-check'
+    })
+  }
+}
+
+function selectGame(gameId: string) {
+  selectedGameId.value = gameId
+  mobileSection.value = 'CAPTURE'
+
+  if (!import.meta.client || !window.matchMedia('(max-width: 1279px)').matches) return
+
+  void nextTick(() => {
+    resultPanelRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
+}
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max)
+}
+
+function adjustScore(side: 'home' | 'away', amount: number) {
+  if (resultForm.isForfeit) return
+
+  if (side === 'home') {
+    resultForm.homeScore = clampNumber(Number(resultForm.homeScore || 0) + amount, 0, 999)
+  } else {
+    resultForm.awayScore = clampNumber(Number(resultForm.awayScore || 0) + amount, 0, 999)
+  }
+}
+
+function adjustInnings(amount: number) {
+  if (resultForm.isForfeit) return
+
+  resultForm.innings = clampNumber(Number(resultForm.innings || 7) + amount, 1, 20)
 }
 
 function playoffStatus(playerId: string) {
@@ -452,8 +669,8 @@ function showError(message: string) {
   })
 }
 
-function resultPayload() {
-  return {
+function resultPayload(options: { offlineGuard?: boolean } = {}) {
+  const payload = {
     homeScore: resultForm.homeScore,
     awayScore: resultForm.awayScore,
     innings: resultForm.innings,
@@ -463,6 +680,30 @@ function resultPayload() {
     notes: resultForm.notes,
     winnerHighlights: resultForm.isForfeit ? [] : resultForm.winnerHighlights,
     loserHighlights: resultForm.isForfeit ? [] : resultForm.loserHighlights
+  }
+
+  if (!options.offlineGuard || !selectedGame.value) return payload
+
+  return {
+    ...payload,
+    offlineExpectedResult: {
+      id: selectedGame.value.result?.id ?? null,
+      recordedAt: selectedGame.value.result?.recordedAt ?? null
+    }
+  }
+}
+
+function lineupPayload(options: { offlineGuard?: boolean } = {}) {
+  const payload = {
+    homeLineup: normalizedLineupRows(lineupForm.home),
+    awayLineup: normalizedLineupRows(lineupForm.away)
+  }
+
+  if (!options.offlineGuard || !selectedGame.value) return payload
+
+  return {
+    ...payload,
+    offlineExpectedLineupEntryIds: selectedGame.value.lineupEntries.map(entry => entry.id)
   }
 }
 
@@ -518,6 +759,18 @@ async function saveResult() {
     editingResultId.value = null
     showFeedback('Resultado guardado. Imagen lista para compartir.')
   } catch (error) {
+    if (isOfflineResultSyncError(error)) {
+      queueOfflineDraft({
+        type: 'RESULT',
+        gameId: game.id,
+        gameLabel: gameLabel(game),
+        payload: resultPayload({ offlineGuard: true })
+      })
+      showFeedback('Sin conexión. Resultado guardado como borrador en este dispositivo.')
+
+      return
+    }
+
     const statusMessage = typeof error === 'object' && error && 'data' in error
       ? String((error as { data?: { statusMessage?: unknown } }).data?.statusMessage ?? '')
       : ''
@@ -569,15 +822,25 @@ async function saveLineup() {
   try {
     await $fetch(`/api/admin/results/${game.id}/lineup`, {
       method: 'PATCH',
-      body: {
-        homeLineup: normalizedLineupRows(lineupForm.home),
-        awayLineup: normalizedLineupRows(lineupForm.away)
-      }
+      body: lineupPayload()
     })
     await Promise.all([refresh(), refreshEligibility()])
     showLineupEditor.value = false
     showFeedback('Lineups guardados.')
   } catch (error) {
+    if (isOfflineResultSyncError(error)) {
+      queueOfflineDraft({
+        type: 'LINEUP',
+        gameId: game.id,
+        gameLabel: gameLabel(game),
+        payload: lineupPayload({ offlineGuard: true })
+      })
+      showLineupEditor.value = false
+      showFeedback('Sin conexión. Lineup guardado como borrador en este dispositivo.')
+
+      return
+    }
+
     const statusMessage = typeof error === 'object' && error && 'data' in error
       ? String((error as { data?: { statusMessage?: unknown } }).data?.statusMessage ?? '')
       : ''
@@ -598,9 +861,9 @@ function editSelectedResult() {
 </script>
 
 <template>
-  <UContainer class="py-6 sm:py-8">
+  <UContainer class="min-w-0 max-w-full overflow-x-hidden pb-6 pt-4 sm:py-8">
     <div class="mb-6 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-      <div>
+      <div class="min-w-0">
         <UBadge
           color="primary"
           variant="subtle"
@@ -608,16 +871,16 @@ function editSelectedResult() {
         >
           Resultados
         </UBadge>
-        <h1 class="mt-3 text-3xl font-bold tracking-normal text-highlighted sm:text-4xl">
+        <h1 class="mt-3 text-2xl font-bold leading-tight tracking-normal text-highlighted sm:text-4xl">
           Captura de resultados
         </h1>
-        <p class="mt-2 max-w-2xl text-base text-muted">
+        <p class="mt-2 max-w-2xl text-sm text-muted sm:text-base">
           {{ data?.season ? `${data.season.name} ${data.season.year}` : 'Temporada activa requerida' }}
         </p>
       </div>
 
-      <div class="grid grid-cols-3 gap-2 rounded-lg border border-default bg-default p-2 text-center shadow-sm">
-        <div class="rounded-md bg-muted/40 px-3 py-2">
+      <div class="grid min-w-0 grid-cols-3 gap-2 rounded-lg border border-default bg-default p-2 text-center shadow-sm">
+        <div class="min-w-0 rounded-md bg-muted/40 px-2 py-2 sm:px-3">
           <p class="text-xl font-bold text-highlighted">
             {{ games.length }}
           </p>
@@ -625,7 +888,7 @@ function editSelectedResult() {
             Juegos
           </p>
         </div>
-        <div class="rounded-md bg-muted/40 px-3 py-2">
+        <div class="min-w-0 rounded-md bg-muted/40 px-2 py-2 sm:px-3">
           <p class="text-xl font-bold text-highlighted">
             {{ finalGames }}
           </p>
@@ -633,7 +896,7 @@ function editSelectedResult() {
             Capturados
           </p>
         </div>
-        <div class="rounded-md bg-muted/40 px-3 py-2">
+        <div class="min-w-0 rounded-md bg-muted/40 px-2 py-2 sm:px-3">
           <p class="text-xl font-bold text-highlighted">
             {{ pendingGames }}
           </p>
@@ -643,6 +906,80 @@ function editSelectedResult() {
         </div>
       </div>
     </div>
+
+    <section
+      v-if="offlineDraftCount"
+      class="mb-4 rounded-lg border border-warning/30 bg-warning/10 p-3 shadow-sm"
+    >
+      <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div class="min-w-0">
+          <div class="mb-1 flex flex-wrap items-center gap-2">
+            <UBadge
+              :color="isOnline ? 'warning' : 'error'"
+              variant="subtle"
+              :icon="isOnline ? 'i-lucide-cloud-upload' : 'i-lucide-wifi-off'"
+            >
+              {{ isOnline ? 'Borradores pendientes' : 'Sin conexión' }}
+            </UBadge>
+            <UBadge
+              color="neutral"
+              variant="outline"
+            >
+              {{ offlineDraftCount }} en este dispositivo
+            </UBadge>
+          </div>
+          <p class="text-sm text-highlighted">
+            Estos cambios todavía no están en el servidor. Se sincronizarán automáticamente cuando vuelva la conexión.
+          </p>
+        </div>
+
+        <UButton
+          type="button"
+          icon="i-lucide-refresh-cw"
+          label="Sincronizar ahora"
+          color="warning"
+          variant="solid"
+          size="sm"
+          class="w-full justify-center lg:w-fit"
+          :disabled="!isOnline"
+          :loading="isSyncingOfflineDrafts"
+          @click="syncOfflineDraftsManually"
+        />
+      </div>
+
+      <div class="mt-3 grid gap-2">
+        <article
+          v-for="draft in offlineDrafts"
+          :key="draft.id"
+          class="grid gap-2 rounded-md border border-warning/25 bg-default/75 p-2 text-sm sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center"
+        >
+          <UBadge
+            color="warning"
+            variant="subtle"
+          >
+            {{ offlineDraftTypeLabel(draft) }}
+          </UBadge>
+          <div class="min-w-0">
+            <p class="truncate font-semibold text-highlighted">
+              {{ draft.gameLabel }}
+            </p>
+            <p class="text-xs text-muted">
+              {{ draft.lastError || `Guardado ${offlineDraftUpdatedText(draft)}` }}
+            </p>
+          </div>
+          <UButton
+            type="button"
+            icon="i-lucide-trash-2"
+            label="Descartar"
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            class="w-fit"
+            @click="discardOfflineDraft(draft)"
+          />
+        </article>
+      </div>
+    </section>
 
     <section
       v-if="!data?.season"
@@ -657,11 +994,45 @@ function editSelectedResult() {
       </p>
     </section>
 
-    <section
-      v-else
-      class="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]"
+    <div
+      v-if="data?.season"
+      class="mb-4 grid grid-cols-2 gap-1 rounded-lg bg-muted/40 p-1 text-sm xl:hidden"
     >
-      <section class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 xl:flex xl:max-h-192 xl:flex-col">
+      <button
+        type="button"
+        class="inline-flex h-10 items-center justify-center gap-2 rounded-md font-bold transition"
+        :class="mobileSection === 'GAMES' ? 'bg-default text-highlighted shadow-sm' : 'text-muted'"
+        @click="mobileSection = 'GAMES'"
+      >
+        <UIcon
+          name="i-lucide-list-checks"
+          class="size-4"
+        />
+        Juegos
+      </button>
+      <button
+        type="button"
+        class="inline-flex h-10 items-center justify-center gap-2 rounded-md font-bold transition disabled:opacity-45"
+        :class="mobileSection === 'CAPTURE' ? 'bg-default text-highlighted shadow-sm' : 'text-muted'"
+        :disabled="!selectedGame"
+        @click="mobileSection = 'CAPTURE'"
+      >
+        <UIcon
+          name="i-lucide-clipboard-pen"
+          class="size-4"
+        />
+        Captura
+      </button>
+    </div>
+
+    <section
+      v-if="data?.season"
+      class="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]"
+    >
+      <section
+        class="min-w-0 overflow-hidden rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 xl:flex xl:max-h-192 xl:flex-col"
+        :class="mobileSection === 'GAMES' ? '' : 'hidden xl:flex'"
+      >
         <div class="mb-2.5 grid gap-2 lg:grid-cols-[1fr_auto] lg:items-end">
           <div>
             <h2 class="text-base font-bold text-highlighted">
@@ -672,15 +1043,16 @@ function editSelectedResult() {
             </p>
           </div>
 
-          <div class="grid gap-2 sm:grid-cols-2 lg:min-w-90">
+          <div class="grid min-w-0 gap-2 sm:grid-cols-2 lg:min-w-90">
             <UInput
               v-model="search"
               icon="i-lucide-search"
               placeholder="Buscar"
+              class="min-w-0"
             />
             <select
               v-model="selectedStatus"
-              class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
+              class="h-10 min-w-0 max-w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
             >
               <option value="ALL">
                 Todos
@@ -700,9 +1072,9 @@ function editSelectedResult() {
             v-for="game in filteredGames"
             :key="game.id"
             type="button"
-            class="rounded-lg border p-2 text-left transition-colors"
+            class="min-w-0 rounded-lg border p-2 text-left transition-colors"
             :class="selectedGameId === game.id ? 'border-primary bg-primary/5' : 'border-default hover:border-primary'"
-            @click="selectedGameId = game.id"
+            @click="selectGame(game.id)"
           >
             <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
               <div class="flex flex-wrap gap-1.5">
@@ -723,6 +1095,22 @@ function editSelectedResult() {
                   variant="subtle"
                 >
                   {{ gameStatusLabel(game.status) }}
+                </UBadge>
+                <UBadge
+                  v-if="hasOfflineDraft(game.id, 'RESULT')"
+                  color="warning"
+                  variant="subtle"
+                  icon="i-lucide-cloud-off"
+                >
+                  Resultado offline
+                </UBadge>
+                <UBadge
+                  v-if="hasOfflineDraft(game.id, 'LINEUP')"
+                  color="warning"
+                  variant="outline"
+                  icon="i-lucide-list-checks"
+                >
+                  Lineup offline
                 </UBadge>
               </div>
               <p class="text-sm font-bold text-highlighted">
@@ -757,7 +1145,33 @@ function editSelectedResult() {
         </div>
       </section>
 
-      <div class="grid gap-4">
+      <div
+        ref="resultPanelRef"
+        class="min-w-0 scroll-mt-4 gap-4 xl:grid"
+        :class="mobileSection === 'CAPTURE' ? 'grid' : 'hidden xl:grid'"
+      >
+        <section
+          v-if="selectedGameOfflineDrafts.length"
+          class="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm"
+        >
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p class="font-semibold text-highlighted">
+                Cambios pendientes de sincronizar
+              </p>
+              <p class="text-muted">
+                {{ selectedGameOfflineDrafts.map(offlineDraftTypeLabel).join(' y ') }} guardado en este dispositivo.
+              </p>
+            </div>
+            <UBadge
+              :color="isOnline ? 'warning' : 'error'"
+              variant="subtle"
+            >
+              {{ isOnline ? 'Pendiente' : 'Offline' }}
+            </UBadge>
+          </div>
+        </section>
+
         <section
           v-if="selectedGame && selectedGame.result && !showResultForm"
           class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3"
@@ -802,14 +1216,13 @@ function editSelectedResult() {
             <div class="flex flex-wrap gap-2">
               <UButton
                 v-if="resultCardHref"
-                :href="resultCardHref"
-                target="_blank"
-                rel="noopener"
+                type="button"
                 icon="i-lucide-image"
                 label="Imagen"
                 color="warning"
                 variant="subtle"
                 size="sm"
+                @click="openResultCardModal"
               />
               <UButton
                 type="button"
@@ -836,12 +1249,10 @@ function editSelectedResult() {
           <div class="mb-3 grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
             <div class="rounded-lg border border-default p-3">
               <div class="mb-3 flex items-center gap-2">
-                <span
-                  class="flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                  :style="{ backgroundColor: selectedGame.homeTeam.primaryColor ?? '#047857' }"
-                >
-                  {{ adminTeamInitials(selectedGame.homeTeam) }}
-                </span>
+                <TeamAvatar
+                  :team="selectedGame.homeTeam"
+                  class="size-10 text-xs font-bold"
+                />
                 <div class="min-w-0">
                   <p class="truncate font-semibold text-highlighted">
                     {{ selectedGame.homeTeam.name }}
@@ -862,12 +1273,10 @@ function editSelectedResult() {
 
             <div class="rounded-lg border border-default p-3">
               <div class="mb-3 flex items-center gap-2">
-                <span
-                  class="flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                  :style="{ backgroundColor: selectedGame.awayTeam.primaryColor ?? '#f97316' }"
-                >
-                  {{ adminTeamInitials(selectedGame.awayTeam) }}
-                </span>
+                <TeamAvatar
+                  :team="selectedGame.awayTeam"
+                  class="size-10 text-xs font-bold"
+                />
                 <div class="min-w-0">
                   <p class="truncate font-semibold text-highlighted">
                     {{ selectedGame.awayTeam.name }}
@@ -979,7 +1388,7 @@ function editSelectedResult() {
 
         <form
           v-else-if="selectedGame && showResultForm"
-          class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3"
+          class="min-w-0 overflow-hidden rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3"
           @submit.prevent="saveResult"
         >
           <div class="mb-3 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -1038,15 +1447,13 @@ function editSelectedResult() {
             </div>
           </div>
 
-          <div class="mb-3 grid gap-2 sm:grid-cols-2">
-            <div class="rounded-lg border border-default p-2">
+          <div class="mb-3 grid min-w-0 gap-2 sm:grid-cols-2">
+            <div class="min-w-0 rounded-lg border border-default p-2">
               <div class="mb-2 flex items-center gap-2">
-                <span
-                  class="flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                  :style="{ backgroundColor: selectedGame.homeTeam.primaryColor ?? '#047857' }"
-                >
-                  {{ adminTeamInitials(selectedGame.homeTeam) }}
-                </span>
+                <TeamAvatar
+                  :team="selectedGame.homeTeam"
+                  class="size-10 text-xs font-bold"
+                />
                 <div class="min-w-0">
                   <p class="truncate font-semibold text-highlighted">
                     {{ selectedGame.homeTeam.name }}
@@ -1056,15 +1463,37 @@ function editSelectedResult() {
                   </p>
                 </div>
               </div>
-              <UInput
-                v-model.number="resultForm.homeScore"
-                type="number"
-                min="0"
-                max="999"
-                required
-                :disabled="resultForm.isForfeit"
-                aria-label="Carreras local"
-              />
+              <div class="grid grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] gap-2">
+                <UButton
+                  type="button"
+                  icon="i-lucide-minus"
+                  aria-label="Restar carrera local"
+                  color="neutral"
+                  variant="outline"
+                  :disabled="resultForm.isForfeit || resultForm.homeScore <= 0"
+                  @click="adjustScore('home', -1)"
+                />
+                <UInput
+                  v-model.number="resultForm.homeScore"
+                  type="number"
+                  min="0"
+                  max="999"
+                  required
+                  :disabled="resultForm.isForfeit"
+                  aria-label="Carreras local"
+                  class="min-w-0 text-center"
+                  :ui="{ base: 'text-center text-2xl font-bold' }"
+                />
+                <UButton
+                  type="button"
+                  icon="i-lucide-plus"
+                  aria-label="Sumar carrera local"
+                  color="primary"
+                  variant="subtle"
+                  :disabled="resultForm.isForfeit"
+                  @click="adjustScore('home', 1)"
+                />
+              </div>
               <UButton
                 v-if="resultForm.isForfeit"
                 type="button"
@@ -1078,14 +1507,12 @@ function editSelectedResult() {
               />
             </div>
 
-            <div class="rounded-lg border border-default p-2">
+            <div class="min-w-0 rounded-lg border border-default p-2">
               <div class="mb-2 flex items-center gap-2">
-                <span
-                  class="flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                  :style="{ backgroundColor: selectedGame.awayTeam.primaryColor ?? '#f97316' }"
-                >
-                  {{ adminTeamInitials(selectedGame.awayTeam) }}
-                </span>
+                <TeamAvatar
+                  :team="selectedGame.awayTeam"
+                  class="size-10 text-xs font-bold"
+                />
                 <div class="min-w-0">
                   <p class="truncate font-semibold text-highlighted">
                     {{ selectedGame.awayTeam.name }}
@@ -1095,15 +1522,37 @@ function editSelectedResult() {
                   </p>
                 </div>
               </div>
-              <UInput
-                v-model.number="resultForm.awayScore"
-                type="number"
-                min="0"
-                max="999"
-                required
-                :disabled="resultForm.isForfeit"
-                aria-label="Carreras visitante"
-              />
+              <div class="grid grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] gap-2">
+                <UButton
+                  type="button"
+                  icon="i-lucide-minus"
+                  aria-label="Restar carrera visitante"
+                  color="neutral"
+                  variant="outline"
+                  :disabled="resultForm.isForfeit || resultForm.awayScore <= 0"
+                  @click="adjustScore('away', -1)"
+                />
+                <UInput
+                  v-model.number="resultForm.awayScore"
+                  type="number"
+                  min="0"
+                  max="999"
+                  required
+                  :disabled="resultForm.isForfeit"
+                  aria-label="Carreras visitante"
+                  class="min-w-0 text-center"
+                  :ui="{ base: 'text-center text-2xl font-bold' }"
+                />
+                <UButton
+                  type="button"
+                  icon="i-lucide-plus"
+                  aria-label="Sumar carrera visitante"
+                  color="primary"
+                  variant="subtle"
+                  :disabled="resultForm.isForfeit"
+                  @click="adjustScore('away', 1)"
+                />
+              </div>
               <UButton
                 v-if="resultForm.isForfeit"
                 type="button"
@@ -1118,22 +1567,44 @@ function editSelectedResult() {
             </div>
           </div>
 
-          <div class="mb-3 grid gap-2 sm:grid-cols-3">
-            <label class="grid gap-1.5 text-sm">
+          <div class="mb-3 grid min-w-0 gap-2 sm:grid-cols-3">
+            <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">Innings</span>
-              <UInput
-                v-model.number="resultForm.innings"
-                type="number"
-                min="1"
-                max="20"
-                required
-                :disabled="resultForm.isForfeit"
-              />
+              <div class="grid grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] gap-2">
+                <UButton
+                  type="button"
+                  icon="i-lucide-minus"
+                  aria-label="Restar inning"
+                  color="neutral"
+                  variant="outline"
+                  :disabled="resultForm.isForfeit || resultForm.innings <= 1"
+                  @click="adjustInnings(-1)"
+                />
+                <UInput
+                  v-model.number="resultForm.innings"
+                  type="number"
+                  min="1"
+                  max="20"
+                  required
+                  :disabled="resultForm.isForfeit"
+                  class="min-w-0 text-center"
+                  :ui="{ base: 'text-center font-bold' }"
+                />
+                <UButton
+                  type="button"
+                  icon="i-lucide-plus"
+                  aria-label="Sumar inning"
+                  color="primary"
+                  variant="subtle"
+                  :disabled="resultForm.isForfeit"
+                  @click="adjustInnings(1)"
+                />
+              </div>
             </label>
 
-            <label class="grid gap-1.5 text-sm sm:col-span-2">
+            <label class="grid min-w-0 gap-1.5 text-sm sm:col-span-2">
               <span class="font-medium text-highlighted">Forfeit</span>
-              <label class="flex h-10 items-center gap-2 rounded-md border border-default px-3 text-sm">
+              <label class="flex min-h-10 items-center gap-2 rounded-md border border-default px-3 py-2 text-sm">
                 <input
                   v-model="resultForm.isForfeit"
                   type="checkbox"
@@ -1153,25 +1624,27 @@ function editSelectedResult() {
 
           <div
             v-if="winnerTeam && loserTeam"
-            class="mb-3 grid gap-2 lg:grid-cols-2"
+            class="mb-3 grid min-w-0 gap-2 lg:grid-cols-2"
           >
-            <label class="grid gap-1.5 text-sm">
+            <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">Pitcher ganador · {{ winnerTeam.name }}</span>
               <UInput
                 v-model="resultForm.winningPitcherName"
                 required
                 maxlength="80"
                 placeholder="Nombre del pitcher ganador"
+                class="min-w-0"
               />
             </label>
 
-            <label class="grid gap-1.5 text-sm">
+            <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">Pitcher derrotado · {{ loserTeam.name }}</span>
               <UInput
                 v-model="resultForm.losingPitcherName"
                 required
                 maxlength="80"
                 placeholder="Nombre del pitcher derrotado"
+                class="min-w-0"
               />
             </label>
           </div>
@@ -1202,16 +1675,16 @@ function editSelectedResult() {
               color="neutral"
               variant="outline"
               size="sm"
-              class="w-fit"
+              class="w-full justify-center sm:w-fit"
               @click="showBattingHighlights = !showBattingHighlights"
             />
           </div>
 
           <div
             v-if="!resultForm.isForfeit && showBattingHighlights"
-            class="mb-3 grid gap-3 lg:grid-cols-2"
+            class="mb-3 grid min-w-0 gap-3 lg:grid-cols-2"
           >
-            <section class="rounded-lg border border-default p-2">
+            <section class="min-w-0 rounded-lg border border-default p-2">
               <h3 class="mb-2 text-sm font-bold text-highlighted">
                 Bateadores destacados · {{ winnerTeam?.name ?? 'Ganador' }}
               </h3>
@@ -1225,40 +1698,56 @@ function editSelectedResult() {
                 <div
                   v-for="(highlight, index) in resultForm.winnerHighlights"
                   :key="`winner-${index}`"
-                  class="grid gap-2 rounded-md bg-muted/30 p-2 sm:grid-cols-[1fr_4rem_4rem_4rem]"
+                  class="grid min-w-0 gap-2 rounded-md bg-muted/30 p-2 sm:grid-cols-[1fr_4rem_4rem_4rem]"
                 >
-                  <UInput
-                    v-model="highlight.playerName"
-                    maxlength="80"
-                    :placeholder="`Bateador ${index + 1}`"
-                    aria-label="Bateador ganador"
-                  />
-                  <UInput
-                    v-model.number="highlight.atBats"
-                    type="number"
-                    min="0"
-                    max="20"
-                    aria-label="Turnos"
-                  />
-                  <UInput
-                    v-model.number="highlight.hits"
-                    type="number"
-                    min="0"
-                    max="20"
-                    aria-label="Hits"
-                  />
-                  <UInput
-                    v-model.number="highlight.homeRuns"
-                    type="number"
-                    min="0"
-                    max="20"
-                    aria-label="Home runs"
-                  />
+                  <label class="grid min-w-0 gap-1 text-xs font-medium text-muted sm:block">
+                    <span class="sm:hidden">Jugador</span>
+                    <UInput
+                      v-model="highlight.playerName"
+                      maxlength="80"
+                      :placeholder="`Bateador ${index + 1}`"
+                      aria-label="Bateador ganador"
+                      class="min-w-0"
+                    />
+                  </label>
+                  <label class="grid min-w-0 gap-1 text-xs font-medium text-muted sm:block">
+                    <span class="sm:hidden">Turnos</span>
+                    <UInput
+                      v-model.number="highlight.atBats"
+                      type="number"
+                      min="0"
+                      max="20"
+                      aria-label="Turnos"
+                      class="min-w-0"
+                    />
+                  </label>
+                  <label class="grid min-w-0 gap-1 text-xs font-medium text-muted sm:block">
+                    <span class="sm:hidden">Hits</span>
+                    <UInput
+                      v-model.number="highlight.hits"
+                      type="number"
+                      min="0"
+                      max="20"
+                      aria-label="Hits"
+                      class="min-w-0"
+                    />
+                  </label>
+                  <label class="grid min-w-0 gap-1 text-xs font-medium text-muted sm:block">
+                    <span class="sm:hidden">HR</span>
+                    <UInput
+                      v-model.number="highlight.homeRuns"
+                      type="number"
+                      min="0"
+                      max="20"
+                      aria-label="Home runs"
+                      class="min-w-0"
+                    />
+                  </label>
                 </div>
               </div>
             </section>
 
-            <section class="rounded-lg border border-default p-2">
+            <section class="min-w-0 rounded-lg border border-default p-2">
               <h3 class="mb-2 text-sm font-bold text-highlighted">
                 Bateadores destacados · {{ loserTeam?.name ?? 'Derrotado' }}
               </h3>
@@ -1272,46 +1761,62 @@ function editSelectedResult() {
                 <div
                   v-for="(highlight, index) in resultForm.loserHighlights"
                   :key="`loser-${index}`"
-                  class="grid gap-2 rounded-md bg-muted/30 p-2 sm:grid-cols-[1fr_4rem_4rem_4rem]"
+                  class="grid min-w-0 gap-2 rounded-md bg-muted/30 p-2 sm:grid-cols-[1fr_4rem_4rem_4rem]"
                 >
-                  <UInput
-                    v-model="highlight.playerName"
-                    maxlength="80"
-                    :placeholder="`Bateador ${index + 1}`"
-                    aria-label="Bateador derrotado"
-                  />
-                  <UInput
-                    v-model.number="highlight.atBats"
-                    type="number"
-                    min="0"
-                    max="20"
-                    aria-label="Turnos"
-                  />
-                  <UInput
-                    v-model.number="highlight.hits"
-                    type="number"
-                    min="0"
-                    max="20"
-                    aria-label="Hits"
-                  />
-                  <UInput
-                    v-model.number="highlight.homeRuns"
-                    type="number"
-                    min="0"
-                    max="20"
-                    aria-label="Home runs"
-                  />
+                  <label class="grid min-w-0 gap-1 text-xs font-medium text-muted sm:block">
+                    <span class="sm:hidden">Jugador</span>
+                    <UInput
+                      v-model="highlight.playerName"
+                      maxlength="80"
+                      :placeholder="`Bateador ${index + 1}`"
+                      aria-label="Bateador derrotado"
+                      class="min-w-0"
+                    />
+                  </label>
+                  <label class="grid min-w-0 gap-1 text-xs font-medium text-muted sm:block">
+                    <span class="sm:hidden">Turnos</span>
+                    <UInput
+                      v-model.number="highlight.atBats"
+                      type="number"
+                      min="0"
+                      max="20"
+                      aria-label="Turnos"
+                      class="min-w-0"
+                    />
+                  </label>
+                  <label class="grid min-w-0 gap-1 text-xs font-medium text-muted sm:block">
+                    <span class="sm:hidden">Hits</span>
+                    <UInput
+                      v-model.number="highlight.hits"
+                      type="number"
+                      min="0"
+                      max="20"
+                      aria-label="Hits"
+                      class="min-w-0"
+                    />
+                  </label>
+                  <label class="grid min-w-0 gap-1 text-xs font-medium text-muted sm:block">
+                    <span class="sm:hidden">HR</span>
+                    <UInput
+                      v-model.number="highlight.homeRuns"
+                      type="number"
+                      min="0"
+                      max="20"
+                      aria-label="Home runs"
+                      class="min-w-0"
+                    />
+                  </label>
                 </div>
               </div>
             </section>
           </div>
 
-          <label class="grid gap-1.5 text-sm">
+          <label class="grid min-w-0 gap-1.5 text-sm">
             <span class="font-medium text-highlighted">Notas</span>
             <textarea
               v-model="resultForm.notes"
               rows="3"
-              class="w-full rounded-md border border-default bg-default px-3 py-2 text-sm text-highlighted outline-none focus:border-primary"
+              class="min-w-0 max-w-full rounded-md border border-default bg-default px-3 py-2 text-sm text-highlighted outline-none focus:border-primary"
               placeholder="Opcional"
             />
           </label>
@@ -1347,7 +1852,7 @@ function editSelectedResult() {
           <UButton
             type="submit"
             icon="i-lucide-save"
-            label="Guardar resultado"
+            :label="isOnline ? 'Guardar resultado' : 'Guardar borrador offline'"
             color="primary"
             class="mt-3"
             :disabled="!canSaveResult"
@@ -1591,7 +2096,7 @@ function editSelectedResult() {
             <UButton
               type="button"
               icon="i-lucide-save"
-              label="Guardar lineups"
+              :label="isOnline ? 'Guardar lineups' : 'Guardar borrador offline'"
               color="primary"
               :loading="isSavingLineup"
               block
@@ -1652,5 +2157,68 @@ function editSelectedResult() {
         </section>
       </div>
     </section>
+
+    <UModal
+      v-model:open="isResultCardModalOpen"
+      title="Imagen del resultado"
+      :description="selectedGame ? gameLabel(selectedGame) : ''"
+    >
+      <template #body>
+        <div class="grid gap-3">
+          <div class="overflow-hidden rounded-lg border border-default bg-muted/30">
+            <img
+              v-if="resultCardHref"
+              :src="resultCardHref"
+              :alt="selectedGame ? `Resultado ${gameLabel(selectedGame)}` : 'Resultado de juego'"
+              class="max-h-[70vh] w-full object-contain"
+            >
+          </div>
+          <p class="text-xs text-muted">
+            Vista previa lista para compartir o guardar como PNG.
+          </p>
+        </div>
+      </template>
+
+      <template #footer="{ close }">
+        <div class="grid w-full gap-2 sm:flex sm:items-center sm:justify-end">
+          <UButton
+            label="Cerrar"
+            color="neutral"
+            variant="ghost"
+            :disabled="isSharingResultCard || isDownloadingResultCard"
+            @click="close"
+          />
+          <UButton
+            v-if="resultCardHref"
+            :href="resultCardHref"
+            target="_blank"
+            rel="noopener"
+            label="Abrir"
+            icon="i-lucide-external-link"
+            color="neutral"
+            variant="outline"
+          />
+          <UButton
+            type="button"
+            label="Descargar"
+            icon="i-lucide-download"
+            color="neutral"
+            variant="subtle"
+            :loading="isDownloadingResultCard"
+            :disabled="isSharingResultCard"
+            @click="downloadResultCard()"
+          />
+          <UButton
+            type="button"
+            label="Compartir"
+            icon="i-lucide-share-2"
+            color="primary"
+            :loading="isSharingResultCard"
+            :disabled="isDownloadingResultCard"
+            @click="shareResultCard"
+          />
+        </div>
+      </template>
+    </UModal>
   </UContainer>
 </template>

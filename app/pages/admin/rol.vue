@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import {
   TEAM_BRANCH_OPTIONS,
-  TEAM_CATEGORY_OPTIONS,
   branchColor,
   branchLabel,
   categoryColor,
@@ -12,7 +11,6 @@ import {
   gameStatusLabel,
   roundLabel,
   scheduleDateKey,
-  teamInitials,
   type TeamBranch,
   type TeamCategory,
   type TeamSummary
@@ -90,13 +88,75 @@ type GameGroup = {
   games: ScheduleGame[]
 }
 
+type MatchupCellState = 'SELF' | 'PENDING' | 'SCHEDULED' | 'POSTPONED' | 'WON' | 'TIED' | 'LOST' | 'DEFAULT' | 'CANCELLED'
+
+type MatchupMatrixMeeting = {
+  state: MatchupCellState
+  label: string
+  gameId: string | null
+  title: string
+  round: number | null
+}
+
+type MatchupMatrixCell = {
+  state: MatchupCellState
+  label: string
+  gameId: string | null
+  title: string
+  expectedMeetings: number
+  playedMeetings: number
+  meetings: MatchupMatrixMeeting[]
+  column: number
+  opponentId: string
+  opponentName: string
+}
+
+type MatchupMatrixGroup = {
+  id: string
+  label: string
+  category: TeamCategory
+  branch: TeamBranch
+  configuredRounds: number
+  teams: TeamSummary[]
+  rows: {
+    team: TeamSummary
+    index: number
+    cells: MatchupMatrixCell[]
+  }[]
+}
+
+type MatchupMatrixResponse = {
+  season: {
+    id: string
+    name: string
+    year: number
+  }
+  groups: MatchupMatrixGroup[]
+}
+
+type MatchupMatrixRow = MatchupMatrixGroup['rows'][number]
+
 const toast = useToast()
 const weekStart = ref(getWeekStartInput(getLeagueDateInput(new Date())))
 const editableConfigs = ref<ScheduleConfig[]>([])
+const mobileSection = ref<'WEEK' | 'FORM'>('WEEK')
+const matchupCategoryFilter = ref<'ALL' | TeamCategory>('A')
+const matchupBranchFilter = ref<'ALL' | TeamBranch>('ALL')
+const { categoryOptions, categoryOptionsWithAll, firstActiveCategory } = useLeagueCategories()
 
 const { data, pending, refresh } = await useFetch<ScheduleResponse>('/api/admin/schedule', {
   query: computed(() => ({
     weekStart: weekStart.value
+  }))
+})
+const {
+  data: matchupMatrix,
+  pending: isLoadingMatchupMatrix,
+  refresh: refreshMatchupMatrix
+} = await useFetch<MatchupMatrixResponse>('/api/matchups/matrix', {
+  query: computed(() => ({
+    category: matchupCategoryFilter.value === 'ALL' ? undefined : matchupCategoryFilter.value,
+    branch: matchupBranchFilter.value === 'ALL' ? undefined : matchupBranchFilter.value
   }))
 })
 
@@ -120,12 +180,11 @@ const isReleasingGame = ref(false)
 const gamePendingDelete = ref<ScheduleGame | null>(null)
 const gamePendingRelease = ref<ScheduleGame | null>(null)
 
-const categoryOptions = TEAM_CATEGORY_OPTIONS.filter(
-  (option): option is { label: string, value: TeamCategory } => option.value !== 'ALL'
-)
 const branchOptions = TEAM_BRANCH_OPTIONS.filter(
   (option): option is { label: string, value: TeamBranch } => option.value !== 'ALL'
 )
+const matchupCategoryOptions = categoryOptionsWithAll
+const matchupBranchOptions = TEAM_BRANCH_OPTIONS
 const statusOptions = [
   { label: 'Programado', value: 'SCHEDULED' },
   { label: 'Suspendido', value: 'POSTPONED' },
@@ -162,6 +221,7 @@ const scheduledGamesCount = computed(() =>
 const finalGamesCount = computed(() =>
   games.value.filter(game => game.status === 'FINAL').length
 )
+const matchupGroups = computed(() => matchupMatrix.value?.groups ?? [])
 const gamesByDate = computed(() => {
   const groups = new Map<string, GameGroup>()
 
@@ -196,6 +256,15 @@ const isReleaseModalOpen = computed({
     if (!value) gamePendingRelease.value = null
   }
 })
+const matchupLegend = [
+  { label: 'pendiente', state: 'PENDING' },
+  { label: 'programado', state: 'SCHEDULED' },
+  { label: 'suspendido', state: 'POSTPONED' },
+  { label: 'ganado', state: 'WON' },
+  { label: 'empatado', state: 'TIED' },
+  { label: 'perdido', state: 'LOST' },
+  { label: 'p. default', state: 'DEFAULT' }
+] satisfies { label: string, state: MatchupCellState }[]
 
 watch(() => data.value?.weekStart, (normalizedWeekStart) => {
   if (normalizedWeekStart && normalizedWeekStart !== weekStart.value) {
@@ -205,6 +274,16 @@ watch(() => data.value?.weekStart, (normalizedWeekStart) => {
 
 watch(() => data.value?.configs, (configs) => {
   editableConfigs.value = (configs ?? []).map(config => ({ ...config }))
+}, { immediate: true })
+
+watch(categoryOptions, (options) => {
+  if (!options.some(option => option.value === gameForm.category)) {
+    gameForm.category = options[0]?.value ?? 'A'
+  }
+
+  if (matchupCategoryFilter.value !== 'ALL' && !options.some(option => option.value === matchupCategoryFilter.value)) {
+    matchupCategoryFilter.value = options[0]?.value ?? 'ALL'
+  }
 }, { immediate: true })
 
 watch(() => data.value?.suggestedRound, (suggestedRound) => {
@@ -324,17 +403,145 @@ function showError(message: string) {
   })
 }
 
+function matchupCellClass(state: MatchupCellState) {
+  const classes: Record<MatchupCellState, string> = {
+    SELF: 'bg-neutral-300 text-transparent dark:bg-neutral-700',
+    PENDING: 'border border-default bg-default text-muted',
+    SCHEDULED: 'bg-cyan-100 text-cyan-900 dark:bg-cyan-900/40 dark:text-cyan-100',
+    POSTPONED: 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100',
+    WON: 'bg-lime-200 text-lime-950 dark:bg-lime-700 dark:text-lime-50',
+    TIED: 'bg-yellow-200 text-yellow-950 dark:bg-yellow-700 dark:text-yellow-50',
+    LOST: 'bg-red-300 text-red-950 dark:bg-red-800 dark:text-red-50',
+    DEFAULT: 'bg-orange-200 text-orange-950 dark:bg-orange-800 dark:text-orange-50',
+    CANCELLED: 'bg-neutral-200 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200'
+  }
+
+  return classes[state]
+}
+
+function matchupLegendClass(state: MatchupCellState) {
+  const classes: Record<MatchupCellState, string> = {
+    SELF: 'bg-neutral-300',
+    PENDING: 'bg-neutral-300 dark:bg-neutral-500',
+    SCHEDULED: 'bg-cyan-400',
+    POSTPONED: 'bg-amber-400',
+    WON: 'bg-lime-400',
+    TIED: 'bg-yellow-400',
+    LOST: 'bg-red-400',
+    DEFAULT: 'bg-orange-400',
+    CANCELLED: 'bg-neutral-400'
+  }
+
+  return classes[state]
+}
+
+function matchupBadgeClass(state: MatchupCellState) {
+  const classes: Record<MatchupCellState, string> = {
+    SELF: 'bg-neutral-200 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300',
+    PENDING: 'bg-muted text-muted',
+    SCHEDULED: 'bg-cyan-100 text-cyan-900 dark:bg-cyan-900/40 dark:text-cyan-100',
+    POSTPONED: 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100',
+    WON: 'bg-lime-200 text-lime-950 dark:bg-lime-700 dark:text-lime-50',
+    TIED: 'bg-yellow-200 text-yellow-950 dark:bg-yellow-700 dark:text-yellow-50',
+    LOST: 'bg-red-300 text-red-950 dark:bg-red-800 dark:text-red-50',
+    DEFAULT: 'bg-orange-200 text-orange-950 dark:bg-orange-800 dark:text-orange-50',
+    CANCELLED: 'bg-neutral-200 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200'
+  }
+
+  return classes[state]
+}
+
+function matchupStatusLabel(state: MatchupCellState) {
+  const labels: Record<MatchupCellState, string> = {
+    SELF: 'Mismo equipo',
+    PENDING: 'Pendiente',
+    SCHEDULED: 'Programado',
+    POSTPONED: 'Suspendido',
+    WON: 'Ganado',
+    TIED: 'Empatado',
+    LOST: 'Perdido',
+    DEFAULT: 'Default',
+    CANCELLED: 'Cancelado'
+  }
+
+  return labels[state]
+}
+
+function matchupCellsForRow(row: MatchupMatrixRow) {
+  return row.cells.filter(cell => cell.state !== 'SELF')
+}
+
+function matchupMeetingsForCell(cell: MatchupMatrixCell): MatchupMatrixMeeting[] {
+  if (cell.state === 'SELF') return []
+  if (cell.meetings.length) return cell.meetings
+
+  return [{
+    state: 'PENDING',
+    label: '-',
+    gameId: null,
+    title: 'Cruce pendiente',
+    round: null
+  }]
+}
+
+function matchupRemainingCount(cell: MatchupMatrixCell) {
+  if (cell.state === 'SELF') return 0
+
+  return Math.max(0, cell.expectedMeetings - cell.playedMeetings)
+}
+
+function matchupProgressLabel(cell: MatchupMatrixCell) {
+  if (cell.state === 'SELF') return ''
+
+  const expectedMeetings = Math.max(cell.expectedMeetings, cell.playedMeetings, 1)
+
+  return `${cell.playedMeetings}/${expectedMeetings} juegos`
+}
+
+function uniqueMatchupCells(group: MatchupMatrixGroup) {
+  return group.rows.flatMap(row =>
+    row.cells.filter(cell => cell.state !== 'SELF' && cell.column > row.index)
+  )
+}
+
+function matchupCountByState(group: MatchupMatrixGroup, states: MatchupCellState[]) {
+  const stateSet = new Set(states)
+
+  return uniqueMatchupCells(group).reduce((total, cell) =>
+    total + cell.meetings.filter(meeting => stateSet.has(meeting.state)).length, 0
+  )
+}
+
+function matchupPendingCount(group: MatchupMatrixGroup) {
+  return uniqueMatchupCells(group).reduce((total, cell) =>
+    total + matchupRemainingCount(cell) + cell.meetings.filter(meeting => meeting.state === 'CANCELLED').length, 0
+  )
+}
+
+function matchupScheduledCount(group: MatchupMatrixGroup) {
+  return matchupCountByState(group, ['SCHEDULED', 'POSTPONED'])
+}
+
+function matchupFinalCount(group: MatchupMatrixGroup) {
+  return matchupCountByState(group, ['WON', 'TIED', 'LOST', 'DEFAULT'])
+}
+
+function refreshMatrix() {
+  void refreshMatchupMatrix()
+}
+
 function resetGameForm() {
   editingGameId.value = null
   gameForm.round = data.value?.suggestedRound ?? 1
   gameForm.scheduledAt = defaultScheduledAt()
-  gameForm.category = selectedConfig.value?.category ?? 'A'
+  gameForm.category = editableConfigs.value[0]?.category ?? firstActiveCategory.value
   gameForm.branch = selectedConfig.value?.branch ?? 'VARONIL'
   gameForm.homeTeamId = ''
   gameForm.awayTeamId = ''
   gameForm.fieldId = ''
   gameForm.status = 'SCHEDULED'
   gameForm.notes = ''
+  mobileSection.value = 'FORM'
 }
 
 function editGame(game: ScheduleGame) {
@@ -348,6 +555,7 @@ function editGame(game: ScheduleGame) {
   gameForm.fieldId = game.field?.id ?? ''
   gameForm.status = game.status
   gameForm.notes = game.notes ?? ''
+  mobileSection.value = 'FORM'
 }
 
 function gamePayload() {
@@ -387,8 +595,12 @@ async function saveGame() {
       showFeedback('Partido agregado al rol.')
     }
 
-    await refresh()
+    await Promise.all([
+      refresh(),
+      refreshMatchupMatrix()
+    ])
     resetGameForm()
+    mobileSection.value = 'WEEK'
   } catch (error) {
     const statusMessage = typeof error === 'object' && error && 'data' in error
       ? String((error as { data?: { statusMessage?: unknown } }).data?.statusMessage ?? '')
@@ -418,7 +630,10 @@ async function generateSchedule() {
     })
     const gameWord = result.createdCount === 1 ? 'partido' : 'partidos'
 
-    await refresh()
+    await Promise.all([
+      refresh(),
+      refreshMatchupMatrix()
+    ])
     showFeedback(`Rol #${result.round} generado con ${result.createdCount} ${gameWord}.`)
   } catch (error) {
     const statusMessage = typeof error === 'object' && error && 'data' in error
@@ -490,7 +705,10 @@ async function confirmReleaseGame() {
         notes: releasedGameNotes(game)
       }
     })
-    await refresh()
+    await Promise.all([
+      refresh(),
+      refreshMatchupMatrix()
+    ])
 
     if (editingGameId.value === game.id) {
       resetGameForm()
@@ -520,7 +738,10 @@ async function confirmDeleteGame() {
     await $fetch(`/api/admin/schedule/games/${game.id}`, {
       method: 'DELETE'
     })
-    await refresh()
+    await Promise.all([
+      refresh(),
+      refreshMatchupMatrix()
+    ])
 
     if (editingGameId.value === game.id) {
       resetGameForm()
@@ -541,9 +762,9 @@ async function confirmDeleteGame() {
 </script>
 
 <template>
-  <UContainer class="py-6 sm:py-8">
+  <UContainer class="min-w-0 pb-6 pt-4 sm:py-8">
     <div class="mb-6 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-      <div>
+      <div class="min-w-0">
         <UBadge
           color="primary"
           variant="subtle"
@@ -551,10 +772,10 @@ async function confirmDeleteGame() {
         >
           Rol de juegos
         </UBadge>
-        <h1 class="mt-3 text-3xl font-bold tracking-normal text-highlighted sm:text-4xl">
+        <h1 class="mt-3 text-2xl font-bold leading-tight tracking-normal text-highlighted sm:text-4xl">
           Administración del rol
         </h1>
-        <p class="mt-2 max-w-2xl text-base text-muted">
+        <p class="mt-2 max-w-2xl text-sm text-muted sm:text-base">
           {{ data?.season ? `${data.season.name} ${data.season.year}` : 'Temporada activa' }}
         </p>
       </div>
@@ -587,7 +808,7 @@ async function confirmDeleteGame() {
       </div>
     </div>
 
-    <section class="mb-4 grid gap-3 rounded-lg border border-default bg-default p-3 shadow-sm lg:grid-cols-[auto_1fr_auto_auto_auto] lg:items-end">
+    <section class="mb-4 grid min-w-0 gap-3 overflow-hidden rounded-lg border border-default bg-default p-3 shadow-sm lg:grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] lg:items-end">
       <div class="flex items-center gap-1.5">
         <UButton
           type="button"
@@ -607,16 +828,16 @@ async function confirmDeleteGame() {
         />
       </div>
 
-      <label class="grid gap-1.5 text-sm">
+      <label class="grid min-w-0 gap-1.5 text-sm">
         <span class="font-medium text-highlighted">Semana</span>
         <input
           v-model="weekStart"
           type="date"
-          class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
+          class="box-border h-10 min-w-0 max-w-full appearance-none rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
         >
       </label>
 
-      <div class="rounded-md bg-muted/30 px-3 py-2 text-sm text-highlighted">
+      <div class="min-w-0 rounded-md bg-muted/30 px-3 py-2 text-sm text-highlighted">
         {{ formatDateInput(weekStart) }} - {{ formatDateInput(weekEndInclusive) }}
       </div>
 
@@ -626,6 +847,7 @@ async function confirmDeleteGame() {
         label="Generar rol"
         color="primary"
         variant="soft"
+        class="w-full justify-center lg:w-fit"
         :loading="isGeneratingSchedule"
         :disabled="pending"
         @click="generateSchedule"
@@ -637,13 +859,319 @@ async function confirmDeleteGame() {
         label="Ajustes"
         color="neutral"
         variant="outline"
+        class="w-full justify-center lg:w-fit"
       />
     </section>
+
+    <section class="mb-4 min-w-0 rounded-lg border border-default bg-default p-3 shadow-sm sm:p-4">
+      <div class="mb-4 flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+        <div class="min-w-0">
+          <p class="text-sm font-semibold text-primary">
+            Cruces por grupo
+          </p>
+          <h2 class="text-xl font-bold text-highlighted">
+            Matriz de cruces
+          </h2>
+          <p class="mt-1 text-sm text-muted">
+            Revisa qué equipos ya se enfrentaron, cuáles están programados y qué cruces siguen pendientes para generar rol.
+          </p>
+        </div>
+
+        <div class="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] xl:min-w-136">
+          <label class="grid min-w-0 gap-1.5 text-sm">
+            <span class="font-medium text-highlighted">Categoría</span>
+            <select
+              v-model="matchupCategoryFilter"
+              class="h-10 min-w-0 max-w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
+            >
+              <option
+                v-for="option in matchupCategoryOptions"
+                :key="option.value"
+                :value="option.value"
+              >
+                {{ option.label }}
+              </option>
+            </select>
+          </label>
+
+          <label class="grid min-w-0 gap-1.5 text-sm">
+            <span class="font-medium text-highlighted">Rama</span>
+            <select
+              v-model="matchupBranchFilter"
+              class="h-10 min-w-0 max-w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
+            >
+              <option
+                v-for="option in matchupBranchOptions"
+                :key="option.value"
+                :value="option.value"
+              >
+                {{ option.label }}
+              </option>
+            </select>
+          </label>
+
+          <UButton
+            type="button"
+            icon="i-lucide-refresh-cw"
+            label="Actualizar"
+            color="neutral"
+            variant="outline"
+            class="self-end justify-center"
+            :loading="isLoadingMatchupMatrix"
+            @click="refreshMatrix"
+          />
+        </div>
+      </div>
+
+      <div class="mb-4 flex max-w-full gap-2 overflow-x-auto pb-1 text-xs sm:grid sm:grid-cols-3 sm:overflow-visible lg:grid-cols-7">
+        <div
+          v-for="item in matchupLegend"
+          :key="item.state"
+          class="flex min-w-fit items-center justify-center gap-2 rounded-md border border-default bg-muted/20 px-2.5 py-1.5 text-muted"
+        >
+          <span
+            class="size-2 rounded-full"
+            :class="matchupLegendClass(item.state)"
+          />
+          <span>{{ item.label }}</span>
+        </div>
+      </div>
+
+      <div
+        v-if="isLoadingMatchupMatrix"
+        class="rounded-lg border border-dashed border-default p-8 text-center text-sm text-muted"
+      >
+        Cargando cruces...
+      </div>
+
+      <div
+        v-else-if="matchupGroups.length"
+        class="grid gap-4"
+      >
+        <article
+          v-for="group in matchupGroups"
+          :key="group.id"
+          class="min-w-0 rounded-lg border border-default bg-muted/20 p-3"
+        >
+          <div class="mb-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div class="min-w-0">
+              <div class="mb-1.5 flex flex-wrap items-center gap-1.5">
+                <UBadge
+                  :color="categoryColor(group.category)"
+                  variant="subtle"
+                >
+                  {{ categoryLabel(group.category) }}
+                </UBadge>
+                <UBadge
+                  :color="branchColor(group.branch)"
+                  variant="subtle"
+                >
+                  {{ branchLabel(group.branch) }}
+                </UBadge>
+              </div>
+              <h3 class="text-base font-bold text-highlighted">
+                {{ group.label }}
+              </h3>
+              <p class="text-xs text-muted">
+                {{ group.teams.length }} equipos registrados · {{ group.configuredRounds }} vuelta{{ group.configuredRounds === 1 ? '' : 's' }} configurada{{ group.configuredRounds === 1 ? '' : 's' }}.
+              </p>
+            </div>
+
+            <div class="grid grid-cols-3 gap-2 text-center text-xs sm:w-fit">
+              <div class="rounded-md border border-default bg-default px-2.5 py-1.5">
+                <p class="font-bold text-highlighted">
+                  {{ matchupPendingCount(group) }}
+                </p>
+                <p class="text-muted">
+                  Pendientes
+                </p>
+              </div>
+              <div class="rounded-md border border-default bg-default px-2.5 py-1.5">
+                <p class="font-bold text-highlighted">
+                  {{ matchupScheduledCount(group) }}
+                </p>
+                <p class="text-muted">
+                  En rol
+                </p>
+              </div>
+              <div class="rounded-md border border-default bg-default px-2.5 py-1.5">
+                <p class="font-bold text-highlighted">
+                  {{ matchupFinalCount(group) }}
+                </p>
+                <p class="text-muted">
+                  Finales
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid gap-2 sm:hidden">
+            <article
+              v-for="row in group.rows"
+              :key="row.team.id"
+              class="rounded-lg border border-default bg-default p-3"
+            >
+              <div class="mb-3 flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <h4 class="truncate font-bold text-highlighted">
+                    {{ row.team.name }}
+                  </h4>
+                  <p class="text-xs text-muted">
+                    Equipo #{{ row.index }} · {{ matchupCellsForRow(row).length }} cruces
+                  </p>
+                </div>
+              </div>
+
+              <div class="grid gap-1.5">
+                <div
+                  v-for="cell in matchupCellsForRow(row)"
+                  :key="`${row.team.id}-${cell.opponentId}`"
+                  class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-default bg-muted/20 px-2.5 py-2"
+                >
+                  <div class="min-w-0">
+                    <p class="truncate text-sm font-semibold text-highlighted">
+                      vs {{ cell.opponentName }}
+                    </p>
+                    <p class="truncate text-xs text-muted">
+                      {{ matchupProgressLabel(cell) }}
+                    </p>
+                  </div>
+                  <div class="flex min-w-0 max-w-36 flex-wrap justify-end gap-1">
+                    <span
+                      v-for="(meeting, meetingIndex) in matchupMeetingsForCell(cell)"
+                      :key="`${row.team.id}-${cell.opponentId}-${meeting.gameId ?? meetingIndex}`"
+                      class="rounded-md px-2 py-1 text-[11px] font-bold leading-none"
+                      :class="matchupBadgeClass(meeting.state)"
+                      :title="meeting.title"
+                    >
+                      {{ meeting.label || matchupStatusLabel(meeting.state) }}
+                    </span>
+                    <span
+                      v-if="matchupRemainingCount(cell)"
+                      class="rounded-md bg-muted px-2 py-1 text-[11px] font-bold leading-none text-muted"
+                    >
+                      +{{ matchupRemainingCount(cell) }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </div>
+
+          <div class="hidden max-w-full overflow-x-auto pb-1 sm:block">
+            <table class="w-max border-separate border-spacing-1 text-xs">
+              <thead>
+                <tr class="text-muted">
+                  <th class="sticky left-0 z-10 min-w-44 bg-default px-2 py-1 text-right font-bold">
+                    Equipos
+                  </th>
+                  <th class="w-8 px-1 py-1 text-center font-bold">
+                    #
+                  </th>
+                  <th
+                    v-for="(team, index) in group.teams"
+                    :key="team.id"
+                    class="w-16 px-1 py-1 text-center font-bold"
+                    :title="team.name"
+                  >
+                    {{ index + 1 }}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="row in group.rows"
+                  :key="row.team.id"
+                >
+                  <th class="sticky left-0 z-10 max-w-44 bg-default px-2 py-1 text-right font-semibold text-primary">
+                    <span class="block truncate">
+                      {{ row.team.name }}
+                    </span>
+                  </th>
+                  <td class="px-1 py-1 text-center font-semibold text-muted">
+                    {{ row.index }}
+                  </td>
+                  <td
+                    v-for="cell in row.cells"
+                    :key="`${row.team.id}-${cell.opponentId}`"
+                    class="min-h-11 w-28 rounded-md px-1 py-1 text-center align-middle text-[11px] font-semibold"
+                    :class="cell.state === 'SELF' ? matchupCellClass(cell.state) : 'border border-default bg-default/80'"
+                    :title="`${row.team.name} vs ${cell.opponentName}: ${cell.title}`"
+                  >
+                    <div
+                      v-if="cell.state === 'SELF'"
+                      class="h-8"
+                    />
+                    <div
+                      v-else
+                      class="grid min-h-8 place-items-center gap-1"
+                    >
+                      <div class="flex max-w-24 flex-wrap justify-center gap-1">
+                        <span
+                          v-for="(meeting, meetingIndex) in matchupMeetingsForCell(cell)"
+                          :key="`${row.team.id}-${cell.opponentId}-${meeting.gameId ?? meetingIndex}`"
+                          class="min-w-8 rounded px-1.5 py-0.5 text-[10px] font-bold leading-none"
+                          :class="matchupBadgeClass(meeting.state)"
+                          :title="meeting.title"
+                        >
+                          {{ meeting.label || matchupStatusLabel(meeting.state) }}
+                        </span>
+                      </div>
+                      <span
+                        v-if="matchupRemainingCount(cell)"
+                        class="text-[10px] font-semibold leading-none text-muted"
+                      >
+                        +{{ matchupRemainingCount(cell) }} pendientes
+                      </span>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+
+      <div
+        v-else
+        class="rounded-lg border border-dashed border-default p-8 text-center text-sm text-muted"
+      >
+        No hay equipos suficientes para mostrar cruces con esos filtros.
+      </div>
+    </section>
+
+    <div class="mb-4 grid grid-cols-2 gap-1 rounded-lg bg-muted/40 p-1 text-sm xl:hidden">
+      <button
+        type="button"
+        class="inline-flex h-10 items-center justify-center gap-2 rounded-md font-bold transition"
+        :class="mobileSection === 'WEEK' ? 'bg-default text-highlighted shadow-sm' : 'text-muted'"
+        @click="mobileSection = 'WEEK'"
+      >
+        <UIcon
+          name="i-lucide-calendar-days"
+          class="size-4"
+        />
+        Semana
+      </button>
+      <button
+        type="button"
+        class="inline-flex h-10 items-center justify-center gap-2 rounded-md font-bold transition"
+        :class="mobileSection === 'FORM' ? 'bg-default text-highlighted shadow-sm' : 'text-muted'"
+        @click="resetGameForm"
+      >
+        <UIcon
+          name="i-lucide-plus"
+          class="size-4"
+        />
+        Partido
+      </button>
+    </div>
 
     <section class="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
       <div class="grid gap-4">
         <form
-          class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3"
+          class="min-w-0 rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3"
+          :class="mobileSection === 'FORM' ? '' : 'hidden xl:block'"
           @submit.prevent="saveGame"
         >
           <div class="mb-2.5 flex items-center justify-between gap-2">
@@ -668,8 +1196,8 @@ async function confirmDeleteGame() {
             />
           </div>
 
-          <div class="grid gap-2 sm:grid-cols-2">
-            <label class="grid gap-1.5 text-sm">
+          <div class="grid min-w-0 gap-2 sm:grid-cols-2">
+            <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">Rol</span>
               <UInput
                 v-model.number="gameForm.round"
@@ -680,21 +1208,21 @@ async function confirmDeleteGame() {
               />
             </label>
 
-            <label class="grid gap-1.5 text-sm">
+            <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">Fecha y hora</span>
               <input
                 v-model="gameForm.scheduledAt"
                 type="datetime-local"
                 required
-                class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
+                class="box-border h-10 min-w-0 max-w-full appearance-none rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
               >
             </label>
 
-            <label class="grid gap-1.5 text-sm">
+            <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">Categoría</span>
               <select
                 v-model="gameForm.category"
-                class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
+                class="h-10 min-w-0 max-w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
               >
                 <option
                   v-for="option in categoryOptions"
@@ -706,11 +1234,11 @@ async function confirmDeleteGame() {
               </select>
             </label>
 
-            <label class="grid gap-1.5 text-sm">
+            <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">Rama</span>
               <select
                 v-model="gameForm.branch"
-                class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
+                class="h-10 min-w-0 max-w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
               >
                 <option
                   v-for="option in branchOptions"
@@ -722,12 +1250,12 @@ async function confirmDeleteGame() {
               </select>
             </label>
 
-            <label class="grid gap-1.5 text-sm">
+            <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">Local</span>
               <select
                 v-model="gameForm.homeTeamId"
                 required
-                class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
+                class="h-10 min-w-0 max-w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
               >
                 <option value="">
                   Seleccionar
@@ -742,12 +1270,12 @@ async function confirmDeleteGame() {
               </select>
             </label>
 
-            <label class="grid gap-1.5 text-sm">
+            <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">Visitante</span>
               <select
                 v-model="gameForm.awayTeamId"
                 required
-                class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
+                class="h-10 min-w-0 max-w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
               >
                 <option value="">
                   Seleccionar
@@ -762,11 +1290,11 @@ async function confirmDeleteGame() {
               </select>
             </label>
 
-            <label class="grid gap-1.5 text-sm">
+            <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">Campo</span>
               <select
                 v-model="gameForm.fieldId"
-                class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
+                class="h-10 min-w-0 max-w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
               >
                 <option value="">
                   Por definir
@@ -781,11 +1309,11 @@ async function confirmDeleteGame() {
               </select>
             </label>
 
-            <label class="grid gap-1.5 text-sm">
+            <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">Estado</span>
               <select
                 v-model="gameForm.status"
-                class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
+                class="h-10 min-w-0 max-w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
               >
                 <option
                   v-for="option in statusOptions"
@@ -797,12 +1325,12 @@ async function confirmDeleteGame() {
               </select>
             </label>
 
-            <label class="grid gap-1.5 text-sm sm:col-span-2">
+            <label class="grid min-w-0 gap-1.5 text-sm sm:col-span-2">
               <span class="font-medium text-highlighted">Notas</span>
               <textarea
                 v-model="gameForm.notes"
                 rows="3"
-                class="w-full rounded-md border border-default bg-default px-3 py-2 text-sm text-highlighted outline-none focus:border-primary"
+                class="min-w-0 max-w-full rounded-md border border-default bg-default px-3 py-2 text-sm text-highlighted outline-none focus:border-primary"
                 placeholder="Opcional"
               />
             </label>
@@ -821,7 +1349,10 @@ async function confirmDeleteGame() {
         </form>
       </div>
 
-      <section class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 xl:flex xl:max-h-[48rem] xl:flex-col">
+      <section
+        class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 xl:flex xl:max-h-192 xl:flex-col"
+        :class="mobileSection === 'WEEK' ? '' : 'hidden xl:flex'"
+      >
         <div class="mb-2.5 flex items-center justify-between gap-2">
           <div>
             <h2 class="text-base font-bold text-highlighted">
@@ -834,6 +1365,16 @@ async function confirmDeleteGame() {
           <UIcon
             name="i-lucide-list-checks"
             class="size-5 text-muted"
+          />
+          <UButton
+            type="button"
+            icon="i-lucide-plus"
+            label="Agregar"
+            color="primary"
+            variant="subtle"
+            size="sm"
+            class="xl:hidden"
+            @click="resetGameForm"
           />
         </div>
 
@@ -918,12 +1459,10 @@ async function confirmDeleteGame() {
 
                 <div class="grid gap-2 md:grid-cols-[1fr_auto_1fr] md:items-center">
                   <div class="flex min-w-0 items-center gap-3 rounded-md bg-muted/30 p-2">
-                    <span
-                      class="flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                      :style="{ backgroundColor: game.homeTeam.primaryColor ?? '#047857' }"
-                    >
-                      {{ teamInitials(game.homeTeam) }}
-                    </span>
+                    <TeamAvatar
+                      :team="game.homeTeam"
+                      class="size-10 text-xs font-bold"
+                    />
                     <div class="min-w-0">
                       <p class="truncate font-semibold text-highlighted">
                         {{ game.homeTeam.name }}
@@ -944,12 +1483,10 @@ async function confirmDeleteGame() {
                   </div>
 
                   <div class="flex min-w-0 items-center gap-3 rounded-md bg-muted/30 p-2 md:flex-row-reverse md:text-right">
-                    <span
-                      class="flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                      :style="{ backgroundColor: game.awayTeam.primaryColor ?? '#f97316' }"
-                    >
-                      {{ teamInitials(game.awayTeam) }}
-                    </span>
+                    <TeamAvatar
+                      :team="game.awayTeam"
+                      class="size-10 text-xs font-bold"
+                    />
                     <div class="min-w-0">
                       <p class="truncate font-semibold text-highlighted">
                         {{ game.awayTeam.name }}

@@ -2,20 +2,18 @@
 import {
   PLAYER_POSITION_OPTIONS,
   TEAM_BRANCH_OPTIONS,
-  TEAM_CATEGORY_OPTIONS,
   TEAM_MEMBER_ROLE_OPTIONS,
   branchLabel,
   categoryColor,
   categoryLabel,
-  handLabel,
+  formatShortDate,
   memberRoleColor,
   memberRoleLabel,
   playerPositionLabel,
   playerName,
-  teamInitials,
   teamStatusColor,
   teamStatusLabel,
-  type Player,
+  type AdminPlayer,
   type TeamBranch,
   type TeamCategory
 } from '~/utils/league'
@@ -66,10 +64,11 @@ type TeamsResponse = {
 }
 
 type TeamMembersResponse = {
-  members: Player[]
+  members: AdminPlayer[]
 }
 
 const { data, refresh } = await useFetch<TeamsResponse>('/api/admin/teams')
+const { categoryOptions, firstActiveCategory } = useLeagueCategories()
 const toast = useToast()
 
 const teamForm = reactive({
@@ -77,7 +76,7 @@ const teamForm = reactive({
   shortName: '',
   slug: '',
   logoUrl: '',
-  primaryColor: '#047857',
+  primaryColor: '#025a60',
   secondaryColor: '#0F172A',
   managerName: '',
   category: 'A' as TeamCategory,
@@ -106,9 +105,6 @@ const statusOptions = [
   { label: 'Inactivo', value: 'INACTIVE' }
 ] satisfies { label: string, value: TeamStatus }[]
 
-const categoryOptions = TEAM_CATEGORY_OPTIONS.filter(
-  (option): option is { label: string, value: TeamCategory } => option.value !== 'ALL'
-)
 const branchOptions = TEAM_BRANCH_OPTIONS.filter(
   (option): option is { label: string, value: TeamBranch } => option.value !== 'ALL'
 )
@@ -122,8 +118,8 @@ const isDeletingMember = ref(false)
 const togglingTeamId = ref<string | null>(null)
 const isDeletingTeam = ref(false)
 const teamPendingDelete = ref<AdminTeam | null>(null)
-const memberPendingDelete = ref<Player | null>(null)
-const teamMembers = ref<Player[]>([])
+const memberPendingDelete = ref<AdminPlayer | null>(null)
+const teamMembers = ref<AdminPlayer[]>([])
 const editingMemberId = ref<string | null>(null)
 const isSlugDirty = ref(false)
 const showAdvancedTeamOptions = ref(false)
@@ -131,6 +127,7 @@ const search = ref('')
 const selectedStatus = ref<'ALL' | TeamStatus>('ALL')
 const selectedCategory = ref<'ALL' | TeamCategory>('ALL')
 const selectedBranch = ref<'ALL' | TeamBranch>('ALL')
+const mobileSection = ref<'LIST' | 'FORM' | 'MEMBERS'>('LIST')
 
 const teams = computed(() => data.value?.teams ?? [])
 const managerOptions = computed(() => data.value?.managerOptions ?? [])
@@ -213,6 +210,16 @@ watch(() => memberForm.memberRole, (role) => {
   }
 })
 
+watch(categoryOptions, (options) => {
+  if (!options.some(option => option.value === teamForm.category)) {
+    teamForm.category = options[0]?.value ?? 'A'
+  }
+
+  if (selectedCategory.value !== 'ALL' && !options.some(option => option.value === selectedCategory.value)) {
+    selectedCategory.value = 'ALL'
+  }
+}, { immediate: true })
+
 function slugify(value: string) {
   return value
     .normalize('NFD')
@@ -257,6 +264,10 @@ function handleManagerSelection(managerId: string, event: Event) {
 
 function gameCount(team: AdminTeam) {
   return team._count.homeGames + team._count.awayGames
+}
+
+function memberRegisteredAt(member: AdminPlayer) {
+  return formatShortDate(member.createdAt)
 }
 
 function canDeleteTeam(team: AdminTeam) {
@@ -304,10 +315,10 @@ function resetTeamForm() {
   teamForm.shortName = ''
   teamForm.slug = ''
   teamForm.logoUrl = ''
-  teamForm.primaryColor = '#047857'
+  teamForm.primaryColor = '#025a60'
   teamForm.secondaryColor = '#0F172A'
   teamForm.managerName = ''
-  teamForm.category = 'A'
+  teamForm.category = firstActiveCategory.value
   teamForm.branch = 'VARONIL'
   teamForm.status = 'ACTIVE'
   teamForm.managerUserIds = []
@@ -315,6 +326,11 @@ function resetTeamForm() {
   teamForm.newManagerEmail = ''
   showAdvancedTeamOptions.value = false
   resetMemberForm()
+}
+
+function startNewTeam() {
+  resetTeamForm()
+  mobileSection.value = 'FORM'
 }
 
 function editTeam(team: AdminTeam) {
@@ -326,7 +342,7 @@ function editTeam(team: AdminTeam) {
   teamForm.shortName = team.shortName ?? ''
   teamForm.slug = team.slug
   teamForm.logoUrl = team.logoUrl ?? ''
-  teamForm.primaryColor = team.primaryColor ?? '#047857'
+  teamForm.primaryColor = team.primaryColor ?? '#025a60'
   teamForm.secondaryColor = team.secondaryColor ?? '#0F172A'
   teamForm.managerName = team.managerName ?? ''
   teamForm.category = team.category
@@ -335,6 +351,7 @@ function editTeam(team: AdminTeam) {
   teamForm.managerUserIds = managerIds(team)
   teamForm.newManagerName = ''
   teamForm.newManagerEmail = ''
+  mobileSection.value = 'FORM'
   void loadTeamMembers(team.id)
 }
 
@@ -382,7 +399,7 @@ async function loadTeamMembers(teamId: string) {
   }
 }
 
-function editMember(member: Player) {
+function editMember(member: AdminPlayer) {
   editingMemberId.value = member.id
   memberForm.firstName = member.firstName
   memberForm.lastName = member.lastName
@@ -394,6 +411,7 @@ function editMember(member: Player) {
   memberForm.bats = member.bats
   memberForm.throws = member.throws
   memberForm.status = member.status
+  mobileSection.value = 'MEMBERS'
 }
 
 function memberPayload() {
@@ -439,6 +457,7 @@ async function saveTeam() {
 
     await refresh()
     resetTeamForm()
+    mobileSection.value = 'LIST'
   } catch (error) {
     const statusMessage = typeof error === 'object' && error && 'data' in error
       ? String((error as { data?: { statusMessage?: unknown } }).data?.statusMessage ?? '')
@@ -566,7 +585,7 @@ async function saveMember() {
   }
 }
 
-function deleteMember(member: Player) {
+function deleteMember(member: AdminPlayer) {
   memberPendingDelete.value = member
 }
 
@@ -666,9 +685,9 @@ async function confirmDeleteTeam() {
 </script>
 
 <template>
-  <UContainer class="py-6 sm:py-8">
+  <UContainer class="min-w-0 pb-6 pt-4 sm:py-8">
     <div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-      <div>
+      <div class="min-w-0">
         <UBadge
           color="primary"
           variant="subtle"
@@ -676,16 +695,16 @@ async function confirmDeleteTeam() {
         >
           Equipos
         </UBadge>
-        <h1 class="mt-3 text-3xl font-bold tracking-normal text-highlighted sm:text-4xl">
+        <h1 class="mt-3 text-2xl font-bold leading-tight tracking-normal text-highlighted sm:text-4xl">
           Administración de equipos
         </h1>
-        <p class="mt-2 max-w-2xl text-base text-muted">
+        <p class="mt-2 max-w-2xl text-sm text-muted sm:text-base">
           Crea equipos, define categoría y rama, asigna manejadores y controla si están activos.
         </p>
       </div>
 
       <div class="grid grid-cols-3 gap-2 rounded-lg border border-default bg-default p-2 text-center shadow-sm">
-        <div class="rounded-md bg-muted/40 px-3 py-2">
+        <div class="min-w-0 rounded-md bg-muted/40 px-2 py-2 sm:px-3">
           <p class="text-xl font-bold text-highlighted">
             {{ teams.length }}
           </p>
@@ -693,7 +712,7 @@ async function confirmDeleteTeam() {
             Equipos
           </p>
         </div>
-        <div class="rounded-md bg-muted/40 px-3 py-2">
+        <div class="min-w-0 rounded-md bg-muted/40 px-2 py-2 sm:px-3">
           <p class="text-xl font-bold text-highlighted">
             {{ activeTeams }}
           </p>
@@ -701,7 +720,7 @@ async function confirmDeleteTeam() {
             Activos
           </p>
         </div>
-        <div class="rounded-md bg-muted/40 px-3 py-2">
+        <div class="min-w-0 rounded-md bg-muted/40 px-2 py-2 sm:px-3">
           <p class="text-xl font-bold text-highlighted">
             {{ teamsWithManagers }}
           </p>
@@ -712,9 +731,50 @@ async function confirmDeleteTeam() {
       </div>
     </div>
 
+    <div class="mb-4 grid grid-cols-3 gap-1 rounded-lg bg-muted/40 p-1 text-sm xl:hidden">
+      <button
+        type="button"
+        class="inline-flex h-10 items-center justify-center gap-1.5 rounded-md font-bold transition"
+        :class="mobileSection === 'LIST' ? 'bg-default text-highlighted shadow-sm' : 'text-muted'"
+        @click="mobileSection = 'LIST'"
+      >
+        <UIcon
+          name="i-lucide-shield"
+          class="size-4"
+        />
+        Equipos
+      </button>
+      <button
+        type="button"
+        class="inline-flex h-10 items-center justify-center gap-1.5 rounded-md font-bold transition"
+        :class="mobileSection === 'FORM' ? 'bg-default text-highlighted shadow-sm' : 'text-muted'"
+        @click="startNewTeam"
+      >
+        <UIcon
+          name="i-lucide-plus"
+          class="size-4"
+        />
+        Nuevo
+      </button>
+      <button
+        type="button"
+        class="inline-flex h-10 items-center justify-center gap-1.5 rounded-md font-bold transition disabled:opacity-45"
+        :class="mobileSection === 'MEMBERS' ? 'bg-default text-highlighted shadow-sm' : 'text-muted'"
+        :disabled="!editingTeam"
+        @click="mobileSection = 'MEMBERS'"
+      >
+        <UIcon
+          name="i-lucide-users-round"
+          class="size-4"
+        />
+        Roster
+      </button>
+    </div>
+
     <section class="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
       <form
         class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3"
+        :class="mobileSection === 'FORM' ? '' : 'hidden xl:block'"
         @submit.prevent="saveTeam"
       >
         <div class="mb-2.5 flex items-center justify-between gap-2">
@@ -904,7 +964,7 @@ async function confirmDeleteTeam() {
                   <span
                     v-else
                     class="flex size-16 shrink-0 items-center justify-center rounded-md text-sm font-bold text-white"
-                    :style="{ backgroundColor: teamForm.primaryColor || '#047857' }"
+                    :style="{ backgroundColor: teamForm.primaryColor || '#025a60' }"
                   >
                     {{ teamFormInitials() }}
                   </span>
@@ -962,9 +1022,33 @@ async function confirmDeleteTeam() {
         />
       </form>
 
-      <section class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 xl:flex xl:max-h-168 xl:flex-col">
+      <section
+        class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 xl:flex xl:max-h-168 xl:flex-col"
+        :class="mobileSection === 'LIST' ? '' : 'hidden xl:flex'"
+      >
         <div class="mb-2.5 grid gap-2 lg:grid-cols-[1fr_auto] lg:items-end">
-          <div>
+          <div class="flex items-center justify-between gap-2 xl:hidden">
+            <div>
+              <h2 class="text-base font-bold text-highlighted">
+                Equipos registrados
+              </h2>
+              <p class="text-xs text-muted">
+                {{ filteredTeams.length }} de {{ teams.length }} equipos visibles.
+              </p>
+            </div>
+            <UButton
+              type="button"
+              icon="i-lucide-plus"
+              label="Nuevo"
+              color="primary"
+              variant="subtle"
+              size="sm"
+              class="xl:hidden"
+              @click="startNewTeam"
+            />
+          </div>
+
+          <div class="hidden xl:block">
             <h2 class="text-base font-bold text-highlighted">
               Equipos registrados
             </h2>
@@ -1035,19 +1119,10 @@ async function confirmDeleteTeam() {
           >
             <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div class="flex min-w-0 gap-3">
-                <img
-                  v-if="team.logoUrl"
-                  :src="team.logoUrl"
-                  :alt="`Logo de ${team.name}`"
-                  class="size-10 shrink-0 object-contain"
-                >
-                <span
-                  v-else
-                  class="flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                  :style="{ backgroundColor: team.primaryColor ?? '#047857' }"
-                >
-                  {{ teamInitials(team) }}
-                </span>
+                <TeamAvatar
+                  :team="team"
+                  class="size-10 text-xs font-bold"
+                />
 
                 <div class="min-w-0">
                   <div class="mb-1 flex flex-wrap items-center gap-1.5">
@@ -1126,7 +1201,8 @@ async function confirmDeleteTeam() {
 
     <section
       v-if="editingTeam"
-      class="mt-4 grid gap-4 xl:grid-cols-[0.85fr_1.15fr]"
+      class="mt-4 min-w-0 gap-4 xl:grid xl:grid-cols-[0.85fr_1.15fr]"
+      :class="mobileSection === 'MEMBERS' ? 'grid' : 'hidden xl:grid'"
     >
       <form
         class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3"
@@ -1330,6 +1406,14 @@ async function confirmDeleteTeam() {
                   >
                     {{ member.status === 'ACTIVE' ? 'Activo' : 'Inactivo' }}
                   </UBadge>
+                  <UBadge
+                    v-if="member.memberRole === 'PLAYER'"
+                    color="info"
+                    variant="subtle"
+                    icon="i-lucide-calendar-plus"
+                  >
+                    Alta {{ memberRegisteredAt(member) }}
+                  </UBadge>
                 </div>
 
                 <h3 class="truncate font-bold text-highlighted">
@@ -1337,7 +1421,7 @@ async function confirmDeleteTeam() {
                 </h3>
                 <p class="text-xs text-muted">
                   <span v-if="member.memberRole === 'PLAYER'">
-                    #{{ member.number ?? '-' }} · {{ playerPositionLabel(member.position) }} · CURP {{ member.curp ?? '-' }} · Batea {{ handLabel(member.bats) }} · Lanza {{ handLabel(member.throws) }}
+                    #{{ member.number ?? '-' }} · {{ playerPositionLabel(member.position) }} · CURP {{ member.curp ?? '-' }}
                   </span>
                   <span v-else>
                     Staff del equipo · CURP {{ member.curp ?? '-' }}

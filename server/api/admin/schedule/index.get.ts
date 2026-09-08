@@ -1,4 +1,5 @@
 import { prisma } from '../../../utils/db'
+import { getActiveCategories } from '../../../utils/categories'
 import { requireAdmin } from '../../../utils/session'
 import {
   adminScheduleGameSelect,
@@ -15,11 +16,23 @@ export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const weekRange = getWeekRange(query.weekStart)
   const season = await getActiveSeasonForSchedule(prisma)
+  const activeCategories = await getActiveCategories(prisma)
+  const activeCategoryFilter = { in: activeCategories }
 
   const [games, latestRoundGame, teams, fields, configs] = await Promise.all([
     prisma.game.findMany({
       where: {
         seasonId: season.id,
+        homeTeam: {
+          is: {
+            category: activeCategoryFilter
+          }
+        },
+        awayTeam: {
+          is: {
+            category: activeCategoryFilter
+          }
+        },
         scheduledAt: {
           gte: weekRange.startsAt,
           lt: weekRange.endsAt
@@ -34,7 +47,17 @@ export default defineEventHandler(async (event) => {
     prisma.game.findFirst({
       where: {
         seasonId: season.id,
-        round: { not: null }
+        round: { not: null },
+        homeTeam: {
+          is: {
+            category: activeCategoryFilter
+          }
+        },
+        awayTeam: {
+          is: {
+            category: activeCategoryFilter
+          }
+        }
       },
       orderBy: { round: 'desc' },
       select: { round: true }

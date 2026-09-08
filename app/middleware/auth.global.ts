@@ -1,10 +1,18 @@
 export default defineNuxtRouteMiddleware(async (to) => {
-  if (to.path === '/login') return
-
   const { user, initialized, fetchSession } = useAuth()
 
   if (!initialized.value) {
     await fetchSession().catch(() => null)
+  }
+
+  if (to.path === '/login') {
+    if (!user.value) return
+
+    const redirect = typeof to.query.redirect === 'string' && to.query.redirect.startsWith('/')
+      ? to.query.redirect
+      : '/admin'
+
+    return navigateTo(user.value.role === 'ADMIN' ? getAdminLoginTarget(redirect) : '/')
   }
 
   if (!user.value) {
@@ -43,4 +51,11 @@ function getAdminTarget(path: string) {
   if (path === '/mi-equipo') return '/admin/equipos'
 
   return '/admin'
+}
+
+function getAdminLoginTarget(path: string) {
+  if (path === '/mi-perfil') return path
+  if (path === '/admin' || path.startsWith('/admin/')) return path
+
+  return getAdminTarget(path) ?? '/admin'
 }

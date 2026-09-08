@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import {
   TEAM_BRANCH_OPTIONS,
-  TEAM_CATEGORY_OPTIONS,
   branchColor,
   branchLabel,
   categoryColor,
@@ -9,7 +8,6 @@ import {
   formatRunDifferential,
   streakColor,
   streakLabel,
-  teamInitials,
   type TeamBranch,
   type TeamCategory,
   type Season,
@@ -17,6 +15,7 @@ import {
 } from '~/utils/league'
 
 const { user } = useAuth()
+const { categoryOptions: activeCategoryOptions, firstActiveCategory } = useLeagueCategories()
 
 useSeoMeta({
   title: 'Posiciones | DiamondPanel',
@@ -27,13 +26,11 @@ const managedTeamCategory = computed(() => user.value?.activeTeam?.category ?? n
 const managedTeamBranch = computed(() => user.value?.activeTeam?.branch ?? null)
 const showStandingsFilters = computed(() => user.value?.role === 'ADMIN')
 const categoryOptions = computed(() =>
-  TEAM_CATEGORY_OPTIONS.filter(
-    (option): option is { label: string, value: TeamCategory } =>
-      option.value !== 'ALL'
-      && (showStandingsFilters.value || !managedTeamCategory.value || option.value === managedTeamCategory.value)
+  activeCategoryOptions.value.filter(
+    option => showStandingsFilters.value || !managedTeamCategory.value || option.value === managedTeamCategory.value
   )
 )
-const selectedCategory = ref<TeamCategory>(managedTeamCategory.value ?? 'A')
+const selectedCategory = ref<TeamCategory>(managedTeamCategory.value ?? firstActiveCategory.value)
 const selectedBranch = ref<'ALL' | TeamBranch>(managedTeamBranch.value ?? 'ALL')
 
 watch([managedTeamCategory, showStandingsFilters], ([category, showFilters]) => {
@@ -260,12 +257,10 @@ const bestDefense = computed(() => [...standingRows.value].sort((a, b) => a.runs
               </td>
               <td class="py-4 pr-3">
                 <div class="flex items-center gap-3">
-                  <span
-                    class="flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                    :style="{ backgroundColor: standing.team.primaryColor ?? '#047857' }"
-                  >
-                    {{ teamInitials(standing.team) }}
-                  </span>
+                  <TeamAvatar
+                    :team="standing.team"
+                    class="size-9 text-xs font-bold"
+                  />
                   <div class="min-w-0">
                     <p class="truncate font-semibold text-highlighted">
                       {{ standing.team.name }}

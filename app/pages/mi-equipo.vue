@@ -2,14 +2,16 @@
 import {
   PLAYER_POSITION_OPTIONS,
   TEAM_MEMBER_ROLE_OPTIONS,
+  type BadgeColor,
+  type PlayoffEligibilityMode,
   branchLabel,
   categoryColor,
   categoryLabel,
-  handLabel,
   memberRoleColor,
   memberRoleLabel,
   playerPositionLabel,
   playerName,
+  type Season,
   teamInitials,
   type Player,
   type Team
@@ -28,13 +30,34 @@ type ManagerTeam = Team & {
   players: Player[]
 }
 
-const { data: team, refresh } = await useFetch<ManagerTeam>('/api/manager/team')
+type PlayerEligibility = Pick<Player, 'id'> & {
+  lineupGames: number
+  isPlayoffEligible: boolean
+}
+
+type PlayoffEligibilityResponse = {
+  season: Season | null
+  eligibilityMode: PlayoffEligibilityMode
+  isOpenRoster: boolean
+  minimumGames: number
+  team: {
+    players: PlayerEligibility[]
+  } | null
+}
+
+const [
+  { data: team, refresh },
+  { data: playoffEligibility, refresh: refreshPlayoffEligibility }
+] = await Promise.all([
+  useFetch<ManagerTeam>('/api/manager/team'),
+  useFetch<PlayoffEligibilityResponse>('/api/manager/playoff-eligibility')
+])
 
 const teamForm = reactive({
   name: '',
   shortName: '',
   logoUrl: '',
-  primaryColor: '#047857',
+  primaryColor: '#025a60',
   secondaryColor: '#0F172A',
   managerName: ''
 })
@@ -58,6 +81,7 @@ const isUploadingTeamLogo = ref(false)
 const isSavingMember = ref(false)
 const isDeletingMember = ref(false)
 const memberPendingDelete = ref<Player | null>(null)
+const mobileSection = ref<'TEAM' | 'ROSTER'>('TEAM')
 const toast = useToast()
 
 const statusOptions = [
@@ -71,7 +95,7 @@ watch(team, (value) => {
   teamForm.name = value.name
   teamForm.shortName = value.shortName ?? ''
   teamForm.logoUrl = value.logoUrl ?? ''
-  teamForm.primaryColor = value.primaryColor ?? '#047857'
+  teamForm.primaryColor = value.primaryColor ?? '#025a60'
   teamForm.secondaryColor = value.secondaryColor ?? '#0F172A'
   teamForm.managerName = value.managerName ?? ''
 }, { immediate: true })
@@ -88,6 +112,9 @@ watch(() => memberForm.memberRole, (role) => {
 const members = computed(() => team.value?.players ?? [])
 const activePlayers = computed(() => members.value.filter(member => member.memberRole === 'PLAYER' && member.status === 'ACTIVE'))
 const staffMembers = computed(() => members.value.filter(member => member.memberRole !== 'PLAYER'))
+const playoffEligibilityByPlayerId = computed(() =>
+  new Map((playoffEligibility.value?.team?.players ?? []).map(player => [player.id, player]))
+)
 const editingMember = computed(() => members.value.find(member => member.id === editingMemberId.value) ?? null)
 const canSaveMember = computed(() => {
   const hasBase = Boolean(memberForm.firstName.trim() && memberForm.lastName.trim())
@@ -136,6 +163,33 @@ function showError(message: string) {
     color: 'error',
     icon: 'i-lucide-circle-alert'
   })
+}
+
+function playerLineupGames(member: Player) {
+  return playoffEligibilityByPlayerId.value.get(member.id)?.lineupGames ?? 0
+}
+
+function isPlayerPlayoffEligible(member: Player) {
+  return playoffEligibility.value?.isOpenRoster
+    || Boolean(playoffEligibilityByPlayerId.value.get(member.id)?.isPlayoffEligible)
+}
+
+function playerEligibilityColor(member: Player): BadgeColor {
+  if (member.status !== 'ACTIVE') return 'neutral'
+
+  return isPlayerPlayoffEligible(member) ? 'success' : 'warning'
+}
+
+function playerEligibilityLabel(member: Player) {
+  if (member.status !== 'ACTIVE') return 'Inactivo'
+
+  return isPlayerPlayoffEligible(member) ? 'Elegible' : 'No elegible'
+}
+
+function playerEligibilityDetail(member: Player) {
+  if (playoffEligibility.value?.isOpenRoster) return 'Cédula abierta'
+
+  return `${playerLineupGames(member)}/${playoffEligibility.value?.minimumGames ?? 5} juegos en lineup`
 }
 
 function resetMemberForm() {
@@ -295,7 +349,10 @@ async function saveMember() {
       })
     }
 
-    await refresh()
+    await Promise.all([
+      refresh(),
+      refreshPlayoffEligibility()
+    ])
     resetMemberForm()
   } catch (error) {
     const statusMessage = typeof error === 'object' && error && 'data' in error
@@ -323,7 +380,10 @@ async function confirmDeleteMember() {
     await $fetch(`/api/manager/team/members/${member.id}`, {
       method: 'DELETE'
     })
-    await refresh()
+    await Promise.all([
+      refresh(),
+      refreshPlayoffEligibility()
+    ])
 
     if (editingMemberId.value === member.id) {
       resetMemberForm()
@@ -340,13 +400,13 @@ async function confirmDeleteMember() {
 </script>
 
 <template>
-  <UContainer class="py-6 sm:py-8">
+  <UContainer class="min-w-0 max-w-full overflow-x-hidden pb-6 pt-4 sm:py-8">
     <div
       v-if="team"
-      class="grid gap-5"
+      class="grid min-w-0 gap-5"
     >
-      <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
+      <div class="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div class="min-w-0">
           <div class="mb-3 flex flex-wrap items-center gap-2">
             <UBadge
               color="primary"
@@ -369,16 +429,16 @@ async function confirmDeleteMember() {
             </UBadge>
           </div>
 
-          <h1 class="text-3xl font-bold tracking-normal text-highlighted sm:text-4xl">
-            Administración de {{ team.name }}
+          <h1 class="max-w-full text-3xl font-bold leading-tight tracking-normal text-highlighted wrap-break-word sm:text-4xl">
+            {{ team.name }}
           </h1>
-          <p class="mt-2 max-w-2xl text-base text-muted">
+          <p class="mt-2 max-w-full text-sm text-muted wrap-break-word sm:max-w-2xl sm:text-base">
             Actualiza los datos visibles del equipo y administra jugadores, manejadores y coaches.
           </p>
         </div>
 
-        <div class="grid grid-cols-2 gap-2 rounded-lg border border-default bg-muted/30 p-2 text-center sm:grid-cols-3">
-          <div class="rounded-md bg-default px-3 py-2">
+        <div class="grid min-w-0 grid-cols-2 gap-2 rounded-lg border border-default bg-muted/30 p-2 text-center sm:grid-cols-3">
+          <div class="min-w-0 rounded-md bg-default px-3 py-2">
             <p class="text-xl font-bold text-highlighted">
               {{ activePlayers.length }}
             </p>
@@ -386,7 +446,7 @@ async function confirmDeleteMember() {
               Jugadores
             </p>
           </div>
-          <div class="rounded-md bg-default px-3 py-2">
+          <div class="min-w-0 rounded-md bg-default px-3 py-2">
             <p class="text-xl font-bold text-highlighted">
               {{ staffMembers.length }}
             </p>
@@ -394,8 +454,8 @@ async function confirmDeleteMember() {
               Staff
             </p>
           </div>
-          <div class="col-span-2 rounded-md bg-default px-3 py-2 sm:col-auto">
-            <p class="text-xl font-bold text-highlighted">
+          <div class="col-span-2 min-w-0 rounded-md bg-default px-3 py-2 sm:col-auto">
+            <p class="truncate text-xl font-bold text-highlighted">
               {{ team.shortName ?? teamInitials(team) }}
             </p>
             <p class="text-xs text-muted">
@@ -405,27 +465,48 @@ async function confirmDeleteMember() {
         </div>
       </div>
 
-      <section class="rounded-lg border border-default bg-default p-4 shadow-sm sm:p-5">
+      <div class="grid grid-cols-2 gap-1 rounded-lg bg-muted/40 p-1 text-sm lg:hidden">
+        <button
+          type="button"
+          class="inline-flex h-10 items-center justify-center gap-2 rounded-md font-bold transition"
+          :class="mobileSection === 'TEAM' ? 'bg-default text-highlighted shadow-sm' : 'text-muted'"
+          @click="mobileSection = 'TEAM'"
+        >
+          <UIcon
+            name="i-lucide-shield"
+            class="size-4"
+          />
+          Datos
+        </button>
+        <button
+          type="button"
+          class="inline-flex h-10 items-center justify-center gap-2 rounded-md font-bold transition"
+          :class="mobileSection === 'ROSTER' ? 'bg-default text-highlighted shadow-sm' : 'text-muted'"
+          @click="mobileSection = 'ROSTER'"
+        >
+          <UIcon
+            name="i-lucide-users-round"
+            class="size-4"
+          />
+          Roster
+        </button>
+      </div>
+
+      <section
+        class="min-w-0 overflow-hidden rounded-lg border border-default bg-default p-4 shadow-sm sm:p-5"
+        :class="mobileSection === 'TEAM' ? '' : 'hidden lg:block'"
+      >
         <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div class="flex min-w-0 items-center gap-3">
-            <img
-              v-if="teamForm.logoUrl"
-              :src="teamForm.logoUrl"
-              :alt="`Logo de ${team.name}`"
-              class="size-12 shrink-0 object-contain"
-            >
-            <span
-              v-else
-              class="flex size-12 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
-              :style="{ backgroundColor: teamForm.primaryColor || '#047857' }"
-            >
-              {{ teamInitials(team) }}
-            </span>
+            <TeamAvatar
+              :team="team"
+              class="size-12 text-sm font-bold"
+            />
             <div class="min-w-0">
               <h2 class="text-xl font-bold text-highlighted">
                 Datos del equipo
               </h2>
-              <p class="truncate text-sm text-muted">
+              <p class="text-sm text-muted wrap-break-word">
                 Categoría y rama las define la liga.
               </p>
             </div>
@@ -435,37 +516,41 @@ async function confirmDeleteMember() {
             icon="i-lucide-save"
             label="Guardar equipo"
             color="primary"
+            class="w-full justify-center sm:w-auto"
             :loading="isSavingTeam"
             @click="saveTeam"
           />
         </div>
 
-        <div class="grid gap-3 md:grid-cols-2">
-          <label class="grid gap-1.5 text-sm">
+        <div class="grid min-w-0 gap-3 md:grid-cols-2">
+          <label class="grid min-w-0 gap-1.5 text-sm">
             <span class="font-medium text-highlighted">Nombre del equipo</span>
             <UInput
               v-model="teamForm.name"
+              class="min-w-0"
               placeholder="Nombre"
             />
           </label>
 
-          <label class="grid gap-1.5 text-sm">
+          <label class="grid min-w-0 gap-1.5 text-sm">
             <span class="font-medium text-highlighted">Siglas</span>
             <UInput
               v-model="teamForm.shortName"
+              class="min-w-0"
               placeholder="TR"
             />
           </label>
 
-          <label class="grid gap-1.5 text-sm">
+          <label class="grid min-w-0 gap-1.5 text-sm">
             <span class="font-medium text-highlighted">Manejador principal</span>
             <UInput
               v-model="teamForm.managerName"
+              class="min-w-0"
               placeholder="Nombre del manejador"
             />
           </label>
 
-          <div class="grid gap-2 rounded-md border border-default bg-muted/20 p-2 text-sm md:col-span-2">
+          <div class="grid min-w-0 gap-2 overflow-hidden rounded-md border border-default bg-muted/20 p-2 text-sm md:col-span-2">
             <span class="font-medium text-highlighted">Logo del equipo</span>
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
               <img
@@ -477,7 +562,7 @@ async function confirmDeleteMember() {
               <span
                 v-else
                 class="flex size-16 shrink-0 items-center justify-center rounded-md text-sm font-bold text-white"
-                :style="{ backgroundColor: teamForm.primaryColor || '#047857' }"
+                :style="{ backgroundColor: teamForm.primaryColor || '#025a60' }"
               >
                 {{ teamFormInitials() }}
               </span>
@@ -485,7 +570,7 @@ async function confirmDeleteMember() {
                 <input
                   type="file"
                   accept="image/png,image/jpeg,image/webp"
-                  class="block w-full text-sm text-muted file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-2 file:text-sm file:font-medium file:text-white disabled:opacity-60"
+                  class="block min-w-0 max-w-full text-sm text-muted file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-2 file:text-sm file:font-medium file:text-white disabled:opacity-60"
                   :disabled="isUploadingTeamLogo"
                   @change="uploadTeamLogo"
                 >
@@ -496,35 +581,44 @@ async function confirmDeleteMember() {
             </div>
           </div>
 
-          <label class="grid gap-1.5 text-sm">
+          <label class="grid min-w-0 gap-1.5 text-sm">
             <span class="font-medium text-highlighted">Color primario</span>
-            <div class="grid grid-cols-[3rem_1fr] gap-2">
+            <div class="grid min-w-0 grid-cols-[3rem_minmax(0,1fr)] gap-2">
               <input
                 v-model="teamForm.primaryColor"
                 type="color"
                 class="h-10 w-12 rounded-md border border-default bg-default"
               >
-              <UInput v-model="teamForm.primaryColor" />
+              <UInput
+                v-model="teamForm.primaryColor"
+                class="min-w-0"
+              />
             </div>
           </label>
 
-          <label class="grid gap-1.5 text-sm">
+          <label class="grid min-w-0 gap-1.5 text-sm">
             <span class="font-medium text-highlighted">Color secundario</span>
-            <div class="grid grid-cols-[3rem_1fr] gap-2">
+            <div class="grid min-w-0 grid-cols-[3rem_minmax(0,1fr)] gap-2">
               <input
                 v-model="teamForm.secondaryColor"
                 type="color"
                 class="h-10 w-12 rounded-md border border-default bg-default"
               >
-              <UInput v-model="teamForm.secondaryColor" />
+              <UInput
+                v-model="teamForm.secondaryColor"
+                class="min-w-0"
+              />
             </div>
           </label>
         </div>
       </section>
 
-      <section class="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+      <section
+        class="grid min-w-0 gap-4 lg:grid-cols-[0.95fr_1.05fr]"
+        :class="mobileSection === 'ROSTER' ? '' : 'hidden lg:grid'"
+      >
         <form
-          class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 lg:h-96"
+          class="min-w-0 overflow-hidden rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 lg:h-96"
           @submit.prevent="saveMember"
         >
           <div class="mb-2.5 flex items-center justify-between gap-2">
@@ -548,32 +642,34 @@ async function confirmDeleteMember() {
             />
           </div>
 
-          <div class="grid gap-2 sm:grid-cols-2">
-            <label class="grid gap-1.5 text-sm">
+          <div class="grid min-w-0 gap-2 sm:grid-cols-2">
+            <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">Nombre</span>
               <UInput
                 v-model="memberForm.firstName"
+                class="min-w-0"
                 required
               />
             </label>
 
-            <label class="grid gap-1.5 text-sm">
+            <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">Apellido</span>
               <UInput
                 v-model="memberForm.lastName"
+                class="min-w-0"
                 required
               />
             </label>
 
-            <label class="grid gap-1.5 text-sm">
+            <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">CURP</span>
               <UInput
                 v-model="memberForm.curp"
+                class="min-w-0 uppercase"
                 autocomplete="off"
                 maxlength="18"
                 placeholder="ABCD010101HDFXXX01"
                 :color="curpError ? 'error' : 'neutral'"
-                class="uppercase"
                 required
               />
               <span
@@ -584,21 +680,22 @@ async function confirmDeleteMember() {
               </span>
             </label>
 
-            <label class="grid gap-1.5 text-sm">
+            <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">Fecha de nacimiento</span>
               <UInput
                 v-model="memberForm.birthDate"
+                class="min-w-0"
                 type="date"
                 :max="new Date().toISOString().slice(0, 10)"
                 required
               />
             </label>
 
-            <label class="grid gap-1.5 text-sm">
+            <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">Tipo</span>
               <select
                 v-model="memberForm.memberRole"
-                class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
+                class="h-10 min-w-0 max-w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
               >
                 <option
                   v-for="option in TEAM_MEMBER_ROLE_OPTIONS"
@@ -610,11 +707,11 @@ async function confirmDeleteMember() {
               </select>
             </label>
 
-            <label class="grid gap-1.5 text-sm">
+            <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">Estado</span>
               <select
                 v-model="memberForm.status"
-                class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
+                class="h-10 min-w-0 max-w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
               >
                 <option
                   v-for="option in statusOptions"
@@ -628,11 +725,12 @@ async function confirmDeleteMember() {
 
             <label
               v-if="memberForm.memberRole === 'PLAYER'"
-              class="grid gap-1.5 text-sm"
+              class="grid min-w-0 gap-1.5 text-sm"
             >
               <span class="font-medium text-highlighted">Número</span>
               <UInput
                 v-model="memberForm.number"
+                class="min-w-0"
                 type="number"
                 min="0"
                 max="999"
@@ -642,13 +740,13 @@ async function confirmDeleteMember() {
 
             <label
               v-if="memberForm.memberRole === 'PLAYER'"
-              class="grid gap-1.5 text-sm"
+              class="grid min-w-0 gap-1.5 text-sm"
             >
               <span class="font-medium text-highlighted">Posición</span>
               <select
                 v-model="memberForm.position"
                 required
-                class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
+                class="h-10 min-w-0 max-w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
               >
                 <option value="">
                   Selecciona posición
@@ -676,7 +774,7 @@ async function confirmDeleteMember() {
           />
         </form>
 
-        <section class="rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 lg:flex lg:h-96 lg:flex-col">
+        <section class="min-w-0 overflow-hidden rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 lg:flex lg:h-96 lg:flex-col">
           <div class="mb-2.5 flex items-center justify-between gap-2">
             <div>
               <h2 class="text-base font-bold text-highlighted">
@@ -715,14 +813,22 @@ async function confirmDeleteMember() {
                     >
                       {{ member.status === 'ACTIVE' ? 'Activo' : 'Inactivo' }}
                     </UBadge>
+                    <UBadge
+                      v-if="member.memberRole === 'PLAYER'"
+                      :color="playerEligibilityColor(member)"
+                      variant="subtle"
+                      :icon="member.status === 'ACTIVE' && isPlayerPlayoffEligible(member) ? 'i-lucide-badge-check' : 'i-lucide-clock-3'"
+                    >
+                      {{ playerEligibilityLabel(member) }}
+                    </UBadge>
                   </div>
 
                   <h3 class="truncate font-bold text-highlighted">
                     {{ playerName(member) }}
                   </h3>
-                  <p class="text-xs text-muted">
+                  <p class="text-xs text-muted wrap-break-word">
                     <span v-if="member.memberRole === 'PLAYER'">
-                      #{{ member.number ?? '-' }} • {{ playerPositionLabel(member.position) }} • CURP {{ member.curp ?? '-' }} • Batea {{ handLabel(member.bats) }} • Lanza {{ handLabel(member.throws) }}
+                      #{{ member.number ?? '-' }} • {{ playerPositionLabel(member.position) }} • CURP {{ member.curp ?? '-' }} • {{ playerEligibilityDetail(member) }}
                     </span>
                     <span v-else>
                       Staff del equipo

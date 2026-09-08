@@ -33,6 +33,13 @@ const adminNavigation: NavigationItem[] = [
   { label: 'Ajustes', to: '/admin/configuracion', icon: 'i-lucide-settings' }
 ]
 
+const managerBottomNavigation: NavigationItem[] = [
+  { label: 'Rol', to: '/rol', icon: 'i-lucide-calendar-days' },
+  { label: 'Resultados', to: '/resultados', icon: 'i-lucide-table-2' },
+  { label: 'Mi equipo', to: '/mi-equipo', icon: 'i-lucide-clipboard-pen' },
+  { label: 'Elegibles', to: '/elegibles', icon: 'i-lucide-badge-check', requiresEligibility: true }
+]
+
 const route = useRoute()
 const { user, isAdmin, logout } = useAuth()
 const { public: { leagueName } } = useRuntimeConfig()
@@ -41,6 +48,9 @@ const { data: activeSeason } = await useFetch<NavigationSeason>('/api/seasons/ac
   immediate: Boolean(user.value)
 })
 const managedTeams = computed(() => isAdmin.value ? [] : (user.value?.managedTeams ?? []))
+const activeManagedTeam = computed(() =>
+  managedTeams.value.find(team => team.id === user.value?.activeTeamId) ?? user.value?.activeTeam ?? null
+)
 const hasMultipleManagedTeams = computed(() => managedTeams.value.length > 1)
 const isSwitchingTeam = ref(false)
 const showEligibilityNavigation = computed(() => activeSeason.value?.playoffEligibilityMode !== 'OPEN_ROSTER')
@@ -58,9 +68,34 @@ const isActive = (to: string) => to === '/'
   : route.path === to || route.path.startsWith(`${to}/`)
 
 const isAdminSection = computed(() => route.path === '/admin' || route.path.startsWith('/admin/'))
+const showManagerBottomNav = computed(() =>
+  !isAdmin.value
+  && !isAdminSection.value
+  && managedTeams.value.length > 0
+)
+const showAdminBottomNav = computed(() => isAdmin.value)
+const showBottomNavigation = computed(() => showManagerBottomNav.value || showAdminBottomNav.value)
 const visibleNavigation = computed(() =>
   isAdmin.value || isAdminSection.value ? filterNavigation(adminNavigation) : navigation.value
 )
+const visibleManagerBottomNavigation = computed(() => filterNavigation(managerBottomNavigation))
+const visibleAdminBottomNavigation = computed(() => filterNavigation(adminNavigation))
+const visibleBottomNavigation = computed(() =>
+  showAdminBottomNav.value ? visibleAdminBottomNavigation.value : visibleManagerBottomNavigation.value
+)
+const bottomNavigationLabel = computed(() =>
+  showAdminBottomNav.value ? 'Accesos rápidos de administrador' : 'Accesos rápidos de manejador'
+)
+const bottomNavigationInnerClass = computed(() => [
+  'app-bottom-nav__inner',
+  showAdminBottomNav.value ? 'app-bottom-nav__inner--scroll' : 'app-bottom-nav__inner--fixed'
+])
+const bottomNavigationInnerStyle = computed(() =>
+  showAdminBottomNav.value
+    ? undefined
+    : { gridTemplateColumns: `repeat(${visibleBottomNavigation.value.length}, minmax(0, 1fr))` }
+)
+const showMobileTopNavigation = computed(() => !showBottomNavigation.value && visibleNavigation.value.length > 0)
 
 const isNavigationItemActive = (to: string) => to === '/admin'
   ? route.path === '/admin'
@@ -107,9 +142,10 @@ const handleActiveTeamChange = (event: Event) => {
       <template #left>
         <NuxtLink
           to="/"
+          class="block min-w-0 max-w-[min(54vw,15rem)] sm:max-w-none"
           :aria-label="`Ir al inicio de ${leagueName}`"
         >
-          <AppLogo class="shrink-0" />
+          <AppLogo class="min-w-0" />
         </NuxtLink>
       </template>
 
@@ -131,11 +167,12 @@ const handleActiveTeamChange = (event: Event) => {
 
         <label
           v-if="hasMultipleManagedTeams"
-          class="hidden items-center gap-2 rounded-full bg-white/95 px-3 py-1.5 text-sm font-medium text-green-800 ring-1 ring-white/30 md:flex"
+          class="hidden items-center gap-2 rounded-full bg-white/95 px-3 py-1.5 text-sm font-medium text-[#025a60] ring-1 ring-white/30 md:flex"
         >
-          <UIcon
-            name="i-lucide-shuffle"
-            class="size-4 shrink-0"
+          <TeamAvatar
+            v-if="activeManagedTeam"
+            :team="activeManagedTeam"
+            class="size-6 text-[10px] font-bold"
           />
           <select
             :value="user.activeTeamId ?? ''"
@@ -153,6 +190,11 @@ const handleActiveTeamChange = (event: Event) => {
             </option>
           </select>
         </label>
+
+        <PwaInstallButton
+          tone="navbar"
+          compact
+        />
 
         <ColorModeButton tone="navbar" />
 
@@ -178,25 +220,26 @@ const handleActiveTeamChange = (event: Event) => {
     </UHeader>
 
     <div
-      v-if="visibleNavigation.length || hasMultipleManagedTeams"
+      v-if="showMobileTopNavigation || hasMultipleManagedTeams"
       class="league-mobile-nav max-w-full overflow-hidden lg:hidden"
     >
-      <UContainer class="min-w-0 py-2">
+      <UContainer class="min-w-0 max-w-full overflow-hidden py-2">
         <label
           v-if="hasMultipleManagedTeams"
-          class="mb-2 grid gap-1 rounded-lg border border-default bg-default p-2 text-sm"
+          class="mb-2 grid min-w-0 gap-1 overflow-hidden rounded-lg border border-default bg-default p-2 text-sm"
         >
-          <span class="flex items-center gap-2 font-medium text-highlighted">
-            <UIcon
-              name="i-lucide-shuffle"
-              class="size-4"
+          <span class="flex min-w-0 items-center gap-2 text-xs font-semibold uppercase tracking-normal text-muted">
+            <TeamAvatar
+              v-if="activeManagedTeam"
+              :team="activeManagedTeam"
+              class="size-6 text-[10px] font-bold"
             />
             Equipo activo
           </span>
           <select
             :value="user.activeTeamId ?? ''"
             :disabled="isSwitchingTeam"
-            class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
+            class="box-border h-9 min-w-0 max-w-full appearance-none truncate rounded-md border border-default bg-default px-3 pr-8 text-sm font-semibold text-highlighted outline-none focus:border-primary"
             @change="handleActiveTeamChange"
           >
             <option
@@ -209,7 +252,10 @@ const handleActiveTeamChange = (event: Event) => {
           </select>
         </label>
 
-        <nav class="flex max-w-full gap-1 overflow-x-auto pb-1 scrollbar-none [&::-webkit-scrollbar]:hidden">
+        <nav
+          v-if="showMobileTopNavigation"
+          class="flex min-w-0 max-w-full gap-1 overflow-x-auto overscroll-x-contain pb-1 scrollbar-none [&::-webkit-scrollbar]:hidden"
+        >
           <NuxtLink
             v-for="item in visibleNavigation"
             :key="item.to"
@@ -225,5 +271,29 @@ const handleActiveTeamChange = (event: Event) => {
         </nav>
       </UContainer>
     </div>
+
+    <nav
+      v-if="showBottomNavigation"
+      class="app-bottom-nav lg:hidden"
+      :aria-label="bottomNavigationLabel"
+    >
+      <div
+        :class="bottomNavigationInnerClass"
+        :style="bottomNavigationInnerStyle"
+      >
+        <NuxtLink
+          v-for="item in visibleBottomNavigation"
+          :key="item.to"
+          :to="item.to"
+          :class="['app-bottom-nav__link', { 'is-active': isNavigationItemActive(item.to) }]"
+        >
+          <UIcon
+            :name="item.icon"
+            class="size-5"
+          />
+          <span>{{ item.label }}</span>
+        </NuxtLink>
+      </div>
+    </nav>
   </template>
 </template>

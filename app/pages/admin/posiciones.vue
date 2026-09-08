@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import {
   TEAM_BRANCH_OPTIONS,
-  TEAM_CATEGORY_OPTIONS,
   branchColor,
   branchLabel,
   categoryColor,
@@ -9,7 +8,6 @@ import {
   formatRunDifferential,
   streakColor,
   streakLabel,
-  teamInitials,
   type Season,
   type Standing,
   type TeamBranch,
@@ -25,10 +23,7 @@ useSeoMeta({
   description: 'Tabla de posiciones administrativa por categoría y rama.'
 })
 
-const categoryOptions = TEAM_CATEGORY_OPTIONS.filter(
-  (option): option is { label: string, value: TeamCategory } => option.value !== 'ALL'
-)
-
+const { categoryOptions, firstActiveCategory } = useLeagueCategories()
 const selectedCategory = ref<TeamCategory>('A')
 const selectedBranch = ref<'ALL' | TeamBranch>('ALL')
 
@@ -52,15 +47,21 @@ const totalGames = computed(() => standingRows.value.reduce((total, standing) =>
 const bestOffense = computed(() => [...standingRows.value].sort((a, b) => b.runsFor - a.runsFor)[0])
 const bestDefense = computed(() => [...standingRows.value].sort((a, b) => a.runsAgainst - b.runsAgainst)[0])
 
+watch(categoryOptions, (options) => {
+  if (!options.some(option => option.value === selectedCategory.value)) {
+    selectedCategory.value = options[0]?.value ?? firstActiveCategory.value
+  }
+}, { immediate: true })
+
 function refreshStandings() {
   void refresh()
 }
 </script>
 
 <template>
-  <UContainer class="py-6 sm:py-8">
+  <UContainer class="min-w-0 pb-6 pt-4 sm:py-8">
     <div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-      <div>
+      <div class="min-w-0">
         <div class="mb-3 flex flex-wrap items-center gap-2">
           <UBadge
             color="primary"
@@ -76,21 +77,22 @@ function refreshStandings() {
             {{ season?.name }} {{ season?.year }}
           </UBadge>
         </div>
-        <h1 class="text-3xl font-bold tracking-normal text-highlighted sm:text-4xl">
+        <h1 class="text-2xl font-bold leading-tight tracking-normal text-highlighted sm:text-4xl">
           Tabla de posiciones
         </h1>
-        <p class="mt-2 max-w-2xl text-base text-muted">
+        <p class="mt-2 max-w-2xl text-sm text-muted sm:text-base">
           Consulta el acomodo de equipos por categoría y rama.
         </p>
       </div>
 
-      <div class="flex flex-wrap gap-2">
+      <div class="grid gap-2 sm:flex sm:flex-wrap">
         <UButton
           to="/admin/resultados"
           icon="i-lucide-clipboard-check"
           label="Resultados"
           color="neutral"
           variant="subtle"
+          class="justify-center"
         />
         <UButton
           to="/admin/rol"
@@ -98,6 +100,7 @@ function refreshStandings() {
           label="Rol"
           color="primary"
           variant="subtle"
+          class="justify-center"
         />
       </div>
     </div>
@@ -149,51 +152,51 @@ function refreshStandings() {
       </div>
     </section>
 
-    <div class="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <div class="rounded-lg border border-default bg-default p-4 shadow-sm">
-        <p class="text-sm text-muted">
+    <div class="mb-4 grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
+      <div class="min-w-0 rounded-lg border border-default bg-default p-3 shadow-sm sm:p-4">
+        <p class="text-xs text-muted sm:text-sm">
           Equipos
         </p>
-        <p class="mt-1 text-2xl font-bold text-highlighted">
+        <p class="mt-1 text-xl font-bold text-highlighted sm:text-2xl">
           {{ totalTeams }}
         </p>
-        <p class="text-sm text-muted">
+        <p class="hidden text-sm text-muted sm:block">
           {{ selectedScopeLabel }}
         </p>
       </div>
 
-      <div class="rounded-lg border border-default bg-default p-4 shadow-sm">
-        <p class="text-sm text-muted">
+      <div class="min-w-0 rounded-lg border border-default bg-default p-3 shadow-sm sm:p-4">
+        <p class="text-xs text-muted sm:text-sm">
           Líder actual
         </p>
-        <p class="mt-1 truncate text-2xl font-bold text-highlighted">
+        <p class="mt-1 truncate text-xl font-bold text-highlighted sm:text-2xl">
           {{ leader?.team.name ?? '-' }}
         </p>
-        <p class="text-sm text-muted">
+        <p class="hidden text-sm text-muted sm:block">
           {{ leader?.wins ?? 0 }}G - {{ leader?.losses ?? 0 }}P
         </p>
       </div>
 
-      <div class="rounded-lg border border-default bg-default p-4 shadow-sm">
-        <p class="text-sm text-muted">
-          Juegos finalizados
+      <div class="min-w-0 rounded-lg border border-default bg-default p-3 shadow-sm sm:p-4">
+        <p class="text-xs text-muted sm:text-sm">
+          Finales
         </p>
-        <p class="mt-1 text-2xl font-bold text-highlighted">
+        <p class="mt-1 text-xl font-bold text-highlighted sm:text-2xl">
           {{ totalGames }}
         </p>
-        <p class="text-sm text-muted">
+        <p class="hidden text-sm text-muted sm:block">
           En temporada activa
         </p>
       </div>
 
-      <div class="rounded-lg border border-default bg-default p-4 shadow-sm">
-        <p class="text-sm text-muted">
+      <div class="min-w-0 rounded-lg border border-default bg-default p-3 shadow-sm sm:p-4">
+        <p class="text-xs text-muted sm:text-sm">
           Mejor defensa
         </p>
-        <p class="mt-1 truncate text-2xl font-bold text-highlighted">
+        <p class="mt-1 truncate text-xl font-bold text-highlighted sm:text-2xl">
           {{ bestDefense?.team.name ?? '-' }}
         </p>
-        <p class="text-sm text-muted">
+        <p class="hidden text-sm text-muted sm:block">
           {{ bestDefense?.runsAgainst ?? 0 }} carreras permitidas
         </p>
       </div>
@@ -202,7 +205,7 @@ function refreshStandings() {
     <section class="rounded-lg border border-default bg-default p-3 shadow-sm sm:p-5">
       <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 class="text-xl font-bold text-highlighted">
+          <h2 class="text-lg font-bold text-highlighted sm:text-xl">
             {{ selectedScopeLabel }}
           </h2>
           <p class="text-sm text-muted">
@@ -244,125 +247,210 @@ function refreshStandings() {
         </p>
       </div>
 
-      <div
-        v-else
-        class="overflow-x-auto"
-      >
-        <table class="w-full min-w-205 text-sm">
-          <thead>
-            <tr class="border-b border-default text-left text-xs uppercase text-muted">
-              <th class="py-3 pr-3">
-                #
-              </th>
-              <th class="py-3 pr-3">
-                Equipo
-              </th>
-              <th class="py-3 pr-3 text-right">
-                JJ
-              </th>
-              <th class="py-3 pr-3 text-right">
-                G
-              </th>
-              <th class="py-3 pr-3 text-right">
-                P
-              </th>
-              <th class="py-3 pr-3 text-right">
-                E
-              </th>
-              <th class="py-3 pr-3 text-right">
-                CF
-              </th>
-              <th class="py-3 pr-3 text-right">
-                CC
-              </th>
-              <th class="py-3 pr-3 text-right">
-                Dif.
-              </th>
-              <th class="py-3 pr-3 text-right">
-                %
-              </th>
-              <th class="py-3 text-right">
-                Racha
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="standing in standingRows"
-              :key="standing.team.id"
-              class="border-b border-muted last:border-0"
-            >
-              <td class="py-4 pr-3 font-semibold text-muted">
+      <template v-else>
+        <div class="grid gap-2 sm:hidden">
+          <article
+            v-for="standing in standingRows"
+            :key="standing.team.id"
+            class="rounded-lg border border-default p-3"
+          >
+            <div class="mb-3 flex items-start gap-3">
+              <span class="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-black text-primary">
                 {{ standing.rank }}
-              </td>
-              <td class="py-4 pr-3">
-                <div class="flex items-center gap-3">
-                  <span
-                    class="flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                    :style="{ backgroundColor: standing.team.primaryColor ?? '#047857' }"
-                  >
-                    {{ teamInitials(standing.team) }}
-                  </span>
+              </span>
+              <div class="min-w-0 flex-1">
+                <div class="mb-1 flex items-center gap-2">
+                  <TeamAvatar
+                    :team="standing.team"
+                    class="size-9 text-xs font-bold"
+                  />
                   <div class="min-w-0">
-                    <p class="truncate font-semibold text-highlighted">
+                    <p class="truncate font-bold text-highlighted">
                       {{ standing.team.name }}
                     </p>
-                    <div class="mt-1 flex flex-wrap items-center gap-1">
-                      <UBadge
-                        :color="categoryColor(standing.team.category)"
-                        variant="subtle"
-                        size="sm"
-                      >
-                        {{ categoryLabel(standing.team.category) }}
-                      </UBadge>
-                      <UBadge
-                        :color="branchColor(standing.team.branch)"
-                        variant="subtle"
-                        size="sm"
-                      >
-                        {{ branchLabel(standing.team.branch) }}
-                      </UBadge>
-                      <span class="text-xs text-muted">{{ standing.team.shortName ?? standing.team.slug }}</span>
-                    </div>
+                    <p class="text-xs text-muted">
+                      {{ standing.team.shortName ?? standing.team.slug }}
+                    </p>
                   </div>
                 </div>
-              </td>
-              <td class="py-4 pr-3 text-right text-muted">
-                {{ standing.played }}
-              </td>
-              <td class="py-4 pr-3 text-right text-muted">
-                {{ standing.wins }}
-              </td>
-              <td class="py-4 pr-3 text-right text-muted">
-                {{ standing.losses }}
-              </td>
-              <td class="py-4 pr-3 text-right text-muted">
-                {{ standing.ties }}
-              </td>
-              <td class="py-4 pr-3 text-right text-muted">
-                {{ standing.runsFor }}
-              </td>
-              <td class="py-4 pr-3 text-right text-muted">
-                {{ standing.runsAgainst }}
-              </td>
-              <td class="py-4 pr-3 text-right font-semibold text-highlighted">
-                {{ formatRunDifferential(standing.runDifferential) }}
-              </td>
-              <td class="py-4 pr-3 text-right font-semibold text-highlighted">
-                {{ standing.winPercentageText }}
-              </td>
-              <td class="py-4 text-right">
-                <UBadge
-                  :color="streakColor(standing.streak)"
-                  variant="subtle"
-                >
-                  {{ streakLabel(standing.streak) }}
-                </UBadge>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+                <div class="flex flex-wrap gap-1">
+                  <UBadge
+                    :color="categoryColor(standing.team.category)"
+                    variant="subtle"
+                    size="sm"
+                  >
+                    {{ categoryLabel(standing.team.category) }}
+                  </UBadge>
+                  <UBadge
+                    :color="branchColor(standing.team.branch)"
+                    variant="subtle"
+                    size="sm"
+                  >
+                    {{ branchLabel(standing.team.branch) }}
+                  </UBadge>
+                  <UBadge
+                    :color="streakColor(standing.streak)"
+                    variant="subtle"
+                    size="sm"
+                  >
+                    {{ streakLabel(standing.streak) }}
+                  </UBadge>
+                </div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-4 gap-2 rounded-md bg-muted/30 p-2 text-center text-sm">
+              <div>
+                <p class="font-bold text-highlighted">
+                  {{ standing.wins }}
+                </p>
+                <p class="text-xs text-muted">
+                  G
+                </p>
+              </div>
+              <div>
+                <p class="font-bold text-highlighted">
+                  {{ standing.losses }}
+                </p>
+                <p class="text-xs text-muted">
+                  P
+                </p>
+              </div>
+              <div>
+                <p class="font-bold text-highlighted">
+                  {{ formatRunDifferential(standing.runDifferential) }}
+                </p>
+                <p class="text-xs text-muted">
+                  Dif
+                </p>
+              </div>
+              <div>
+                <p class="font-bold text-highlighted">
+                  {{ standing.winPercentageText }}
+                </p>
+                <p class="text-xs text-muted">
+                  %
+                </p>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <div class="hidden overflow-x-auto sm:block">
+          <table class="w-full min-w-205 text-sm">
+            <thead>
+              <tr class="border-b border-default text-left text-xs uppercase text-muted">
+                <th class="py-3 pr-3">
+                  #
+                </th>
+                <th class="py-3 pr-3">
+                  Equipo
+                </th>
+                <th class="py-3 pr-3 text-right">
+                  JJ
+                </th>
+                <th class="py-3 pr-3 text-right">
+                  G
+                </th>
+                <th class="py-3 pr-3 text-right">
+                  P
+                </th>
+                <th class="py-3 pr-3 text-right">
+                  E
+                </th>
+                <th class="py-3 pr-3 text-right">
+                  CF
+                </th>
+                <th class="py-3 pr-3 text-right">
+                  CC
+                </th>
+                <th class="py-3 pr-3 text-right">
+                  Dif.
+                </th>
+                <th class="py-3 pr-3 text-right">
+                  %
+                </th>
+                <th class="py-3 text-right">
+                  Racha
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="standing in standingRows"
+                :key="standing.team.id"
+                class="border-b border-muted last:border-0"
+              >
+                <td class="py-4 pr-3 font-semibold text-muted">
+                  {{ standing.rank }}
+                </td>
+                <td class="py-4 pr-3">
+                  <div class="flex items-center gap-3">
+                    <TeamAvatar
+                      :team="standing.team"
+                      class="size-9 text-xs font-bold"
+                    />
+                    <div class="min-w-0">
+                      <p class="truncate font-semibold text-highlighted">
+                        {{ standing.team.name }}
+                      </p>
+                      <div class="mt-1 flex flex-wrap items-center gap-1">
+                        <UBadge
+                          :color="categoryColor(standing.team.category)"
+                          variant="subtle"
+                          size="sm"
+                        >
+                          {{ categoryLabel(standing.team.category) }}
+                        </UBadge>
+                        <UBadge
+                          :color="branchColor(standing.team.branch)"
+                          variant="subtle"
+                          size="sm"
+                        >
+                          {{ branchLabel(standing.team.branch) }}
+                        </UBadge>
+                        <span class="text-xs text-muted">{{ standing.team.shortName ?? standing.team.slug }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </td>
+                <td class="py-4 pr-3 text-right text-muted">
+                  {{ standing.played }}
+                </td>
+                <td class="py-4 pr-3 text-right text-muted">
+                  {{ standing.wins }}
+                </td>
+                <td class="py-4 pr-3 text-right text-muted">
+                  {{ standing.losses }}
+                </td>
+                <td class="py-4 pr-3 text-right text-muted">
+                  {{ standing.ties }}
+                </td>
+                <td class="py-4 pr-3 text-right text-muted">
+                  {{ standing.runsFor }}
+                </td>
+                <td class="py-4 pr-3 text-right text-muted">
+                  {{ standing.runsAgainst }}
+                </td>
+                <td class="py-4 pr-3 text-right font-semibold text-highlighted">
+                  {{ formatRunDifferential(standing.runDifferential) }}
+                </td>
+                <td class="py-4 pr-3 text-right font-semibold text-highlighted">
+                  {{ standing.winPercentageText }}
+                </td>
+                <td class="py-4 text-right">
+                  <UBadge
+                    :color="streakColor(standing.streak)"
+                    variant="subtle"
+                  >
+                    {{ streakLabel(standing.streak) }}
+                  </UBadge>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </template>
     </section>
   </UContainer>
 </template>

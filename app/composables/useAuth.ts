@@ -3,7 +3,11 @@ import type { TeamBranch, TeamCategory } from '~/utils/league'
 export type AuthManagedTeam = {
   id: string
   name: string
+  shortName: string | null
   slug: string
+  logoUrl: string | null
+  primaryColor: string | null
+  secondaryColor: string | null
   category: TeamCategory
   branch: TeamBranch
 }

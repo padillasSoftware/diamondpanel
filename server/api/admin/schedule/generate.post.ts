@@ -1,6 +1,7 @@
 import { GameStatus } from '../../../generated/prisma/enums'
 import type { TeamBranch as TeamBranchValue, TeamCategory as TeamCategoryValue } from '../../../generated/prisma/enums'
 import { prisma } from '../../../utils/db'
+import { getActiveCategories } from '../../../utils/categories'
 import { requireAdmin } from '../../../utils/session'
 import {
   addLeagueDays,
@@ -38,17 +39,9 @@ type CancelledMatchupSeed = {
 const weekendSlots = [
   { dayOffset: 4, hour: 19 },
   { dayOffset: 4, hour: 21 },
-  { dayOffset: 5, hour: 10 },
-  { dayOffset: 5, hour: 12 },
-  { dayOffset: 5, hour: 14 },
-  { dayOffset: 5, hour: 16 },
   { dayOffset: 5, hour: 18 },
   { dayOffset: 5, hour: 20 },
   { dayOffset: 5, hour: 22 },
-  { dayOffset: 6, hour: 10 },
-  { dayOffset: 6, hour: 12 },
-  { dayOffset: 6, hour: 14 },
-  { dayOffset: 6, hour: 16 },
   { dayOffset: 6, hour: 18 },
   { dayOffset: 6, hour: 20 },
   { dayOffset: 6, hour: 22 }
@@ -156,9 +149,19 @@ export default defineEventHandler(async (event) => {
 
   return prisma.$transaction(async (tx) => {
     const season = await getActiveSeasonForSchedule(tx)
+    const activeCategories = await getActiveCategories(tx)
+    const activeCategorySet = new Set(activeCategories)
+    const activeCategoryFilter = { in: activeCategories }
 
     if (configRows) {
       for (const row of configRows) {
+        if (!activeCategorySet.has(row.category)) {
+          throw createError({
+            statusCode: 409,
+            statusMessage: `La categoría ${row.category} está desactivada. Actívala en Ajustes para usarla.`
+          })
+        }
+
         const currentMaxPairGames = await getMaxPairGamesForGroup({
           prisma: tx,
           seasonId: season.id,
@@ -208,6 +211,16 @@ export default defineEventHandler(async (event) => {
           scheduledAt: {
             gte: weekRange.startsAt,
             lt: weekRange.endsAt
+          },
+          homeTeam: {
+            is: {
+              category: activeCategoryFilter
+            }
+          },
+          awayTeam: {
+            is: {
+              category: activeCategoryFilter
+            }
           }
         },
         select: {
@@ -221,7 +234,17 @@ export default defineEventHandler(async (event) => {
       }),
       tx.game.findMany({
         where: {
-          seasonId: season.id
+          seasonId: season.id,
+          homeTeam: {
+            is: {
+              category: activeCategoryFilter
+            }
+          },
+          awayTeam: {
+            is: {
+              category: activeCategoryFilter
+            }
+          }
         },
         select: {
           round: true,

@@ -1,4 +1,5 @@
 import { GameStatus, PlayerStatus, PlayoffEligibilityMode, TeamMemberRole } from '../../generated/prisma/enums'
+import { getActiveCategories } from '../../utils/categories'
 import { prisma } from '../../utils/db'
 import { getActiveSeasonForResults, resultPlayerSelect } from '../../utils/results'
 import { requireAdmin } from '../../utils/session'
@@ -19,10 +20,12 @@ export default defineEventHandler(async (event) => {
 
   const isOpenRoster = season.playoffEligibilityMode === PlayoffEligibilityMode.OPEN_ROSTER
   const minimumGames = season.playoffMinimumLineupGames
+  const activeCategories = await getActiveCategories(prisma)
 
   const [teams, lineupCounts] = await Promise.all([
     prisma.team.findMany({
       where: {
+        category: { in: activeCategories },
         seasons: {
           some: {
             seasonId: season.id

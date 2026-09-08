@@ -1,4 +1,5 @@
 import { prisma } from '../../../utils/db'
+import { getActiveCategories } from '../../../utils/categories'
 import { requireAdmin } from '../../../utils/session'
 import {
   cleanScheduleConfigRows,
@@ -13,8 +14,16 @@ export default defineEventHandler(async (event) => {
 
   return prisma.$transaction(async (tx) => {
     const season = await getActiveSeasonForSchedule(tx)
+    const activeCategorySet = new Set(await getActiveCategories(tx))
 
     for (const row of rows) {
+      if (!activeCategorySet.has(row.category)) {
+        throw createError({
+          statusCode: 409,
+          statusMessage: `La categoría ${row.category} está desactivada. Actívala en Ajustes para usarla.`
+        })
+      }
+
       const currentMaxPairGames = await getMaxPairGamesForGroup({
         prisma: tx,
         seasonId: season.id,

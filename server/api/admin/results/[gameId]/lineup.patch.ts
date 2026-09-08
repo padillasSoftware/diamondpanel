@@ -38,7 +38,12 @@ export default defineEventHandler(async (event) => {
       select: {
         id: true,
         homeTeamId: true,
-        awayTeamId: true
+        awayTeamId: true,
+        lineupEntries: {
+          select: {
+            id: true
+          }
+        }
       }
     })
 
@@ -48,6 +53,8 @@ export default defineEventHandler(async (event) => {
         statusMessage: 'Game not found'
       })
     }
+
+    assertOfflineLineupHasNotChanged(body, game.lineupEntries.map(entry => entry.id))
 
     const lineup = buildLineupPayload(body, game)
     const playerIds = [...new Set(lineup.map(entry => entry.playerId))]
@@ -108,3 +115,26 @@ export default defineEventHandler(async (event) => {
     })
   })
 })
+
+function assertOfflineLineupHasNotChanged(body: Record<string, unknown>, currentEntryIds: string[]) {
+  const expectedEntryIds = readOfflineExpectedLineupEntryIds(body.offlineExpectedLineupEntryIds)
+
+  if (!expectedEntryIds) return
+
+  const expectedKey = [...expectedEntryIds].sort().join('|')
+  const currentKey = [...currentEntryIds].sort().join('|')
+
+  if (expectedKey !== currentKey) {
+    throw createError({
+      statusCode: 409,
+      statusMessage: 'El lineup fue modificado en otro dispositivo. Revisa el partido antes de sincronizar.'
+    })
+  }
+}
+
+function readOfflineExpectedLineupEntryIds(value: unknown) {
+  if (value === undefined) return null
+  if (!Array.isArray(value)) return null
+
+  return value.filter((item): item is string => typeof item === 'string')
+}

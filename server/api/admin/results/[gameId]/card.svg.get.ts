@@ -1,7 +1,9 @@
 import { GameStatus } from '../../../../generated/prisma/enums'
 import { prisma } from '../../../../utils/db'
 import { getActiveSeasonForResults } from '../../../../utils/results'
+import { resultCardTextPath, resultCardTextWidth } from '../../../../utils/result-card-text'
 import { requireAdmin } from '../../../../utils/session'
+import type { H3Event } from 'h3'
 
 type CardTeam = {
   id: string
@@ -33,15 +35,28 @@ const cardTeamSelect = {
 
 export default defineEventHandler(async (event) => {
   await requireAdmin(event)
+  const gameId = getResultCardGameId(event)
+  const { svg, filename } = await loadResultCardSvg(event, gameId)
+
+  event.node.res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8')
+  event.node.res.setHeader('Cache-Control', 'no-store')
+  event.node.res.setHeader('Content-Disposition', `inline; filename="${filename}.svg"`)
+
+  return svg
+})
+
+export function getResultCardGameId(event: H3Event) {
   const gameId = getRouterParam(event, 'gameId')
 
-  if (!gameId) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: 'Game id is required'
-    })
-  }
+  if (gameId) return gameId
 
+  throw createError({
+    statusCode: 400,
+    statusMessage: 'Game id is required'
+  })
+}
+
+export async function loadResultCardSvg(event: H3Event, gameId: string) {
   const season = await getActiveSeasonForResults(prisma)
 
   if (!season) {
@@ -133,12 +148,11 @@ export default defineEventHandler(async (event) => {
   })
   const filename = slugify(`${leagueName}-${game.homeTeam.name}-vs-${game.awayTeam.name}`)
 
-  event.node.res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8')
-  event.node.res.setHeader('Cache-Control', 'no-store')
-  event.node.res.setHeader('Content-Disposition', `inline; filename="${filename}.svg"`)
-
-  return svg
-})
+  return {
+    filename,
+    svg
+  }
+}
 
 function buildResultCardSvg(input: {
   leagueName: string
@@ -200,34 +214,28 @@ function buildResultCardSvg(input: {
     <filter id="logoShadow" x="-25%" y="-25%" width="150%" height="150%">
       <feDropShadow dx="0" dy="14" stdDeviation="7" flood-color="#000000" flood-opacity="0.72"/>
     </filter>
-    <style>
-      .impact { font-family: Impact, Haettenschweiler, 'Arial Black', sans-serif; font-weight: 900; letter-spacing: 0; }
-      .body { font-family: Arial, Helvetica, sans-serif; font-weight: 900; letter-spacing: 0; }
-      .brush { font-family: 'Trebuchet MS', 'Arial Black', Arial, sans-serif; font-weight: 900; font-style: italic; letter-spacing: 0; }
-      .small { font-family: Arial, Helvetica, sans-serif; font-weight: 800; letter-spacing: 0; }
-    </style>
   </defs>
 
   <rect width="${cardWidth}" height="${cardHeight}" fill="#050807"/>
   ${batterBackground(theme)}
 
   <g filter="url(#headlineShadow)">
-    <text x="62" y="92" text-anchor="start" class="impact" font-size="64" fill="${theme.headline}" stroke="#060606" stroke-width="5" paint-order="stroke">${escapeXml(headlineLineOne)}</text>
-    <text x="62" y="210" text-anchor="start" class="impact" font-size="${fitFont(headlineLineTwo, 535, 142, 86)}" fill="${theme.headline}" stroke="#050505" stroke-width="7" paint-order="stroke">${escapeXml(headlineLineTwo)}</text>
-    <text x="150" y="280" text-anchor="start" class="impact" font-size="55" fill="#ffffff" stroke="#050505" stroke-width="6" paint-order="stroke">${escapeXml(roundText)}</text>
+    ${posterText(headlineLineOne, 62, 92, 64, theme.headline, '#060606', 5)}
+    ${posterText(headlineLineTwo, 62, 210, fitFont(headlineLineTwo, 535, 142, 86), theme.headline, '#050505', 7)}
+    ${posterText(roundText, 150, 280, 55, '#ffffff', '#050505', 6)}
     ${leagueMark(input.leagueName, branchLogoUrl, 895, 152, true, 224)}
-    <text x="73" y="410" text-anchor="start" class="body" font-size="48" fill="#ffffff" stroke="#050505" stroke-width="9" paint-order="stroke">MARCADOR FINAL</text>
+    ${posterText('MARCADOR FINAL', 73, 410, 48, '#ffffff', '#050505', 9)}
   </g>
 
   <g filter="url(#scoreNeon)">
-    <text x="73" y="638" text-anchor="start" class="impact" font-size="${fitFont(`${leftScore}-${rightScore}`, 462, 180, 110)}" fill="#ffffff" stroke="#050505" stroke-width="12" paint-order="stroke">${leftScore}-${rightScore}</text>
+    ${posterText(`${leftScore}-${rightScore}`, 73, 638, fitFont(`${leftScore}-${rightScore}`, 462, 180, 110), '#ffffff', '#050505', 12)}
   </g>
 
   <g filter="url(#headlineShadow)">
     ${teamIdentityBlock(leftTeam, 285, 794, theme)}
     ${teamIdentityBlock(rightTeam, 805, 794, theme)}
     <path d="M518 722 L584 686 L555 766 L610 744 L504 880 L538 784 L484 812 Z" fill="${theme.accent}" stroke="#080808" stroke-width="7" stroke-linejoin="round"/>
-    <text x="545" y="830" text-anchor="middle" class="impact" font-size="92" fill="${theme.accent}" stroke="#050505" stroke-width="10" paint-order="stroke">VS</text>
+    ${posterText('VS', 545, 830, 92, theme.accent, '#050505', 10, 'middle')}
   </g>
 
   <g filter="url(#headlineShadow)">
@@ -239,7 +247,7 @@ function buildResultCardSvg(input: {
 
   <g filter="url(#softShadow)">
     <rect x="250" y="1288" width="580" height="36" rx="18" fill="#070f0b" opacity="0.72"/>
-    <text x="540" y="1312" text-anchor="middle" class="small" font-size="17" fill="#ffffff">Generado por DiamondPanel</text>
+    ${posterText('Generado por DiamondPanel', 540, 1312, 17, '#ffffff', undefined, undefined, 'middle')}
   </g>
 </svg>`
 }
@@ -259,16 +267,22 @@ function teamIdentityBlock(team: CardTeam, x: number, y: number, theme: CardThem
   return `
     <g>
       <rect x="${x - 176}" y="${y - 86}" width="352" height="142" rx="14" fill="#050807" opacity="0.68" stroke="${theme.accent}" stroke-opacity="0.45"/>
-      <text x="${x}" y="${y}" text-anchor="middle" class="impact" font-size="${fitFont(name, 324, 50, 28)}" fill="#ffffff" stroke="#050505" stroke-width="7" paint-order="stroke">${escapeXml(name)}</text>
+      ${posterText(name, x, y, fitFont(name, 324, 50, 28), '#ffffff', '#050505', 7, 'middle')}
     </g>`
 }
 
 function pitcherBlock(label: string, pitcherName: string | null, x: number, y: number, accent: string) {
   const name = displayValue(pitcherName)
+  const labelText = `${label} `
+  const fontSize = 38
+  const fullWidth = resultCardTextWidth(`${labelText}${name}`, fontSize)
+  const labelWidth = resultCardTextWidth(labelText, fontSize)
+  const startX = x - fullWidth / 2
 
   return `
     <g>
-      <text x="${x}" y="${y}" text-anchor="middle" class="impact" font-size="38" fill="${accent}" stroke="#040404" stroke-width="7" paint-order="stroke">${label} <tspan fill="#ffffff">${escapeXml(name)}</tspan></text>
+      ${posterText(labelText, startX, y, fontSize, accent, '#040404', 7)}
+      ${posterText(name, startX + labelWidth, y, fontSize, '#ffffff', '#040404', 7)}
     </g>`
 }
 
@@ -279,8 +293,8 @@ function battersSection(
 ) {
   return `
   <g filter="url(#headlineShadow)">
-    <text x="268" y="1076" text-anchor="middle" class="impact" font-size="44" fill="${theme.accent}" stroke="#050505" stroke-width="8" paint-order="stroke">MEJORES BATS:</text>
-    <text x="802" y="1076" text-anchor="middle" class="impact" font-size="44" fill="${theme.accent}" stroke="#050505" stroke-width="8" paint-order="stroke">MEJORES BATS:</text>
+    ${posterText('MEJORES BATS:', 268, 1076, 44, theme.accent, '#050505', 8, 'middle')}
+    ${posterText('MEJORES BATS:', 802, 1076, 44, theme.accent, '#050505', 8, 'middle')}
     ${batterLines(winnerHighlights, 268, 1135, 460)}
     ${batterLines(loserHighlights, 802, 1135, 460)}
   </g>`
@@ -294,7 +308,7 @@ function batterLines(highlights: CardHighlight[], x: number, startY: number, max
   return lines.map((line, index) => {
     const y = startY + index * 58
 
-    return `<text x="${x}" y="${y}" text-anchor="middle" class="impact" font-size="${fitFont(line, maxWidth, 38, 22)}" fill="#ffffff" stroke="#050505" stroke-width="6" paint-order="stroke">${escapeXml(line)}</text>`
+    return posterText(line, x, y, fitFont(line, maxWidth, 38, 22), '#ffffff', '#050505', 6, 'middle')
   }).join('\n')
 }
 
@@ -385,7 +399,7 @@ function leagueMark(
     <circle cx="${radius}" cy="${radius}" r="${innerRadius}" fill="#fff8d2" stroke="#0b6b45" stroke-width="3"/>
     <path d="M${radius - 38} ${radius - 46} C${radius - 12} ${radius - 18} ${radius - 12} ${radius + 18} ${radius - 38} ${radius + 46}" fill="none" stroke="#d71920" stroke-width="5" stroke-linecap="round" stroke-dasharray="6 10" opacity="0.82"/>
     <path d="M${radius + 38} ${radius - 46} C${radius + 12} ${radius - 18} ${radius + 12} ${radius + 18} ${radius + 38} ${radius + 46}" fill="none" stroke="#d71920" stroke-width="5" stroke-linecap="round" stroke-dasharray="6 10" opacity="0.82"/>
-    <text x="${radius}" y="${radius + (fontSize / 3)}" text-anchor="middle" class="impact" font-size="${fontSize}" fill="#0b6b45">${escapeXml(mark)}</text>
+    ${posterText(mark, radius, radius + (fontSize / 3), fontSize, '#0b6b45', undefined, undefined, 'middle')}
   </g>`
 }
 
@@ -410,6 +424,29 @@ function fitFont(value: string, maxWidth: number, baseSize: number, minSize: num
   if (estimatedWidth <= maxWidth) return baseSize
 
   return Math.max(minSize, Math.floor(maxWidth / Math.max(value.length * 0.58, 1)))
+}
+
+function posterText(
+  text: string,
+  x: number,
+  y: number,
+  fontSize: number,
+  fill: string,
+  stroke?: string,
+  strokeWidth?: number,
+  anchor: 'start' | 'middle' | 'end' = 'start'
+) {
+  return resultCardTextPath({
+    text,
+    x,
+    y,
+    fontSize,
+    fill,
+    anchor,
+    stroke,
+    strokeWidth,
+    paintOrder: stroke ? 'stroke' : undefined
+  })
 }
 
 function slugify(value: string) {

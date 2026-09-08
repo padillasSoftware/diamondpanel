@@ -9,10 +9,18 @@ if (!initialized.value) {
 
 useHead({
   meta: [
-    { name: 'viewport', content: 'width=device-width, initial-scale=1' }
+    { name: 'viewport', content: 'width=device-width, initial-scale=1' },
+    { name: 'theme-color', content: '#ff9800' },
+    { name: 'mobile-web-app-capable', content: 'yes' },
+    { name: 'apple-mobile-web-app-capable', content: 'yes' },
+    { name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' },
+    { name: 'apple-mobile-web-app-title', content: leagueName }
   ],
   link: [
-    { rel: 'icon', href: '/favicon.ico' }
+    { rel: 'icon', href: '/favicon.ico' },
+    { rel: 'manifest', href: '/manifest.webmanifest' },
+    { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
+    { rel: 'apple-touch-icon', sizes: '180x180', href: '/pwa/apple-touch-icon.png' }
   ],
   htmlAttrs: {
     lang: 'es'
@@ -112,6 +120,8 @@ useSeoMeta({
     <ClientOnly>
       <AppRouteLoading :visible="isRouteLoading" />
     </ClientOnly>
+
+    <PwaUpdatePrompt />
 
     <NuxtLayout>
       <NuxtPage />

@@ -5,6 +5,8 @@ export type TeamMemberRole = 'PLAYER' | 'MANAGER' | 'COACH'
 export type GameBattingHighlightSide = 'WINNER' | 'LOSER'
 export type PlayoffEligibilityMode = 'LINEUP_GAMES' | 'OPEN_ROSTER'
 
+export const TEAM_CATEGORY_VALUES: TeamCategory[] = ['A', 'B', 'C', 'D', 'E', 'R']
+
 export const TEAM_CATEGORY_OPTIONS: { label: string, value: 'ALL' | TeamCategory }[] = [
   { label: 'Todas', value: 'ALL' },
   { label: 'Categoría A', value: 'A' },
@@ -58,6 +60,13 @@ export type Player = {
   bats: string
   throws: string
   status: string
+  lineupGames?: number
+  isPlayoffEligible?: boolean
+}
+
+export type AdminPlayer = Player & {
+  createdAt: string
+  updatedAt: string
 }
 
 export type TeamSummary = {
@@ -82,6 +91,8 @@ export type Team = TeamSummary & {
 }
 
 export type TeamDetail = Team & {
+  playoffEligibilityMode?: PlayoffEligibilityMode
+  playoffMinimumLineupGames?: number
   seasons: {
     season: Season
   }[]
@@ -226,7 +237,7 @@ export function roundLabel(round: number | null) {
   return round ? `Rol #${round}` : 'Rol por definir'
 }
 
-export function teamInitials(team: TeamSummary) {
+export function teamInitials(team: { name: string, shortName?: string | null }) {
   return team.shortName ?? team.name.slice(0, 2).toUpperCase()
 }
 

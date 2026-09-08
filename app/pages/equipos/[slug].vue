@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import {
+  type BadgeColor,
   branchColor,
   branchLabel,
   categoryColor,
   categoryLabel,
-  handLabel,
   playerPositionLabel,
   playerName,
-  teamInitials,
   teamStatusColor,
   teamStatusLabel,
   type TeamDetail
@@ -24,6 +23,20 @@ useSeoMeta({
 })
 
 const activePlayers = computed(() => team.value?.players.filter(player => player.status === 'ACTIVE') ?? [])
+
+function playerEligibilityColor(player: TeamDetail['players'][number]): BadgeColor {
+  return player.isPlayoffEligible ? 'success' : 'warning'
+}
+
+function playerEligibilityLabel(player: TeamDetail['players'][number]) {
+  return player.isPlayoffEligible ? 'Elegible' : 'No elegible'
+}
+
+function playerEligibilityDetail(player: TeamDetail['players'][number]) {
+  if (team.value?.playoffEligibilityMode === 'OPEN_ROSTER') return 'Cédula abierta'
+
+  return `${player.lineupGames ?? 0}/${team.value?.playoffMinimumLineupGames ?? 5} juegos`
+}
 </script>
 
 <template>
@@ -43,12 +56,10 @@ const activePlayers = computed(() => team.value?.players.filter(player => player
           class="mb-4"
         />
 
-        <div
-          class="mb-4 flex size-24 items-center justify-center rounded-full text-3xl font-bold text-white shadow-sm"
-          :style="{ backgroundColor: team.primaryColor ?? '#047857' }"
-        >
-          {{ teamInitials(team) }}
-        </div>
+        <TeamAvatar
+          :team="team"
+          class="mb-4 size-24 text-3xl font-bold"
+        />
 
         <div class="mb-4">
           <div class="mb-2 flex flex-wrap items-center gap-2">
@@ -138,7 +149,7 @@ const activePlayers = computed(() => team.value?.players.filter(player => player
         </div>
 
         <div class="overflow-x-auto">
-          <table class="w-full min-w-155 text-sm">
+          <table class="w-full min-w-125 text-sm">
             <thead>
               <tr class="border-b border-default text-left text-xs uppercase text-muted">
                 <th class="py-3 pr-3">
@@ -150,11 +161,8 @@ const activePlayers = computed(() => team.value?.players.filter(player => player
                 <th class="py-3 pr-3">
                   Posición
                 </th>
-                <th class="py-3 pr-3">
-                  Batea
-                </th>
                 <th class="py-3 text-right">
-                  Lanza
+                  Elegibilidad
                 </th>
               </tr>
             </thead>
@@ -173,11 +181,19 @@ const activePlayers = computed(() => team.value?.players.filter(player => player
                 <td class="py-3 pr-3 text-muted">
                   {{ playerPositionLabel(player.position) }}
                 </td>
-                <td class="py-3 pr-3 text-muted">
-                  {{ handLabel(player.bats) }}
-                </td>
-                <td class="py-3 text-right text-muted">
-                  {{ handLabel(player.throws) }}
+                <td class="py-3 text-right">
+                  <div class="flex flex-col items-end gap-1">
+                    <UBadge
+                      :color="playerEligibilityColor(player)"
+                      variant="subtle"
+                      :icon="player.isPlayoffEligible ? 'i-lucide-badge-check' : 'i-lucide-clock-3'"
+                    >
+                      {{ playerEligibilityLabel(player) }}
+                    </UBadge>
+                    <span class="text-xs text-muted">
+                      {{ playerEligibilityDetail(player) }}
+                    </span>
+                  </div>
                 </td>
               </tr>
             </tbody>
