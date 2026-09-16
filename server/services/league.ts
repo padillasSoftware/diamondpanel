@@ -285,6 +285,9 @@ export async function getUpcomingGames(options: { seasonId?: string, category?: 
         : {}),
       status: {
         in: [GameStatus.SCHEDULED, GameStatus.POSTPONED]
+      },
+      result: {
+        is: null
       }
     },
     orderBy: { scheduledAt: 'asc' },
@@ -324,7 +327,9 @@ export async function getRecentResults(options: { seasonId?: string, category?: 
   return prisma.game.findMany({
     where: {
       seasonId: season.id,
-      status: GameStatus.FINAL,
+      status: {
+        not: GameStatus.CANCELLED
+      },
       ...(teamId
         ? {
             OR: [
@@ -544,7 +549,9 @@ export async function getStandings(options: { seasonId?: string, category?: stri
   const finalGames = await prisma.game.findMany({
     where: {
       seasonId: season.id,
-      status: GameStatus.FINAL,
+      status: {
+        not: GameStatus.CANCELLED
+      },
       ...(teamRelationFilter
         ? {
             homeTeam: { is: teamRelationFilter },
@@ -739,7 +746,7 @@ function buildMatchupMeeting(input: {
     }
   }
 
-  if (game.status !== GameStatus.FINAL || !game.result) {
+  if (!game.result) {
     return {
       state: game.status === GameStatus.POSTPONED ? 'POSTPONED' : 'SCHEDULED',
       label: game.round ? `R${game.round}` : 'Prog.',
