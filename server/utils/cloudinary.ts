@@ -15,10 +15,10 @@ type CloudinaryUploadResponse = {
 
 function getCloudinaryConfig() {
   const config = useRuntimeConfig()
-  const cloudName = String(config.cloudinaryCloudName || '').trim()
-  const apiKey = String(config.cloudinaryApiKey || '').trim()
-  const apiSecret = String(config.cloudinaryApiSecret || '')
-  const folder = cleanCloudinaryPath(String(config.cloudinaryFolder || 'diamondpanel'))
+  const cloudName = String(config.cloudinaryCloudName || process.env.CLOUDINARY_CLOUD_NAME || '').trim()
+  const apiKey = String(config.cloudinaryApiKey || process.env.CLOUDINARY_API_KEY || '').trim()
+  const apiSecret = String(config.cloudinaryApiSecret || process.env.CLOUDINARY_API_SECRET || '')
+  const folder = cleanCloudinaryPath(String(config.cloudinaryFolder || process.env.CLOUDINARY_FOLDER || 'diamondpanel'))
 
   return {
     cloudName,

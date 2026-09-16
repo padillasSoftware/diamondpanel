@@ -55,6 +55,7 @@ export type Player = {
   curp: string | null
   birthDate: string | null
   number: number | null
+  photoUrl: string | null
   memberRole: TeamMemberRole
   position: string | null
   bats: string

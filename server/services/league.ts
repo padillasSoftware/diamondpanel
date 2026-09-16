@@ -133,6 +133,7 @@ export async function getTeamsForSeason(options: { seasonId?: string, category?:
           firstName: true,
           lastName: true,
           number: true,
+          photoUrl: true,
           memberRole: true,
           position: true,
           bats: true,
@@ -195,6 +196,7 @@ export async function getTeamBySlug(slug: string) {
           firstName: true,
           lastName: true,
           number: true,
+          photoUrl: true,
           memberRole: true,
           position: true,
           status: true

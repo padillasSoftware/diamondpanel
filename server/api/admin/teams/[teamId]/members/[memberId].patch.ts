@@ -2,8 +2,6 @@ import { prisma } from '../../../../../utils/db'
 import { assertLeagueCategoryActive } from '../../../../../utils/categories'
 import { requireAdmin } from '../../../../../utils/session'
 import {
-  assertCurpMatchesTeamBranch,
-  assertPlayerCategoryEligibility,
   assertTeamPlayerLimit,
   buildMemberUpdateData,
   adminTeamMemberSelect
@@ -51,9 +49,10 @@ export default defineEventHandler(async (event) => {
   try {
     const member = buildMemberUpdateData(body, current)
 
-    if (member.memberRole === 'PLAYER' && member.curp) {
-      assertCurpMatchesTeamBranch(member.curp, current.team.branch)
-      await assertPlayerCategoryEligibility(prisma, member.curp, current.team, current.id)
+    if (member.memberRole === 'PLAYER') {
+      // Validacion pausada: el CURP ya no restringe rama/categoria al actualizar jugadores.
+      // assertCurpMatchesTeamBranch(member.curp, current.team.branch)
+      // await assertPlayerCategoryEligibility(prisma, member.curp, current.team, current.id)
       await assertTeamPlayerLimit(prisma, {
         teamId: current.team.id,
         memberRole: member.memberRole,

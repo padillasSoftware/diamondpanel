@@ -30,6 +30,12 @@ type ManagerTeam = Team & {
   players: Player[]
 }
 
+type PlayerPhotoPreviewPlayer = {
+  firstName: string
+  lastName: string
+  photoUrl?: string | null
+}
+
 type PlayerEligibility = Pick<Player, 'id'> & {
   lineupGames: number
   isPlayoffEligible: boolean
@@ -78,9 +84,14 @@ const memberForm = reactive({
 const editingMemberId = ref<string | null>(null)
 const isSavingTeam = ref(false)
 const isUploadingTeamLogo = ref(false)
+const isUploadingMemberPhoto = ref(false)
+const memberPhotoFile = ref<File | null>(null)
+const memberPhotoPreviewUrl = ref<string | null>(null)
 const isSavingMember = ref(false)
 const isDeletingMember = ref(false)
 const memberPendingDelete = ref<Player | null>(null)
+const selectedPlayerPhoto = ref<PlayerPhotoPreviewPlayer | null>(null)
+const isPlayerPhotoModalOpen = ref(false)
 const mobileSection = ref<'TEAM' | 'ROSTER'>('TEAM')
 const toast = useToast()
 
@@ -116,12 +127,18 @@ const playoffEligibilityByPlayerId = computed(() =>
   new Map((playoffEligibility.value?.team?.players ?? []).map(player => [player.id, player]))
 )
 const editingMember = computed(() => members.value.find(member => member.id === editingMemberId.value) ?? null)
+const memberPhotoPreviewPlayer = computed(() => ({
+  firstName: memberForm.firstName.trim() || editingMember.value?.firstName || 'Nuevo',
+  lastName: memberForm.lastName.trim() || editingMember.value?.lastName || 'Integrante',
+  photoUrl: memberPhotoPreviewUrl.value ?? editingMember.value?.photoUrl ?? null
+}))
 const canSaveMember = computed(() => {
   const hasBase = Boolean(memberForm.firstName.trim() && memberForm.lastName.trim())
   const hasPosition = memberForm.memberRole !== 'PLAYER' || Boolean(memberForm.position.trim())
-  const hasIdentity = Boolean(memberForm.curp.trim() && memberForm.birthDate)
+  // Validacion pausada: CURP y fecha de nacimiento ya no son obligatorios para registrar jugadores.
+  // const hasIdentity = Boolean(memberForm.curp.trim() && memberForm.birthDate)
 
-  return hasBase && hasPosition && hasIdentity && !curpError.value
+  return hasBase && hasPosition
 })
 
 const hasDuplicateMemberNumber = computed(() => {
@@ -134,11 +151,13 @@ const hasDuplicateMemberNumber = computed(() => {
 })
 
 const curpError = computed(() => {
-  if (!memberForm.curp) return ''
-
-  return /^[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d$/.test(memberForm.curp.trim().toUpperCase())
-    ? ''
-    : 'Ingresa una CURP válida de 18 caracteres.'
+  // Validacion pausada: se conserva para poder reactivarla despues.
+  // if (!memberForm.curp) return ''
+  //
+  // return /^[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d$/.test(memberForm.curp.trim().toUpperCase())
+  //   ? ''
+  //   : 'Ingresa una CURP válida de 18 caracteres.'
+  return ''
 })
 
 const isDeleteModalOpen = computed({
@@ -146,6 +165,10 @@ const isDeleteModalOpen = computed({
   set: (value) => {
     if (!value) memberPendingDelete.value = null
   }
+})
+
+watch(isPlayerPhotoModalOpen, (open) => {
+  if (!open) selectedPlayerPhoto.value = null
 })
 
 function showFeedback(message: string) {
@@ -163,6 +186,11 @@ function showError(message: string) {
     color: 'error',
     icon: 'i-lucide-circle-alert'
   })
+}
+
+function openPlayerPhotoModal(player: PlayerPhotoPreviewPlayer) {
+  selectedPlayerPhoto.value = player
+  isPlayerPhotoModalOpen.value = true
 }
 
 function playerLineupGames(member: Player) {
@@ -194,6 +222,7 @@ function playerEligibilityDetail(member: Player) {
 
 function resetMemberForm() {
   editingMemberId.value = null
+  clearPendingMemberPhoto()
   memberForm.firstName = ''
   memberForm.lastName = ''
   memberForm.curp = ''
@@ -211,6 +240,7 @@ function teamFormInitials() {
 }
 
 function editMember(member: Player) {
+  clearPendingMemberPhoto()
   editingMemberId.value = member.id
   memberForm.firstName = member.firstName
   memberForm.lastName = member.lastName
@@ -305,9 +335,73 @@ async function uploadTeamLogo(event: Event) {
   }
 }
 
+function clearPendingMemberPhoto() {
+  if (import.meta.client && memberPhotoPreviewUrl.value?.startsWith('blob:')) {
+    URL.revokeObjectURL(memberPhotoPreviewUrl.value)
+  }
+
+  memberPhotoFile.value = null
+  memberPhotoPreviewUrl.value = null
+}
+
+function selectMemberPhoto(event: Event) {
+  const input = event.target
+
+  if (!(input instanceof HTMLInputElement)) return
+
+  const file = input.files?.[0]
+
+  if (!file) return
+
+  if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+    showError('La foto debe ser PNG, JPG o WebP.')
+    input.value = ''
+
+    return
+  }
+
+  if (file.size > 3 * 1024 * 1024) {
+    showError('La foto debe pesar máximo 3 MB.')
+    input.value = ''
+
+    return
+  }
+
+  clearPendingMemberPhoto()
+  memberPhotoFile.value = file
+  memberPhotoPreviewUrl.value = URL.createObjectURL(file)
+  input.value = ''
+}
+
+async function uploadMemberPhotoFile(memberId: string, file: File) {
+  isUploadingMemberPhoto.value = true
+
+  try {
+    const formData = new FormData()
+
+    formData.append('photo', file)
+
+    const response = await $fetch<{ photoUrl: string, member: Player }>(`/api/manager/team/members/${memberId}/photo`, {
+      method: 'POST',
+      body: formData
+    })
+
+    if (team.value) {
+      team.value = {
+        ...team.value,
+        players: team.value.players.map(member => member.id === response.member.id ? response.member : member)
+      }
+    }
+
+    return response.member
+  } finally {
+    isUploadingMemberPhoto.value = false
+  }
+}
+
 async function saveMember() {
   if (!canSaveMember.value) {
-    showError('Completa nombre, apellido, CURP, fecha de nacimiento y posición si el integrante es jugador.')
+    showError('Completa nombre, apellido y posición si el integrante es jugador.')
 
     return
   }
@@ -318,35 +412,39 @@ async function saveMember() {
     return
   }
 
-  if (curpError.value) {
-    showError(curpError.value)
-
-    return
-  }
+  // Validacion pausada: CURP ya no bloquea el guardado de jugadores.
+  // if (curpError.value) {
+  //   showError(curpError.value)
+  //
+  //   return
+  // }
 
   isSavingMember.value = true
 
   try {
+    const pendingPhoto = memberPhotoFile.value
+    const wasEditingMember = Boolean(editingMemberId.value)
+    let savedMember: Player
+    let photoUploadFailed = false
+
     if (editingMemberId.value) {
-      await $fetch(`/api/manager/team/members/${editingMemberId.value}`, {
+      savedMember = await $fetch<Player>(`/api/manager/team/members/${editingMemberId.value}`, {
         method: 'PATCH',
         body: memberPayload()
       })
-      toast.add({
-        title: 'Integrante actualizado',
-        color: 'success',
-        icon: 'i-lucide-check-circle-2'
-      })
     } else {
-      await $fetch('/api/manager/team/members', {
+      savedMember = await $fetch<Player>('/api/manager/team/members', {
         method: 'POST',
         body: memberPayload()
       })
-      toast.add({
-        title: 'Integrante agregado',
-        color: 'success',
-        icon: 'i-lucide-check-circle-2'
-      })
+    }
+
+    if (pendingPhoto) {
+      try {
+        savedMember = await uploadMemberPhotoFile(savedMember.id, pendingPhoto)
+      } catch {
+        photoUploadFailed = true
+      }
     }
 
     await Promise.all([
@@ -354,6 +452,19 @@ async function saveMember() {
       refreshPlayoffEligibility()
     ])
     resetMemberForm()
+
+    if (photoUploadFailed) {
+      showError('El integrante se guardó, pero no se pudo subir la foto. Intenta editarlo y subirla otra vez.')
+
+      return
+    }
+
+    toast.add({
+      title: wasEditingMember ? 'Integrante actualizado' : 'Integrante agregado',
+      description: pendingPhoto ? `Foto de ${playerName(savedMember)} actualizada.` : undefined,
+      color: 'success',
+      icon: 'i-lucide-check-circle-2'
+    })
   } catch (error) {
     const statusMessage = typeof error === 'object' && error && 'data' in error
       ? String((error as { data?: { statusMessage?: unknown } }).data?.statusMessage ?? '')
@@ -364,6 +475,10 @@ async function saveMember() {
     isSavingMember.value = false
   }
 }
+
+onBeforeUnmount(() => {
+  clearPendingMemberPhoto()
+})
 
 async function deleteMember(member: Player) {
   memberPendingDelete.value = member
@@ -618,7 +733,7 @@ async function confirmDeleteMember() {
         :class="mobileSection === 'ROSTER' ? '' : 'hidden lg:grid'"
       >
         <form
-          class="min-w-0 overflow-hidden rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3 lg:h-96"
+          class="min-w-0 rounded-lg border border-default bg-default p-2.5 shadow-sm sm:p-3"
           @submit.prevent="saveMember"
         >
           <div class="mb-2.5 flex items-center justify-between gap-2">
@@ -642,6 +757,29 @@ async function confirmDeleteMember() {
             />
           </div>
 
+          <div class="mb-3 grid min-w-0 gap-2 rounded-md border border-default bg-muted/20 p-2 text-sm">
+            <span class="font-medium text-highlighted">Foto del integrante</span>
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <PlayerAvatar
+                :player="memberPhotoPreviewPlayer"
+                class="size-16 text-sm"
+                @preview="openPlayerPhotoModal"
+              />
+              <div class="min-w-0 flex-1">
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  class="block min-w-0 max-w-full cursor-pointer text-sm text-muted file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-2 file:text-sm file:font-medium file:text-white disabled:opacity-60"
+                  :disabled="isSavingMember || isUploadingMemberPhoto"
+                  @change="selectMemberPhoto"
+                >
+                <p class="mt-1 text-xs text-muted">
+                  {{ memberPhotoFile ? 'La foto se subirá cuando guardes el integrante.' : 'PNG, JPG o WebP. Máximo 3 MB. Cuando tenga foto, tócala para verla en grande.' }}
+                </p>
+              </div>
+            </div>
+          </div>
+
           <div class="grid min-w-0 gap-2 sm:grid-cols-2">
             <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">Nombre</span>
@@ -661,35 +799,36 @@ async function confirmDeleteMember() {
               />
             </label>
 
-            <label class="grid min-w-0 gap-1.5 text-sm">
-              <span class="font-medium text-highlighted">CURP</span>
-              <UInput
-                v-model="memberForm.curp"
-                class="min-w-0 uppercase"
-                autocomplete="off"
-                maxlength="18"
-                placeholder="ABCD010101HDFXXX01"
-                :color="curpError ? 'error' : 'neutral'"
-                required
-              />
-              <span
-                v-if="curpError"
-                class="text-xs font-medium text-error"
-              >
-                {{ curpError }}
-              </span>
-            </label>
+            <!-- CURP/fecha ocultos temporalmente; se conservan para reactivar la validacion despues. -->
+            <template v-if="false">
+              <label class="grid min-w-0 gap-1.5 text-sm">
+                <span class="font-medium text-highlighted">CURP</span>
+                <UInput
+                  v-model="memberForm.curp"
+                  class="min-w-0 uppercase"
+                  autocomplete="off"
+                  maxlength="18"
+                  placeholder="ABCD010101HDFXXX01"
+                  :color="curpError ? 'error' : 'neutral'"
+                />
+                <span
+                  v-if="curpError"
+                  class="text-xs font-medium text-error"
+                >
+                  {{ curpError }}
+                </span>
+              </label>
 
-            <label class="grid min-w-0 gap-1.5 text-sm">
-              <span class="font-medium text-highlighted">Fecha de nacimiento</span>
-              <UInput
-                v-model="memberForm.birthDate"
-                class="min-w-0"
-                type="date"
-                :max="new Date().toISOString().slice(0, 10)"
-                required
-              />
-            </label>
+              <label class="grid min-w-0 gap-1.5 text-sm">
+                <span class="font-medium text-highlighted">Fecha de nacimiento</span>
+                <UInput
+                  v-model="memberForm.birthDate"
+                  class="min-w-0"
+                  type="date"
+                  :max="new Date().toISOString().slice(0, 10)"
+                />
+              </label>
+            </template>
 
             <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">Tipo</span>
@@ -769,7 +908,7 @@ async function confirmDeleteMember() {
             color="primary"
             class="mt-2.5"
             :disabled="!canSaveMember"
-            :loading="isSavingMember"
+            :loading="isSavingMember || isUploadingMemberPhoto"
             block
           />
         </form>
@@ -799,41 +938,49 @@ async function confirmDeleteMember() {
               class="rounded-lg border border-default p-2"
             >
               <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                <div class="min-w-0">
-                  <div class="mb-1 flex flex-wrap items-center gap-1.5">
-                    <UBadge
-                      :color="memberRoleColor(member.memberRole)"
-                      variant="subtle"
-                    >
-                      {{ memberRoleLabel(member.memberRole) }}
-                    </UBadge>
-                    <UBadge
-                      :color="member.status === 'ACTIVE' ? 'success' : 'neutral'"
-                      variant="outline"
-                    >
-                      {{ member.status === 'ACTIVE' ? 'Activo' : 'Inactivo' }}
-                    </UBadge>
-                    <UBadge
-                      v-if="member.memberRole === 'PLAYER'"
-                      :color="playerEligibilityColor(member)"
-                      variant="subtle"
-                      :icon="member.status === 'ACTIVE' && isPlayerPlayoffEligible(member) ? 'i-lucide-badge-check' : 'i-lucide-clock-3'"
-                    >
-                      {{ playerEligibilityLabel(member) }}
-                    </UBadge>
-                  </div>
+                <div class="flex min-w-0 gap-3">
+                  <PlayerAvatar
+                    :player="member"
+                    class="size-10 text-xs"
+                    :preview="member.photoUrl !== null && member.photoUrl !== ''"
+                    @preview="openPlayerPhotoModal"
+                  />
+                  <div class="min-w-0">
+                    <div class="mb-1 flex flex-wrap items-center gap-1.5">
+                      <UBadge
+                        :color="memberRoleColor(member.memberRole)"
+                        variant="subtle"
+                      >
+                        {{ memberRoleLabel(member.memberRole) }}
+                      </UBadge>
+                      <UBadge
+                        :color="member.status === 'ACTIVE' ? 'success' : 'neutral'"
+                        variant="outline"
+                      >
+                        {{ member.status === 'ACTIVE' ? 'Activo' : 'Inactivo' }}
+                      </UBadge>
+                      <UBadge
+                        v-if="member.memberRole === 'PLAYER'"
+                        :color="playerEligibilityColor(member)"
+                        variant="subtle"
+                        :icon="member.status === 'ACTIVE' && isPlayerPlayoffEligible(member) ? 'i-lucide-badge-check' : 'i-lucide-clock-3'"
+                      >
+                        {{ playerEligibilityLabel(member) }}
+                      </UBadge>
+                    </div>
 
-                  <h3 class="truncate font-bold text-highlighted">
-                    {{ playerName(member) }}
-                  </h3>
-                  <p class="text-xs text-muted wrap-break-word">
-                    <span v-if="member.memberRole === 'PLAYER'">
-                      #{{ member.number ?? '-' }} • {{ playerPositionLabel(member.position) }} • CURP {{ member.curp ?? '-' }} • {{ playerEligibilityDetail(member) }}
-                    </span>
-                    <span v-else>
-                      Staff del equipo
-                    </span>
-                  </p>
+                    <h3 class="truncate font-bold text-highlighted">
+                      {{ playerName(member) }}
+                    </h3>
+                    <p class="text-xs text-muted wrap-break-word">
+                      <span v-if="member.memberRole === 'PLAYER'">
+                        #{{ member.number ?? '-' }} • {{ playerPositionLabel(member.position) }} • {{ playerEligibilityDetail(member) }}
+                      </span>
+                      <span v-else>
+                        Staff del equipo
+                      </span>
+                    </p>
+                  </div>
                 </div>
 
                 <div class="flex shrink-0 gap-1.5">
@@ -860,6 +1007,11 @@ async function confirmDeleteMember() {
         </section>
       </section>
     </div>
+
+    <PlayerPhotoModal
+      v-model:open="isPlayerPhotoModalOpen"
+      :player="selectedPlayerPhoto"
+    />
 
     <UModal
       v-model:open="isDeleteModalOpen"

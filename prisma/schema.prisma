@@ -216,6 +216,7 @@ model Player {
   curp       String?
   birthDate  DateTime?
   number     Int?
+  photoUrl   String?
   memberRole TeamMemberRole @default(PLAYER)
   position   String?
   bats       BattingSide    @default(UNKNOWN)
