@@ -6,6 +6,7 @@ import {
   categoryLabel,
   TEAM_CATEGORY_OPTIONS,
   type PlayoffEligibilityMode,
+  type StandingsSortMode,
   type TeamBranch,
   type TeamCategory
 } from '~/utils/league'
@@ -37,6 +38,7 @@ type SettingsResponse = {
     primaryLogoUrl: string | null
     secondaryLogoUrl: string | null
     maxPlayersPerTeam: number
+    standingsSortMode: StandingsSortMode
   }
   categories: CategorySetting[]
   season: {
@@ -57,7 +59,8 @@ const { data, pending, refresh } = await useFetch<SettingsResponse>('/api/admin/
 const settingsForm = reactive({
   playoffEligibilityMode: 'LINEUP_GAMES' as PlayoffEligibilityMode,
   playoffMinimumLineupGames: 5,
-  maxPlayersPerTeam: 25
+  maxPlayersPerTeam: 25,
+  standingsSortMode: 'WIN_PERCENTAGE' as StandingsSortMode
 })
 const editableConfigs = ref<SettingsConfig[]>([])
 const categorySettings = ref<CategorySetting[]>([])
@@ -89,6 +92,7 @@ watch(data, (settings) => {
 
   categorySettings.value = settings.categories.map(setting => ({ ...setting }))
   settingsForm.maxPlayersPerTeam = settings.league.maxPlayersPerTeam
+  settingsForm.standingsSortMode = settings.league.standingsSortMode
   settingsForm.playoffEligibilityMode = settings.season.playoffEligibilityMode
   settingsForm.playoffMinimumLineupGames = settings.season.playoffMinimumLineupGames
   editableConfigs.value = settings.configs.map(config => ({ ...config }))
@@ -113,6 +117,10 @@ function showError(message: string) {
 
 function setPlayoffEligibilityMode(mode: PlayoffEligibilityMode) {
   settingsForm.playoffEligibilityMode = mode
+}
+
+function setStandingsSortMode(mode: StandingsSortMode) {
+  settingsForm.standingsSortMode = mode
 }
 
 function categoryOptionLabel(category: TeamCategory) {
@@ -191,6 +199,7 @@ async function saveSettings() {
         playoffEligibilityMode: settingsForm.playoffEligibilityMode,
         playoffMinimumLineupGames: Number(settingsForm.playoffMinimumLineupGames) || 5,
         maxPlayersPerTeam: Number(settingsForm.maxPlayersPerTeam) || 25,
+        standingsSortMode: settingsForm.standingsSortMode,
         categories: categorySettings.value.map(setting => ({
           category: setting.category,
           active: setting.active
@@ -419,6 +428,69 @@ async function saveSettings() {
           <p class="mt-3 rounded-lg border border-default bg-muted/30 p-3 text-sm text-muted">
             Los manejadores y coaches no cuentan para este límite. Si un jugador se desactiva, libera un espacio.
           </p>
+        </section>
+
+        <section class="rounded-lg border border-default bg-default p-3 shadow-sm sm:p-4">
+          <div class="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h2 class="text-lg font-bold text-highlighted">
+                Tabla de posiciones
+              </h2>
+              <p class="text-sm text-muted">
+                Define el criterio principal; los empates usan dominio directo antes del diferencial.
+              </p>
+            </div>
+            <UIcon
+              name="i-lucide-trophy"
+              class="size-5 text-primary"
+            />
+          </div>
+
+          <div class="grid gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              :class="[
+                'rounded-lg border p-3 text-left transition-colors',
+                settingsForm.standingsSortMode === 'WIN_PERCENTAGE'
+                  ? 'border-primary bg-primary/10 text-highlighted'
+                  : 'border-default hover:border-primary hover:bg-primary/5'
+              ]"
+              @click="setStandingsSortMode('WIN_PERCENTAGE')"
+            >
+              <span class="mb-2 flex items-center gap-2 font-semibold">
+                <UIcon
+                  name="i-lucide-percent"
+                  class="size-4"
+                />
+                Por porcentaje
+              </span>
+              <span class="text-sm text-muted">
+                Ordena primero por porcentaje de ganados.
+              </span>
+            </button>
+
+            <button
+              type="button"
+              :class="[
+                'rounded-lg border p-3 text-left transition-colors',
+                settingsForm.standingsSortMode === 'WINS'
+                  ? 'border-primary bg-primary/10 text-highlighted'
+                  : 'border-default hover:border-primary hover:bg-primary/5'
+              ]"
+              @click="setStandingsSortMode('WINS')"
+            >
+              <span class="mb-2 flex items-center gap-2 font-semibold">
+                <UIcon
+                  name="i-lucide-circle-check-big"
+                  class="size-4"
+                />
+                Por juegos ganados
+              </span>
+              <span class="text-sm text-muted">
+                Ordena primero por cantidad total de victorias.
+              </span>
+            </button>
+          </div>
         </section>
 
         <section class="rounded-lg border border-default bg-default p-3 shadow-sm sm:p-4">

@@ -10,8 +10,8 @@ type OfflineAdminResultPayload = {
   awayScore: number
   innings: number
   isForfeit: boolean
-  winningPitcherName: string
-  losingPitcherName: string
+  winningPitcherName: string | null
+  losingPitcherName: string | null
   notes: string
   winnerHighlights: OfflineAdminResultHighlight[]
   loserHighlights: OfflineAdminResultHighlight[]

@@ -7,8 +7,10 @@ import {
   formatGameDate,
   gameStatusColor,
   gameStatusLabel,
+  resultOutcomeForTeam,
   roundLabel,
   type PlayoffEligibilityMode,
+  type ResultOutcome,
   type TeamBranch,
   type TeamCategory
 } from '~/utils/league'
@@ -152,6 +154,8 @@ type LineupPlayerForm = {
   battingOrder: number | null
 }
 
+type ResultOutcomeFilter = 'ALL' | ResultOutcome
+
 const emptyHighlight = (): HighlightForm => ({
   playerName: '',
   atBats: 0,
@@ -179,8 +183,9 @@ const isSavingResult = ref(false)
 const isDeletingResult = ref(false)
 const isSavingLineup = ref(false)
 const editingResultId = ref<string | null>(null)
-const search = ref('')
 const selectedStatus = ref<'ALL' | 'PENDING' | 'FINAL'>('ALL')
+const selectedTeamId = ref<'ALL' | string>('ALL')
+const selectedOutcome = ref<ResultOutcomeFilter>('ALL')
 const showBattingHighlights = ref(false)
 const showLineupEditor = ref(false)
 const resultPanelRef = ref<HTMLElement | null>(null)
@@ -207,6 +212,16 @@ const lineupForm = reactive({
 
 const games = computed(() => data.value?.games ?? [])
 const selectedGame = computed(() => games.value.find(game => game.id === selectedGameId.value) ?? null)
+const teamFilterOptions = computed(() => {
+  const teamsById = new Map<string, AdminResultTeam>()
+
+  for (const game of games.value) {
+    teamsById.set(game.homeTeam.id, game.homeTeam)
+    teamsById.set(game.awayTeam.id, game.awayTeam)
+  }
+
+  return [...teamsById.values()].sort((leftTeam, rightTeam) => leftTeam.name.localeCompare(rightTeam.name, 'es'))
+})
 const resultCardHref = computed(() =>
   selectedGame.value?.result ? `/api/admin/results/${selectedGame.value.id}/card.png` : ''
 )
@@ -255,23 +270,20 @@ const canSaveResult = computed(() =>
     selectedGame.value
     && winnerTeam.value
     && loserTeam.value
-    && resultForm.winningPitcherName.trim()
-    && resultForm.losingPitcherName.trim()
   )
 )
 const filteredGames = computed(() => {
-  const term = search.value.trim().toLowerCase()
-
   return games.value.filter((game) => {
-    const matchesSearch = !term
-      || game.homeTeam.name.toLowerCase().includes(term)
-      || game.awayTeam.name.toLowerCase().includes(term)
-      || (game.field?.name ?? '').toLowerCase().includes(term)
     const matchesStatus = selectedStatus.value === 'ALL'
       || (selectedStatus.value === 'FINAL' && Boolean(game.result))
       || (selectedStatus.value === 'PENDING' && !game.result)
+    const matchesTeam = selectedTeamId.value === 'ALL'
+      || game.homeTeam.id === selectedTeamId.value
+      || game.awayTeam.id === selectedTeamId.value
+    const matchesOutcome = selectedOutcome.value === 'ALL'
+      || (selectedTeamId.value !== 'ALL' && resultOutcomeForTeam(game, selectedTeamId.value) === selectedOutcome.value)
 
-    return matchesSearch && matchesStatus
+    return matchesStatus && matchesTeam && matchesOutcome
   })
 })
 
@@ -280,6 +292,35 @@ watch(games, (availableGames) => {
     selectedGameId.value = availableGames[0]?.id ?? null
   }
 }, { immediate: true })
+
+watch(filteredGames, (availableGames) => {
+  if (!availableGames.length) {
+    selectedGameId.value = null
+    return
+  }
+
+  if (!selectedGameId.value || !availableGames.some(game => game.id === selectedGameId.value)) {
+    selectedGameId.value = availableGames[0]?.id ?? null
+  }
+}, { immediate: true })
+
+watch(selectedTeamId, (teamId) => {
+  if (teamId === 'ALL') {
+    selectedOutcome.value = 'ALL'
+  }
+})
+
+watch(selectedStatus, (status) => {
+  if (status === 'PENDING') {
+    selectedOutcome.value = 'ALL'
+  }
+})
+
+watch(selectedOutcome, (outcome) => {
+  if (outcome !== 'ALL' && selectedStatus.value === 'PENDING') {
+    selectedStatus.value = 'FINAL'
+  }
+})
 
 watch(selectedGame, (game) => {
   editingResultId.value = null
@@ -675,8 +716,8 @@ function resultPayload(options: { offlineGuard?: boolean } = {}) {
     awayScore: resultForm.awayScore,
     innings: resultForm.innings,
     isForfeit: resultForm.isForfeit,
-    winningPitcherName: resultForm.winningPitcherName,
-    losingPitcherName: resultForm.losingPitcherName,
+    winningPitcherName: resultForm.isForfeit ? null : optionalResultText(resultForm.winningPitcherName),
+    losingPitcherName: resultForm.isForfeit ? null : optionalResultText(resultForm.losingPitcherName),
     notes: resultForm.notes,
     winnerHighlights: resultForm.isForfeit ? [] : resultForm.winnerHighlights,
     loserHighlights: resultForm.isForfeit ? [] : resultForm.loserHighlights
@@ -722,6 +763,10 @@ function normalizeLineupOrder(value: unknown) {
   return Number.isInteger(order) && order > 0 ? order : null
 }
 
+function optionalResultText(value: string) {
+  return value.trim() || null
+}
+
 function hasDuplicateLineupOrders(rows: LineupPlayerForm[]) {
   const orders = rows
     .filter(row => row.selected)
@@ -742,8 +787,8 @@ async function saveResult() {
 
   if (!game || !canSaveResult.value) {
     showError(resultForm.isForfeit
-      ? 'El resultado por default debe quedar 7-0 y llevar pitcher ganador y derrotado.'
-      : 'Captura marcador, pitcher ganador y pitcher derrotado.')
+      ? 'El resultado por default debe quedar 7-0 y tener un equipo ganador.'
+      : 'Captura un marcador con equipo ganador.')
 
     return
   }
@@ -775,7 +820,9 @@ async function saveResult() {
       ? String((error as { data?: { statusMessage?: unknown } }).data?.statusMessage ?? '')
       : ''
 
-    showError(statusMessage || 'Revisa el marcador, pitchers y bateadores.')
+    showError(statusMessage || (resultForm.isForfeit
+      ? 'Revisa el marcador del resultado por default.'
+      : 'Revisa el marcador y los datos capturados.'))
   } finally {
     isSavingResult.value = false
   }
@@ -1043,13 +1090,7 @@ function editSelectedResult() {
             </p>
           </div>
 
-          <div class="grid min-w-0 gap-2 sm:grid-cols-2 lg:min-w-90">
-            <UInput
-              v-model="search"
-              icon="i-lucide-search"
-              placeholder="Buscar"
-              class="min-w-0"
-            />
+          <div class="grid min-w-0 gap-2 sm:grid-cols-3 lg:min-w-130">
             <select
               v-model="selectedStatus"
               class="h-10 min-w-0 max-w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
@@ -1064,10 +1105,61 @@ function editSelectedResult() {
                 Capturados
               </option>
             </select>
+            <select
+              v-model="selectedTeamId"
+              aria-label="Filtrar por equipo"
+              class="h-10 min-w-0 max-w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
+            >
+              <option value="ALL">
+                Todos los equipos
+              </option>
+              <option
+                v-for="team in teamFilterOptions"
+                :key="team.id"
+                :value="team.id"
+              >
+                {{ team.name }}
+              </option>
+            </select>
+            <select
+              v-model="selectedOutcome"
+              aria-label="Filtrar ganados o perdidos"
+              class="h-10 min-w-0 max-w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-60"
+              :disabled="selectedTeamId === 'ALL' || selectedStatus === 'PENDING'"
+            >
+              <option value="ALL">
+                Resultado del equipo
+              </option>
+              <option value="WON">
+                Ganados
+              </option>
+              <option value="LOST">
+                Perdidos
+              </option>
+              <option value="TIED">
+                Empatados
+              </option>
+            </select>
           </div>
         </div>
 
         <div class="grid gap-2 overflow-y-auto pr-1 xl:min-h-0 xl:flex-1">
+          <div
+            v-if="!pending && !filteredGames.length"
+            class="rounded-lg border border-dashed border-default p-6 text-center"
+          >
+            <UIcon
+              name="i-lucide-search-x"
+              class="mx-auto mb-2 size-7 text-muted"
+            />
+            <p class="font-semibold text-highlighted">
+              No hay partidos con esos filtros.
+            </p>
+            <p class="mt-1 text-sm text-muted">
+              Cambia el equipo, estado o resultado para ampliar la búsqueda.
+            </p>
+          </div>
+
           <button
             v-for="game in filteredGames"
             :key="game.id"
@@ -1325,20 +1417,20 @@ function editSelectedResult() {
                 {{ selectedGame.result.innings ?? 7 }}
               </p>
             </div>
-            <div>
+            <div v-if="!selectedGame.result.isForfeit">
               <p class="text-xs font-semibold uppercase text-muted">
                 Pitcher ganador
               </p>
               <p class="truncate font-semibold text-highlighted">
-                {{ savedPlayerName(selectedGame.result.winningPitcherName, selectedGame.result.winningPitcher) || 'Sin captura' }}
+                {{ savedPlayerName(selectedGame.result.winningPitcherName, selectedGame.result.winningPitcher) || '~' }}
               </p>
             </div>
-            <div>
+            <div v-if="!selectedGame.result.isForfeit">
               <p class="text-xs font-semibold uppercase text-muted">
                 Pitcher derrotado
               </p>
               <p class="truncate font-semibold text-highlighted">
-                {{ savedPlayerName(selectedGame.result.losingPitcherName, selectedGame.result.losingPitcher) || 'Sin captura' }}
+                {{ savedPlayerName(selectedGame.result.losingPitcherName, selectedGame.result.losingPitcher) || '~' }}
               </p>
             </div>
           </div>
@@ -1619,18 +1711,17 @@ function editSelectedResult() {
             v-if="resultForm.isForfeit && winnerTeam && loserTeam"
             class="mb-3 rounded-lg border border-primary/30 bg-primary/10 p-3 text-sm text-highlighted"
           >
-            Se guardará {{ winnerTeam.name }} 7, {{ loserTeam.name }} 0. Captura únicamente pitchers; sin bateadores destacados.
+            Se guardará {{ winnerTeam.name }} 7, {{ loserTeam.name }} 0. No se solicitarán pitchers ni bateadores destacados.
           </div>
 
           <div
-            v-if="winnerTeam && loserTeam"
+            v-if="!resultForm.isForfeit && winnerTeam && loserTeam"
             class="mb-3 grid min-w-0 gap-2 lg:grid-cols-2"
           >
             <label class="grid min-w-0 gap-1.5 text-sm">
-              <span class="font-medium text-highlighted">Pitcher ganador · {{ winnerTeam.name }}</span>
+              <span class="font-medium text-highlighted">Pitcher ganador · {{ winnerTeam.name }} <span class="text-muted">(opcional)</span></span>
               <UInput
                 v-model="resultForm.winningPitcherName"
-                required
                 maxlength="80"
                 placeholder="Nombre del pitcher ganador"
                 class="min-w-0"
@@ -1638,10 +1729,9 @@ function editSelectedResult() {
             </label>
 
             <label class="grid min-w-0 gap-1.5 text-sm">
-              <span class="font-medium text-highlighted">Pitcher derrotado · {{ loserTeam.name }}</span>
+              <span class="font-medium text-highlighted">Pitcher derrotado · {{ loserTeam.name }} <span class="text-muted">(opcional)</span></span>
               <UInput
                 v-model="resultForm.losingPitcherName"
-                required
                 maxlength="80"
                 placeholder="Nombre del pitcher derrotado"
                 class="min-w-0"
@@ -1650,10 +1740,10 @@ function editSelectedResult() {
           </div>
 
           <div
-            v-else
+            v-else-if="!winnerTeam || !loserTeam"
             class="mb-3 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-highlighted"
           >
-            Define un marcador con ganador para capturar pitchers y bateadores.
+            Define un marcador con ganador para guardar el resultado.
           </div>
 
           <div

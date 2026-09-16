@@ -195,7 +195,7 @@ const bestDefense = computed(() => [...standingRows.value].sort((a, b) => a.runs
             {{ selectedScopeLabel }}
           </h2>
           <p class="text-sm text-muted">
-            Criterios: porcentaje, ganados, diferencial y carreras a favor.
+            Criterios: ajuste principal, dominio directo, diferencial y carreras a favor.
           </p>
         </div>
         <UBadge

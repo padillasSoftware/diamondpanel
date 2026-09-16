@@ -1,4 +1,4 @@
-import { PlayoffEligibilityMode } from '../../generated/prisma/enums'
+import { PlayoffEligibilityMode, StandingsSortMode } from '../../generated/prisma/enums'
 import { cleanLeagueCategorySettings } from '../../utils/categories'
 import { prisma } from '../../utils/db'
 import {
@@ -22,10 +22,24 @@ function cleanPlayoffEligibilityMode(value: unknown) {
   })
 }
 
+function cleanStandingsSortMode(value: unknown) {
+  const mode = typeof value === 'string' ? value.trim().toUpperCase() : ''
+
+  if (mode === StandingsSortMode.WIN_PERCENTAGE || mode === StandingsSortMode.WINS) {
+    return mode
+  }
+
+  throw createError({
+    statusCode: 400,
+    statusMessage: 'Invalid standings sort mode'
+  })
+}
+
 export default defineEventHandler(async (event) => {
   await requireAdmin(event)
   const body = await readBody<Record<string, unknown>>(event)
   const playoffEligibilityMode = cleanPlayoffEligibilityMode(body.playoffEligibilityMode)
+  const standingsSortMode = cleanStandingsSortMode(body.standingsSortMode)
   const playoffMinimumLineupGames = cleanNumber(body.playoffMinimumLineupGames, {
     min: 1,
     max: 99,
@@ -75,11 +89,13 @@ export default defineEventHandler(async (event) => {
     await tx.leagueSettings.upsert({
       where: { id: 'default' },
       update: {
-        maxPlayersPerTeam
+        maxPlayersPerTeam,
+        standingsSortMode
       },
       create: {
         id: 'default',
-        maxPlayersPerTeam
+        maxPlayersPerTeam,
+        standingsSortMode
       }
     })
 

@@ -1,5 +1,5 @@
 import { prisma } from '../utils/db'
-import { GameStatus, PlayerStatus, PlayoffEligibilityMode, SeasonStatus, TeamBranch, TeamCategory, TeamMemberRole } from '../generated/prisma/enums'
+import { GameStatus, PlayerStatus, PlayoffEligibilityMode, SeasonStatus, StandingsSortMode, TeamBranch, TeamCategory, TeamMemberRole } from '../generated/prisma/enums'
 import { getActiveCategories, getCategoryFilter, type TeamCategoryValue } from '../utils/categories'
 
 type TeamBranchValue = (typeof TeamBranch)[keyof typeof TeamBranch]
@@ -28,6 +28,14 @@ type TeamStanding = {
   winPercentageText: string
   streak: string
 }
+
+type HeadToHeadRecord = {
+  wins: number
+  losses: number
+  ties: number
+}
+
+type HeadToHeadTable = Map<string, Map<string, HeadToHeadRecord>>
 
 type MatrixCellState = 'SELF' | 'PENDING' | 'SCHEDULED' | 'POSTPONED' | 'WON' | 'TIED' | 'LOST' | 'DEFAULT' | 'CANCELLED'
 
@@ -546,39 +554,49 @@ export async function getStandings(options: { seasonId?: string, category?: stri
   const categoryWhere = getVisibleCategoryWhere(await getActiveCategories(prisma), category)
   const teamRelationFilter = getTeamRelationFilter(categoryWhere, branch)
   const teams = await getTeamsForSeason({ seasonId: season.id, category, branch })
-  const finalGames = await prisma.game.findMany({
-    where: {
-      seasonId: season.id,
-      status: {
-        not: GameStatus.CANCELLED
+  const [finalGames, settings] = await Promise.all([
+    prisma.game.findMany({
+      where: {
+        seasonId: season.id,
+        status: {
+          not: GameStatus.CANCELLED
+        },
+        ...(teamRelationFilter
+          ? {
+              homeTeam: { is: teamRelationFilter },
+              awayTeam: { is: teamRelationFilter }
+            }
+          : {}),
+        result: {
+          isNot: null
+        }
       },
-      ...(teamRelationFilter
-        ? {
-            homeTeam: { is: teamRelationFilter },
-            awayTeam: { is: teamRelationFilter }
+      orderBy: { scheduledAt: 'asc' },
+      select: {
+        id: true,
+        scheduledAt: true,
+        homeTeamId: true,
+        awayTeamId: true,
+        result: {
+          select: {
+            homeScore: true,
+            awayScore: true
           }
-        : {}),
-      result: {
-        isNot: null
-      }
-    },
-    orderBy: { scheduledAt: 'asc' },
-    select: {
-      id: true,
-      scheduledAt: true,
-      homeTeamId: true,
-      awayTeamId: true,
-      result: {
-        select: {
-          homeScore: true,
-          awayScore: true
         }
       }
-    }
-  })
+    }),
+    prisma.leagueSettings.findUnique({
+      where: { id: 'default' },
+      select: {
+        standingsSortMode: true
+      }
+    })
+  ])
+  const standingsSortMode = settings?.standingsSortMode ?? StandingsSortMode.WIN_PERCENTAGE
 
   const standings = new Map<string, TeamStanding>()
   const streaks = new Map<string, string[]>()
+  const headToHead = new Map<string, Map<string, HeadToHeadRecord>>()
 
   for (const team of teams) {
     standings.set(team.id, {
@@ -625,23 +643,33 @@ export async function getStandings(options: { seasonId?: string, category?: stri
       runsFor: game.result.awayScore,
       runsAgainst: game.result.homeScore
     })
+
+    applyHeadToHeadResult({
+      headToHead,
+      standings,
+      homeTeamId: game.homeTeamId,
+      awayTeamId: game.awayTeamId,
+      homeScore: game.result.homeScore,
+      awayScore: game.result.awayScore
+    })
   }
 
-  return [...standings.values()]
-    .map((standing) => {
-      const winPercentage = standing.played
-        ? (standing.wins + standing.ties * 0.5) / standing.played
-        : 0
+  const calculatedStandings = [...standings.values()].map((standing) => {
+    const winPercentage = standing.played
+      ? (standing.wins + standing.ties * 0.5) / standing.played
+      : 0
 
-      return {
-        ...standing,
-        runDifferential: standing.runsFor - standing.runsAgainst,
-        winPercentage,
-        winPercentageText: formatWinPercentage(winPercentage),
-        streak: formatStreak(streaks.get(standing.team.id) ?? [])
-      }
-    })
-    .sort(compareStandings)
+    return {
+      ...standing,
+      runDifferential: standing.runsFor - standing.runsAgainst,
+      winPercentage,
+      winPercentageText: formatWinPercentage(winPercentage),
+      streak: formatStreak(streaks.get(standing.team.id) ?? [])
+    }
+  })
+
+  return calculatedStandings
+    .sort((left, right) => compareStandings(left, right, standingsSortMode, headToHead, calculatedStandings))
     .map((standing, index) => ({
       rank: index + 1,
       ...standing
@@ -759,13 +787,11 @@ function buildMatchupMeeting(input: {
   const rowIsHome = input.rowTeamId === game.homeTeamId
   const rowScore = rowIsHome ? game.result.homeScore : game.result.awayScore
   const opponentScore = rowIsHome ? game.result.awayScore : game.result.homeScore
-  const state: MatrixCellState = game.result.isForfeit
-    ? 'DEFAULT'
-    : rowScore > opponentScore
-      ? 'WON'
-      : rowScore < opponentScore
-        ? 'LOST'
-        : 'TIED'
+  const state: MatrixCellState = rowScore > opponentScore
+    ? 'WON'
+    : rowScore < opponentScore
+      ? 'LOST'
+      : 'TIED'
 
   return {
     state,
@@ -852,6 +878,45 @@ function applyGameResult(input: {
   }
 }
 
+function applyHeadToHeadResult(input: {
+  headToHead: HeadToHeadTable
+  standings: Map<string, TeamStanding>
+  homeTeamId: string
+  awayTeamId: string
+  homeScore: number
+  awayScore: number
+}) {
+  if (!input.standings.has(input.homeTeamId) || !input.standings.has(input.awayTeamId)) return
+
+  const homeRecord = getHeadToHeadRecord(input.headToHead, input.homeTeamId, input.awayTeamId)
+  const awayRecord = getHeadToHeadRecord(input.headToHead, input.awayTeamId, input.homeTeamId)
+
+  if (input.homeScore > input.awayScore) {
+    homeRecord.wins += 1
+    awayRecord.losses += 1
+  } else if (input.homeScore < input.awayScore) {
+    awayRecord.wins += 1
+    homeRecord.losses += 1
+  } else {
+    homeRecord.ties += 1
+    awayRecord.ties += 1
+  }
+}
+
+function getHeadToHeadRecord(table: HeadToHeadTable, teamId: string, opponentId: string) {
+  const opponentRecords = table.get(teamId) ?? new Map<string, HeadToHeadRecord>()
+  const record = opponentRecords.get(opponentId) ?? {
+    wins: 0,
+    losses: 0,
+    ties: 0
+  }
+
+  opponentRecords.set(opponentId, record)
+  table.set(teamId, opponentRecords)
+
+  return record
+}
+
 function formatWinPercentage(value: number) {
   if (value >= 1) return '1.000'
 
@@ -873,10 +938,76 @@ function formatStreak(results: string[]) {
   return `${latest}${count}`
 }
 
-function compareStandings(a: TeamStanding, b: TeamStanding) {
-  return b.winPercentage - a.winPercentage
-    || b.wins - a.wins
+function compareStandings(
+  a: TeamStanding,
+  b: TeamStanding,
+  sortMode: (typeof StandingsSortMode)[keyof typeof StandingsSortMode],
+  headToHead: HeadToHeadTable,
+  allStandings: TeamStanding[]
+) {
+  const primarySort = comparePrimaryStandings(a, b, sortMode)
+
+  return primarySort
+    || compareHeadToHead(a, b, sortMode, headToHead, allStandings)
     || b.runDifferential - a.runDifferential
     || b.runsFor - a.runsFor
     || a.team.name.localeCompare(b.team.name)
+}
+
+function comparePrimaryStandings(
+  a: TeamStanding,
+  b: TeamStanding,
+  sortMode: (typeof StandingsSortMode)[keyof typeof StandingsSortMode]
+) {
+  return sortMode === StandingsSortMode.WINS
+    ? b.wins - a.wins || b.winPercentage - a.winPercentage
+    : b.winPercentage - a.winPercentage || b.wins - a.wins
+}
+
+function compareHeadToHead(
+  a: TeamStanding,
+  b: TeamStanding,
+  sortMode: (typeof StandingsSortMode)[keyof typeof StandingsSortMode],
+  table: HeadToHeadTable,
+  allStandings: TeamStanding[]
+) {
+  const tiedTeamIds = allStandings
+    .filter(standing => comparePrimaryStandings(a, standing, sortMode) === 0)
+    .map(standing => standing.team.id)
+
+  const aRecord = summarizeHeadToHead(a.team.id, tiedTeamIds, table)
+  const bRecord = summarizeHeadToHead(b.team.id, tiedTeamIds, table)
+
+  return bRecord.wins - aRecord.wins
+    || headToHeadWinPercentage(bRecord) - headToHeadWinPercentage(aRecord)
+}
+
+function summarizeHeadToHead(teamId: string, tiedTeamIds: string[], table: HeadToHeadTable) {
+  const summary: HeadToHeadRecord = {
+    wins: 0,
+    losses: 0,
+    ties: 0
+  }
+
+  for (const opponentId of tiedTeamIds) {
+    if (opponentId === teamId) continue
+
+    const record = table.get(teamId)?.get(opponentId)
+
+    if (!record) continue
+
+    summary.wins += record.wins
+    summary.losses += record.losses
+    summary.ties += record.ties
+  }
+
+  return summary
+}
+
+function headToHeadWinPercentage(record: HeadToHeadRecord) {
+  const played = record.wins + record.losses + record.ties
+
+  if (!played) return 0
+
+  return (record.wins + record.ties * 0.5) / played
 }
