@@ -7,7 +7,7 @@ import {
 } from '../generated/prisma/enums'
 import type { TeamCategory } from '../generated/prisma/enums'
 import type { Prisma } from '../generated/prisma/client'
-import { cleanEnum, cleanNumber, cleanRequiredText } from './validation'
+import { cleanEnum, cleanNumber, cleanOptionalText, cleanRequiredText } from './validation'
 
 const playerPositions = ['FIELDER', 'INFIELDER', 'PITCHER', 'CATCHER', 'UTILITY'] as const
 const defaultMaxPlayersPerTeam = 25
@@ -60,20 +60,25 @@ export const managerTeamSelect = {
 } satisfies Prisma.TeamSelect
 
 export function cleanCurp(value: unknown) {
-  const curp = cleanRequiredText(value, 'CURP', 18).toUpperCase()
+  const curp = cleanOptionalText(value, 18)?.toUpperCase() ?? null
 
-  if (!/^[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d$/.test(curp)) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: 'CURP is invalid'
-    })
-  }
+  if (!curp) return null
+
+  // Validacion pausada: CURP ya no es obligatorio ni se valida por formato al registrar jugadores.
+  // if (!/^[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d$/.test(curp)) {
+  //   throw createError({
+  //     statusCode: 400,
+  //     statusMessage: 'CURP is invalid'
+  //   })
+  // }
 
   return curp
 }
 
 export function cleanBirthDate(value: unknown) {
-  const birthDate = cleanRequiredText(value, 'Birth date', 10)
+  const birthDate = cleanOptionalText(value, 10)
+
+  if (!birthDate) return null
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) {
     throw createError({
@@ -158,12 +163,13 @@ export function buildMemberUpdateData(
   const curp = body.curp === undefined ? current.curp : cleanCurp(body.curp)
   const birthDate = body.birthDate === undefined ? current.birthDate : cleanBirthDate(body.birthDate)
 
-  if (!curp || !birthDate) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: 'CURP and birth date are required'
-    })
-  }
+  // Validacion pausada: CURP y fecha ya no son requeridos para actualizar jugadores.
+  // if (!curp || !birthDate) {
+  //   throw createError({
+  //     statusCode: 400,
+  //     statusMessage: 'CURP and birth date are required'
+  //   })
+  // }
 
   return {
     firstName: body.firstName === undefined

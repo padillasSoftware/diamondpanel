@@ -162,9 +162,10 @@ const canSaveTeam = computed(() => Boolean(teamForm.name.trim() && teamForm.slug
 const canSaveMember = computed(() => {
   const hasBase = Boolean(memberForm.firstName.trim() && memberForm.lastName.trim())
   const hasPosition = memberForm.memberRole !== 'PLAYER' || Boolean(memberForm.position.trim())
-  const hasIdentity = Boolean(memberForm.curp.trim() && memberForm.birthDate)
+  // Validacion pausada: CURP y fecha de nacimiento ya no son obligatorios para registrar jugadores.
+  // const hasIdentity = Boolean(memberForm.curp.trim() && memberForm.birthDate)
 
-  return Boolean(editingTeamId.value && hasBase && hasPosition && hasIdentity && !curpError.value)
+  return Boolean(editingTeamId.value && hasBase && hasPosition)
 })
 const hasDuplicateMemberNumber = computed(() => {
   if (memberForm.memberRole !== 'PLAYER' || !memberForm.number) return false
@@ -175,11 +176,13 @@ const hasDuplicateMemberNumber = computed(() => {
   )
 })
 const curpError = computed(() => {
-  if (!memberForm.curp) return ''
-
-  return /^[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d$/.test(memberForm.curp.trim().toUpperCase())
-    ? ''
-    : 'Ingresa una CURP válida de 18 caracteres.'
+  // Validacion pausada: se conserva para poder reactivarla despues.
+  // if (!memberForm.curp) return ''
+  //
+  // return /^[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d$/.test(memberForm.curp.trim().toUpperCase())
+  //   ? ''
+  //   : 'Ingresa una CURP válida de 18 caracteres.'
+  return ''
 })
 const filteredTeams = computed(() => {
   const term = search.value.trim().toLowerCase()
@@ -620,7 +623,7 @@ async function saveMember() {
   }
 
   if (!canSaveMember.value) {
-    showError('Completa nombre, apellido, CURP, fecha de nacimiento y posición si el integrante es jugador.')
+    showError('Completa nombre, apellido y posición si el integrante es jugador.')
 
     return
   }
@@ -631,11 +634,12 @@ async function saveMember() {
     return
   }
 
-  if (curpError.value) {
-    showError(curpError.value)
-
-    return
-  }
+  // Validacion pausada: CURP ya no bloquea el guardado de jugadores.
+  // if (curpError.value) {
+  //   showError(curpError.value)
+  //
+  //   return
+  // }
 
   const teamId = editingTeamId.value
   isSavingMember.value = true
@@ -1381,34 +1385,35 @@ async function confirmDeleteTeam() {
             />
           </label>
 
-          <label class="grid gap-1.5 text-sm">
-            <span class="font-medium text-highlighted">CURP</span>
-            <UInput
-              v-model="memberForm.curp"
-              autocomplete="off"
-              maxlength="18"
-              placeholder="ABCD010101HDFXXX01"
-              :color="curpError ? 'error' : 'neutral'"
-              class="uppercase"
-              required
-            />
-            <span
-              v-if="curpError"
-              class="text-xs font-medium text-error"
-            >
-              {{ curpError }}
-            </span>
-          </label>
+          <!-- CURP/fecha ocultos temporalmente; se conservan para reactivar la validacion despues. -->
+          <template v-if="false">
+            <label class="grid gap-1.5 text-sm">
+              <span class="font-medium text-highlighted">CURP</span>
+              <UInput
+                v-model="memberForm.curp"
+                autocomplete="off"
+                maxlength="18"
+                placeholder="ABCD010101HDFXXX01"
+                :color="curpError ? 'error' : 'neutral'"
+                class="uppercase"
+              />
+              <span
+                v-if="curpError"
+                class="text-xs font-medium text-error"
+              >
+                {{ curpError }}
+              </span>
+            </label>
 
-          <label class="grid gap-1.5 text-sm">
-            <span class="font-medium text-highlighted">Fecha de nacimiento</span>
-            <UInput
-              v-model="memberForm.birthDate"
-              type="date"
-              :max="new Date().toISOString().slice(0, 10)"
-              required
-            />
-          </label>
+            <label class="grid gap-1.5 text-sm">
+              <span class="font-medium text-highlighted">Fecha de nacimiento</span>
+              <UInput
+                v-model="memberForm.birthDate"
+                type="date"
+                :max="new Date().toISOString().slice(0, 10)"
+              />
+            </label>
+          </template>
 
           <label class="grid gap-1.5 text-sm">
             <span class="font-medium text-highlighted">Tipo</span>
@@ -1563,10 +1568,10 @@ async function confirmDeleteTeam() {
                   </h3>
                   <p class="text-xs text-muted">
                     <span v-if="member.memberRole === 'PLAYER'">
-                      #{{ member.number ?? '-' }} · {{ playerPositionLabel(member.position) }} · CURP {{ member.curp ?? '-' }}
+                      #{{ member.number ?? '-' }} · {{ playerPositionLabel(member.position) }}
                     </span>
                     <span v-else>
-                      Staff del equipo · CURP {{ member.curp ?? '-' }}
+                      Staff del equipo
                     </span>
                   </p>
                 </div>
