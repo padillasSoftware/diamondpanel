@@ -70,7 +70,9 @@ export async function loadResultCardSvg(event: H3Event, gameId: string) {
     where: {
       id: gameId,
       seasonId: season.id,
-      status: GameStatus.FINAL,
+      status: {
+        not: GameStatus.CANCELLED
+      },
       result: {
         isNot: null
       }

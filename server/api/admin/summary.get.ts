@@ -51,6 +51,9 @@ export default defineEventHandler(async (event) => {
       where: {
         ...(activeSeason ? { seasonId: activeSeason.id } : {}),
         status: { in: [GameStatus.SCHEDULED, GameStatus.POSTPONED] },
+        result: {
+          is: null
+        },
         homeTeam: {
           is: {
             category: activeCategoryFilter
@@ -66,7 +69,12 @@ export default defineEventHandler(async (event) => {
     prisma.game.count({
       where: {
         ...(activeSeason ? { seasonId: activeSeason.id } : {}),
-        status: GameStatus.FINAL,
+        status: {
+          not: GameStatus.CANCELLED
+        },
+        result: {
+          isNot: null
+        },
         homeTeam: {
           is: {
             category: activeCategoryFilter
