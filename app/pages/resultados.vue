@@ -8,15 +8,18 @@ import {
   formatGameDate,
   formatShortDate,
   resultPersonName,
+  resultOutcomeForTeam,
   resultWinnerLabel,
   roundLabel,
   scoreClass,
   type GameBattingHighlightSide,
+  type ResultOutcome,
   type ResultGame,
   type Season
 } from '~/utils/league'
 
 type ResultScope = 'TEAM' | 'GROUP'
+type ResultOutcomeFilter = 'ALL' | ResultOutcome
 
 useSeoMeta({
   title: 'Resultados | DiamondPanel',
@@ -25,6 +28,7 @@ useSeoMeta({
 
 const { user } = useAuth()
 const selectedScope = ref<ResultScope>('TEAM')
+const selectedOutcome = ref<ResultOutcomeFilter>('ALL')
 const managedTeam = computed(() => user.value?.role === 'ADMIN' ? null : user.value?.activeTeam ?? null)
 const canFilterByManagedTeam = computed(() => Boolean(managedTeam.value))
 const resultsQuery = computed(() => {
@@ -50,10 +54,24 @@ const [
   useFetch<ResultGame[]>('/api/results/recent', { query: resultsQuery })
 ])
 
-const resultRows = computed(() => results.value ?? [])
+const allResultRows = computed(() => results.value ?? [])
+const resultRows = computed(() => {
+  const team = managedTeam.value
+
+  if (!team || selectedOutcome.value === 'ALL') return allResultRows.value
+
+  return allResultRows.value.filter(game => resultOutcomeForTeam(game, team.id) === selectedOutcome.value)
+})
 const totalRuns = computed(() => resultRows.value.reduce((total, game) => total + game.result.homeScore + game.result.awayScore, 0))
 const averageRuns = computed(() => resultRows.value.length ? (totalRuns.value / resultRows.value.length).toFixed(1) : '0.0')
 const latestResult = computed(() => resultRows.value[0])
+const emptyResultsMessage = computed(() => {
+  if (selectedOutcome.value === 'WON') return 'No hay juegos ganados para este filtro.'
+  if (selectedOutcome.value === 'LOST') return 'No hay juegos perdidos para este filtro.'
+  if (selectedOutcome.value === 'TIED') return 'No hay juegos empatados para este filtro.'
+
+  return 'Aún no hay resultados capturados.'
+})
 const scopeDescription = computed(() => {
   const team = managedTeam.value
 
@@ -163,32 +181,61 @@ function loserTeamName(game: ResultGame) {
         </div>
         <div
           v-if="canFilterByManagedTeam"
-          class="grid grid-cols-2 gap-1 rounded-md bg-muted/40 p-1 text-sm"
+          class="grid gap-2 sm:grid-cols-[auto_auto]"
         >
-          <button
-            type="button"
-            class="inline-flex h-9 items-center justify-center gap-1.5 rounded-md px-3 font-medium transition"
-            :class="selectedScope === 'TEAM' ? 'bg-default text-highlighted shadow-sm' : 'text-muted hover:text-highlighted'"
-            @click="selectedScope = 'TEAM'"
-          >
-            <UIcon
-              name="i-lucide-shield"
-              class="size-4"
-            />
-            Mi equipo
-          </button>
-          <button
-            type="button"
-            class="inline-flex h-9 items-center justify-center gap-1.5 rounded-md px-3 font-medium transition"
-            :class="selectedScope === 'GROUP' ? 'bg-default text-highlighted shadow-sm' : 'text-muted hover:text-highlighted'"
-            @click="selectedScope = 'GROUP'"
-          >
-            <UIcon
-              name="i-lucide-users"
-              class="size-4"
-            />
-            Mi categoría
-          </button>
+          <div class="grid grid-cols-2 gap-1 rounded-md bg-muted/40 p-1 text-sm">
+            <button
+              type="button"
+              class="inline-flex h-9 items-center justify-center gap-1.5 rounded-md px-3 font-medium transition"
+              :class="selectedScope === 'TEAM' ? 'bg-default text-highlighted shadow-sm' : 'text-muted hover:text-highlighted'"
+              @click="selectedScope = 'TEAM'"
+            >
+              <UIcon
+                name="i-lucide-shield"
+                class="size-4"
+              />
+              Mi equipo
+            </button>
+            <button
+              type="button"
+              class="inline-flex h-9 items-center justify-center gap-1.5 rounded-md px-3 font-medium transition"
+              :class="selectedScope === 'GROUP' ? 'bg-default text-highlighted shadow-sm' : 'text-muted hover:text-highlighted'"
+              @click="selectedScope = 'GROUP'"
+            >
+              <UIcon
+                name="i-lucide-users"
+                class="size-4"
+              />
+              Mi categoría
+            </button>
+          </div>
+
+          <div class="grid grid-cols-3 gap-1 rounded-md bg-muted/40 p-1 text-sm">
+            <button
+              type="button"
+              class="inline-flex h-9 items-center justify-center rounded-md px-3 font-medium transition"
+              :class="selectedOutcome === 'ALL' ? 'bg-default text-highlighted shadow-sm' : 'text-muted hover:text-highlighted'"
+              @click="selectedOutcome = 'ALL'"
+            >
+              Todos
+            </button>
+            <button
+              type="button"
+              class="inline-flex h-9 items-center justify-center rounded-md px-3 font-medium transition"
+              :class="selectedOutcome === 'WON' ? 'bg-default text-highlighted shadow-sm' : 'text-muted hover:text-highlighted'"
+              @click="selectedOutcome = 'WON'"
+            >
+              Ganados
+            </button>
+            <button
+              type="button"
+              class="inline-flex h-9 items-center justify-center rounded-md px-3 font-medium transition"
+              :class="selectedOutcome === 'LOST' ? 'bg-default text-highlighted shadow-sm' : 'text-muted hover:text-highlighted'"
+              @click="selectedOutcome = 'LOST'"
+            >
+              Perdidos
+            </button>
+          </div>
         </div>
       </div>
 
@@ -305,10 +352,10 @@ function loserTeamName(game: ResultGame) {
                 Pitchers
               </p>
               <p class="truncate text-muted">
-                PG: {{ resultPersonName(game.result.winningPitcherName, game.result.winningPitcher) }}
+                PG: {{ resultPersonName(game.result.winningPitcherName, game.result.winningPitcher) || '~' }}
               </p>
               <p class="truncate text-muted">
-                PD: {{ resultPersonName(game.result.losingPitcherName, game.result.losingPitcher) }}
+                PD: {{ resultPersonName(game.result.losingPitcherName, game.result.losingPitcher) || '~' }}
               </p>
             </div>
 
@@ -369,7 +416,7 @@ function loserTeamName(game: ResultGame) {
           class="mx-auto mb-3 size-8 text-muted"
         />
         <p class="font-semibold text-highlighted">
-          Aún no hay resultados capturados.
+          {{ emptyResultsMessage }}
         </p>
       </div>
     </section>

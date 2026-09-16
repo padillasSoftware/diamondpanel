@@ -1,6 +1,6 @@
 import { GameBattingHighlightSide, GameStatus, PlayerStatus, SeasonStatus, TeamMemberRole } from '../generated/prisma/enums'
 import type { Prisma } from '../generated/prisma/client'
-import { cleanNumber, cleanOptionalText, cleanRequiredText } from './validation'
+import { cleanNumber, cleanOptionalText } from './validation'
 
 const maxHighlightsPerSide = 3
 const maxLineupPlayersPerTeam = 30
@@ -358,8 +358,6 @@ export function buildResultPayload(body: Record<string, unknown>, game: ResultGa
   const innings = cleanNumber(body.innings, { min: 1, max: 20, field: 'Innings' })
   const winnerTeamId = homeScore > awayScore ? game.homeTeamId : game.awayTeamId
   const loserTeamId = homeScore > awayScore ? game.awayTeamId : game.homeTeamId
-  const winningPitcherName = cleanRequiredText(body.winningPitcherName, 'Winning pitcher', 80)
-  const losingPitcherName = cleanRequiredText(body.losingPitcherName, 'Losing pitcher', 80)
 
   if (isForfeit) {
     const hasDefaultScore = (homeScore === 7 && awayScore === 0) || (awayScore === 7 && homeScore === 0)
@@ -379,13 +377,16 @@ export function buildResultPayload(body: Record<string, unknown>, game: ResultGa
         isForfeit,
         winningPitcherId: null,
         losingPitcherId: null,
-        winningPitcherName,
-        losingPitcherName,
+        winningPitcherName: null,
+        losingPitcherName: null,
         notes: cleanOptionalText(body.notes, 300)
       },
       highlights: []
     }
   }
+
+  const winningPitcherName = cleanOptionalText(body.winningPitcherName, 80)
+  const losingPitcherName = cleanOptionalText(body.losingPitcherName, 80)
 
   const highlights = [
     ...cleanHighlightRows({

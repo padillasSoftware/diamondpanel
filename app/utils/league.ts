@@ -4,6 +4,8 @@ export type TeamCategory = 'A' | 'B' | 'C' | 'D' | 'E' | 'R'
 export type TeamMemberRole = 'PLAYER' | 'MANAGER' | 'COACH'
 export type GameBattingHighlightSide = 'WINNER' | 'LOSER'
 export type PlayoffEligibilityMode = 'LINEUP_GAMES' | 'OPEN_ROSTER'
+export type ResultOutcome = 'WON' | 'LOST' | 'TIED'
+export type StandingsSortMode = 'WIN_PERCENTAGE' | 'WINS'
 
 export const TEAM_CATEGORY_VALUES: TeamCategory[] = ['A', 'B', 'C', 'D', 'E', 'R']
 
@@ -359,6 +361,23 @@ export function resultWinnerLabel(game: ResultGame) {
     : game.awayTeam
 
   return `Ganó ${winner.shortName ?? winner.name}`
+}
+
+export function resultOutcomeForTeam(game: {
+  homeTeam: { id: string }
+  awayTeam: { id: string }
+  result: { homeScore: number, awayScore: number } | null
+}, teamId: string): ResultOutcome | null {
+  if (!game.result) return null
+  if (game.homeTeam.id !== teamId && game.awayTeam.id !== teamId) return null
+
+  const teamScore = game.homeTeam.id === teamId ? game.result.homeScore : game.result.awayScore
+  const opponentScore = game.homeTeam.id === teamId ? game.result.awayScore : game.result.homeScore
+
+  if (teamScore > opponentScore) return 'WON'
+  if (teamScore < opponentScore) return 'LOST'
+
+  return 'TIED'
 }
 
 export function resultPlayerName(player: ResultPlayer | null | undefined) {

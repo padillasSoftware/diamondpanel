@@ -195,6 +195,13 @@ function buildResultCardSvg(input: {
   const battersSectionSvg = game.result.isForfeit
     ? ''
     : battersSection(winnerHighlights, loserHighlights, theme)
+  const pitchersSectionSvg = game.result.isForfeit
+    ? ''
+    : `
+  <g filter="url(#headlineShadow)">
+    ${pitcherBlock('PG:', game.result.winningPitcherName, 280, 985, theme.accent)}
+    ${pitcherBlock('PD:', game.result.losingPitcherName, 800, 985, theme.accent)}
+  </g>`
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${cardWidth}" height="${cardHeight}" viewBox="0 0 ${cardWidth} ${cardHeight}" role="img" aria-labelledby="title desc">
@@ -240,10 +247,7 @@ function buildResultCardSvg(input: {
     ${posterText('VS', 545, 830, 92, theme.accent, '#050505', 10, 'middle')}
   </g>
 
-  <g filter="url(#headlineShadow)">
-    ${pitcherBlock('PG:', game.result.winningPitcherName, 280, 985, theme.accent)}
-    ${pitcherBlock('PD:', game.result.losingPitcherName, 800, 985, theme.accent)}
-  </g>
+  ${pitchersSectionSvg}
 
   ${battersSectionSvg}
 

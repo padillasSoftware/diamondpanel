@@ -319,47 +319,67 @@ export default defineEventHandler(async (event) => {
     for (const group of groups) {
       const roundRobin = buildRoundRobinPairs(group.teams, round, group.turns)
       let groupPlannedMatchups = 0
+      const tryPlanMatchup = (
+        homeTeam: GenerationTeam,
+        awayTeam: GenerationTeam,
+        priority: number
+      ) => {
+        const currentPairKey = pairKey(homeTeam.id, awayTeam.id)
 
-      if (!roundRobin.pairs.length) {
-        groupsOutsideConfiguredTurns += 1
-      } else {
-        for (const pair of roundRobin.pairs) {
-          const currentPairKey = pairKey(pair.homeTeam.id, pair.awayTeam.id)
-
-          if (existingRoundPairs.has(currentPairKey)) continue
-          if (plannedPairKeys.has(currentPairKey)) continue
-          if ((pairCounts.get(currentPairKey) ?? 0) >= group.turns) continue
-
-          plannedMatchups.push({
-            groupKey: group.key,
-            homeTeam: pair.homeTeam,
-            awayTeam: pair.awayTeam,
-            pairKey: currentPairKey,
-            priority: 0
-          })
-          plannedPairKeys.add(currentPairKey)
-          groupPlannedMatchups += 1
-        }
-      }
-
-      for (const [currentPairKey, seed] of cancelledPairSeeds) {
-        const homeTeam = group.teams.find(team => team.id === seed.homeTeamId)
-        const awayTeam = group.teams.find(team => team.id === seed.awayTeamId)
-
-        if (!homeTeam || !awayTeam) continue
-        if (existingRoundPairs.has(currentPairKey)) continue
-        if (plannedPairKeys.has(currentPairKey)) continue
-        if ((pairCounts.get(currentPairKey) ?? 0) >= group.turns) continue
+        if (existingRoundPairs.has(currentPairKey)) return false
+        if (plannedPairKeys.has(currentPairKey)) return false
+        if ((pairCounts.get(currentPairKey) ?? 0) >= group.turns) return false
 
         plannedMatchups.push({
           groupKey: group.key,
           homeTeam,
           awayTeam,
           pairKey: currentPairKey,
-          priority: 1
+          priority
         })
         plannedPairKeys.add(currentPairKey)
-        groupPlannedMatchups += 1
+
+        return true
+      }
+
+      if (!roundRobin.pairs.length) {
+        groupsOutsideConfiguredTurns += 1
+      } else {
+        for (const pair of roundRobin.pairs) {
+          if (tryPlanMatchup(pair.homeTeam, pair.awayTeam, 0)) {
+            groupPlannedMatchups += 1
+          }
+        }
+      }
+
+      for (const [, seed] of cancelledPairSeeds) {
+        const homeTeam = group.teams.find(team => team.id === seed.homeTeamId)
+        const awayTeam = group.teams.find(team => team.id === seed.awayTeamId)
+
+        if (!homeTeam || !awayTeam) continue
+
+        if (tryPlanMatchup(homeTeam, awayTeam, 1)) {
+          groupPlannedMatchups += 1
+        }
+      }
+
+      for (let leftIndex = 0; leftIndex < group.teams.length; leftIndex += 1) {
+        const leftTeam = group.teams[leftIndex]
+
+        for (let rightIndex = leftIndex + 1; rightIndex < group.teams.length; rightIndex += 1) {
+          const rightTeam = group.teams[rightIndex]
+
+          if (!leftTeam || !rightTeam) continue
+
+          const currentPairKey = pairKey(leftTeam.id, rightTeam.id)
+          const existingCount = pairCounts.get(currentPairKey) ?? 0
+          const homeTeam = existingCount % 2 === 0 ? leftTeam : rightTeam
+          const awayTeam = existingCount % 2 === 0 ? rightTeam : leftTeam
+
+          if (tryPlanMatchup(homeTeam, awayTeam, 2)) {
+            groupPlannedMatchups += 1
+          }
+        }
       }
 
       if (!groupPlannedMatchups) {

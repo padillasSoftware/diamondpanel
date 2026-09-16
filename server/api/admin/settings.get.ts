@@ -12,7 +12,8 @@ export default defineEventHandler(async (event) => {
       select: {
         primaryLogoUrl: true,
         secondaryLogoUrl: true,
-        maxPlayersPerTeam: true
+        maxPlayersPerTeam: true,
+        standingsSortMode: true
       }
     }),
     getLeagueCategorySettings(prisma)
@@ -38,7 +39,8 @@ export default defineEventHandler(async (event) => {
       league: league ?? {
         primaryLogoUrl: null,
         secondaryLogoUrl: null,
-        maxPlayersPerTeam: 25
+        maxPlayersPerTeam: 25,
+        standingsSortMode: 'WIN_PERCENTAGE'
       },
       categories,
       season: null,
@@ -50,7 +52,8 @@ export default defineEventHandler(async (event) => {
     league: league ?? {
       primaryLogoUrl: null,
       secondaryLogoUrl: null,
-      maxPlayersPerTeam: 25
+      maxPlayersPerTeam: 25,
+      standingsSortMode: 'WIN_PERCENTAGE'
     },
     categories,
     season,
