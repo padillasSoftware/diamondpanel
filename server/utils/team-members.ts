@@ -100,7 +100,9 @@ export function cleanBirthDate(value: unknown) {
 }
 
 export function cleanPlayerPosition(value: unknown) {
-  const position = cleanRequiredText(value, 'Position', 40).toUpperCase()
+  const position = cleanOptionalText(value, 40)?.toUpperCase() ?? null
+
+  if (!position) return null
 
   if (!playerPositions.includes(position as typeof playerPositions[number])) {
     throw createError({
@@ -114,6 +116,7 @@ export function cleanPlayerPosition(value: unknown) {
 
 export function buildMemberCreateData(body: Record<string, unknown>, teamId: string) {
   const memberRole = cleanEnum(TeamMemberRole, body.memberRole, 'Member role') ?? TeamMemberRole.PLAYER
+  // Validacion pausada: posicion queda opcional mientras el campo esta oculto en el alta de jugadores.
   const position = memberRole === TeamMemberRole.PLAYER
     ? cleanPlayerPosition(body.position)
     : null
@@ -149,16 +152,17 @@ export function buildMemberUpdateData(
   }
 ) {
   const memberRole = cleanEnum(TeamMemberRole, body.memberRole, 'Member role') ?? current.memberRole
+  // Validacion pausada: posicion queda opcional mientras el campo esta oculto en el alta de jugadores.
   const position = memberRole === TeamMemberRole.PLAYER
     ? body.position === undefined ? current.position : cleanPlayerPosition(body.position)
     : null
 
-  if (memberRole === TeamMemberRole.PLAYER && !position) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: 'Position is required for players'
-    })
-  }
+  // if (memberRole === TeamMemberRole.PLAYER && !position) {
+  //   throw createError({
+  //     statusCode: 400,
+  //     statusMessage: 'Position is required for players'
+  //   })
+  // }
 
   const curp = body.curp === undefined ? current.curp : cleanCurp(body.curp)
   const birthDate = body.birthDate === undefined ? current.birthDate : cleanBirthDate(body.birthDate)

@@ -12,6 +12,8 @@ type OfflineAdminResultPayload = {
   isForfeit: boolean
   winningPitcherName: string | null
   losingPitcherName: string | null
+  winningReliefPitcherName: string | null
+  losingReliefPitcherName: string | null
   notes: string
   winnerHighlights: OfflineAdminResultHighlight[]
   loserHighlights: OfflineAdminResultHighlight[]

@@ -1,9 +1,13 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { GameStatus } from '../../../../generated/prisma/enums'
 import { prisma } from '../../../../utils/db'
 import { getActiveSeasonForResults } from '../../../../utils/results'
-import { resultCardTextPath, resultCardTextWidth } from '../../../../utils/result-card-text'
+import { resultCardTextPath } from '../../../../utils/result-card-text'
 import { requireAdmin } from '../../../../utils/session'
+import { create } from 'fontkitten'
 import type { H3Event } from 'h3'
+import type { Font, Glyph } from 'fontkitten'
 
 type CardTeam = {
   id: string
@@ -24,6 +28,10 @@ type CardHighlight = {
 
 const cardWidth = 1080
 const cardHeight = 1350
+const scoreFill = '#43BDF2'
+const teamNameFill = '#D7FF3F'
+const statTextFill = '#FFFFFF'
+const sportsOrangeFill = '#FF6817'
 
 const cardTeamSelect = {
   id: true,
@@ -100,6 +108,8 @@ export async function loadResultCardSvg(event: H3Event, gameId: string) {
           isForfeit: true,
           winningPitcherName: true,
           losingPitcherName: true,
+          winningReliefPitcherName: true,
+          losingReliefPitcherName: true,
           battingHighlights: {
             orderBy: [
               { side: 'asc' },
@@ -175,6 +185,8 @@ function buildResultCardSvg(input: {
       isForfeit: boolean
       winningPitcherName: string | null
       losingPitcherName: string | null
+      winningReliefPitcherName: string | null
+      losingReliefPitcherName: string | null
       battingHighlights: CardHighlight[]
     }
   }
@@ -187,21 +199,25 @@ function buildResultCardSvg(input: {
   const rightScore = homeWins ? game.result.awayScore : game.result.homeScore
   const winnerHighlights = game.result.battingHighlights.filter(highlight => highlight.side === 'WINNER').slice(0, 3)
   const loserHighlights = game.result.battingHighlights.filter(highlight => highlight.side === 'LOSER').slice(0, 3)
-  const headlineLineOne = 'RESULTADO DE'
-  const headlineLineTwo = 'JUEGO'
-  const roundText = game.round ? `JORNADA ${game.round}` : upper(`${input.seasonName} ${input.seasonYear}`)
+  const roundText = game.round ? String(game.round) : upper(`${input.seasonName} ${input.seasonYear}`)
+  const scoreText = `${leftScore}-${rightScore}`
   const theme = branchTheme(leftTeam.branch)
-  const branchLogoUrl = getBranchLogoUrl(input, leftTeam.branch)
   const battersSectionSvg = game.result.isForfeit
     ? ''
-    : battersSection(winnerHighlights, loserHighlights, theme)
+    : battersSection(winnerHighlights, loserHighlights)
   const pitchersSectionSvg = game.result.isForfeit
     ? ''
     : `
   <g filter="url(#headlineShadow)">
-    ${pitcherBlock('PG:', game.result.winningPitcherName, 280, 985, theme.accent)}
-    ${pitcherBlock('PD:', game.result.losingPitcherName, 800, 985, theme.accent)}
+    ${pitcherColumn(game.result.winningPitcherName, game.result.winningReliefPitcherName, 92, 998, 340)}
+    ${pitcherColumn(game.result.losingPitcherName, game.result.losingReliefPitcherName, 745, 998, 300)}
   </g>`
+  const forfeitNoticeSvg = game.result.isForfeit
+    ? `
+  <g filter="url(#headlineShadow)">
+    ${posterText('RESULTADO POR FORFEIT', 275, 356, 34, theme.score, '#050505', 6, 'middle')}
+  </g>`
+    : ''
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${cardWidth}" height="${cardHeight}" viewBox="0 0 ${cardWidth} ${cardHeight}" role="img" aria-labelledby="title desc">
@@ -229,22 +245,17 @@ function buildResultCardSvg(input: {
   ${batterBackground(theme)}
 
   <g filter="url(#headlineShadow)">
-    ${posterText(headlineLineOne, 62, 92, 64, theme.headline, '#060606', 5)}
-    ${posterText(headlineLineTwo, 62, 210, fitFont(headlineLineTwo, 535, 142, 86), theme.headline, '#050505', 7)}
-    ${posterText(roundText, 150, 280, 55, '#ffffff', '#050505', 6)}
-    ${leagueMark(input.leagueName, branchLogoUrl, 895, 152, true, 224)}
-    ${posterText('MARCADOR FINAL', 73, 410, 48, '#ffffff', '#050505', 9)}
+    ${game.round
+      ? sportsTextBlock(roundText, 390, 313, 96, 46, 34, sportsOrangeFill)
+      : ''}
+    ${forfeitNoticeSvg}
   </g>
 
-  <g filter="url(#scoreNeon)">
-    ${posterText(`${leftScore}-${rightScore}`, 73, 638, fitFont(`${leftScore}-${rightScore}`, 462, 180, 110), '#ffffff', '#050505', 12)}
-  </g>
+  ${scoreTextBlock(scoreText, 68, 642, 360)}
 
   <g filter="url(#headlineShadow)">
-    ${teamIdentityBlock(leftTeam, 285, 794, theme)}
-    ${teamIdentityBlock(rightTeam, 805, 794, theme)}
-    <path d="M518 722 L584 686 L555 766 L610 744 L504 880 L538 784 L484 812 Z" fill="${theme.accent}" stroke="#080808" stroke-width="7" stroke-linejoin="round"/>
-    ${posterText('VS', 545, 830, 92, theme.accent, '#050505', 10, 'middle')}
+    ${teamIdentityBlock(leftTeam, { logoX: 260, textX: 48, y: 858, maxWidth: 390, anchor: 'start' }, theme)}
+    ${teamIdentityBlock(rightTeam, { logoX: 824, textX: 660, y: 858, maxWidth: 390, anchor: 'start' }, theme)}
   </g>
 
   ${pitchersSectionSvg}
@@ -252,19 +263,148 @@ function buildResultCardSvg(input: {
   ${battersSectionSvg}
 
   <g filter="url(#softShadow)">
-    <rect x="250" y="1288" width="580" height="36" rx="18" fill="#070f0b" opacity="0.72"/>
     ${posterText('Generado por DiamondPanel', 540, 1312, 17, '#ffffff', undefined, undefined, 'middle')}
   </g>
 </svg>`
 }
 
-function teamIdentityBlock(team: CardTeam, x: number, y: number, theme: CardTheme) {
+let sportsFont: Font | null = null
+
+function scoreTextBlock(text: string, x: number, y: number, maxWidth: number) {
+  const fontSize = fitSportsFont(text, maxWidth, 178, 106)
+  const path = sportsTextPath(text, x, y, fontSize)
+
+  return `
+  <g>
+    <path d="${path}" fill="${scoreFill}" stroke="#050505" stroke-width="26" stroke-linejoin="miter" paint-order="stroke"/>
+    <path d="${path}" fill="${scoreFill}" stroke="#ffffff" stroke-width="8" stroke-linejoin="miter" paint-order="stroke"/>
+    <path d="${path}" fill="${scoreFill}"/>
+  </g>`
+}
+
+function sportsTextBlock(
+  text: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  baseSize: number,
+  minSize: number,
+  fill: string,
+  stroke?: string,
+  strokeWidth = 0,
+  anchor: 'start' | 'middle' | 'end' = 'start'
+) {
+  const fontSize = fitSportsFont(text, maxWidth, baseSize, minSize)
+  const path = sportsTextPath(text, x, y, fontSize, anchor)
+  const strokeAttrs = stroke && strokeWidth > 0
+    ? ` stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linejoin="miter" paint-order="stroke"`
+    : ''
+
+  return `<path d="${path}" fill="${fill}"${strokeAttrs}/>`
+}
+
+function fitSportsFont(text: string, maxWidth: number, baseSize: number, minSize: number) {
+  let fontSize = baseSize
+
+  while (fontSize > minSize && sportsTextWidth(text, fontSize) > maxWidth) {
+    fontSize -= 1
+  }
+
+  return fontSize
+}
+
+function sportsTextPath(text: string, x: number, y: number, fontSize: number, anchor: 'start' | 'middle' | 'end' = 'start') {
+  const font = getSportsFont()
+  const printableText = sportsTextForFont(font, text)
+  const scale = fontSize / font.unitsPerEm
+  const width = sportsTextWidth(text, fontSize)
+  const paths: string[] = []
+  let cursorX = anchoredTextStartX(x, width, anchor)
+
+  for (const glyph of sportsGlyphsForText(font, printableText)) {
+    const path = glyph.path
+      .scale(scale)
+      .transform(1, 0, 0, -1, cursorX, y)
+      .toSVG()
+
+    if (path) paths.push(path)
+
+    cursorX += glyph.advanceWidth * scale
+  }
+
+  return paths.join('')
+}
+
+function sportsTextWidth(text: string, fontSize: number) {
+  const font = getSportsFont()
+  const printableText = sportsTextForFont(font, text)
+  const scale = fontSize / font.unitsPerEm
+
+  return sportsGlyphsForText(font, printableText).reduce((width, glyph) => width + glyph.advanceWidth * scale, 0)
+}
+
+function getSportsFont() {
+  sportsFont ??= create(loadSportsFontBuffer()) as Font
+
+  return sportsFont
+}
+
+function loadSportsFontBuffer() {
+  const candidates = [
+    join(process.cwd(), 'public', 'result-card', 'fonts', 'graduate.ttf'),
+    join(process.cwd(), '.output', 'public', 'result-card', 'fonts', 'graduate.ttf')
+  ]
+
+  for (const candidate of candidates) {
+    try {
+      return readFileSync(candidate)
+    } catch {
+      // Try the next known public-assets location.
+    }
+  }
+
+  throw new Error('Graduate result-card font not found. Add public/result-card/fonts/graduate.ttf.')
+}
+
+function sportsGlyphsForText(font: Font, text: string) {
+  return font.glyphsForString(text) as Glyph[]
+}
+
+function sportsTextForFont(font: Font, text: string) {
+  const fallback = font.hasGlyphForCodePoint('?'.codePointAt(0) ?? 0) ? '?' : ' '
+  const cleanText = text.trim() ? text.normalize('NFC') : '~'
+
+  return Array.from(cleanText)
+    .map((character) => {
+      const codePoint = character.codePointAt(0)
+
+      return codePoint && font.hasGlyphForCodePoint(codePoint) ? character : fallback
+    })
+    .join('')
+}
+
+function anchoredTextStartX(x: number, width: number, anchor: 'start' | 'middle' | 'end') {
+  if (anchor === 'middle') return x - width / 2
+  if (anchor === 'end') return x - width
+
+  return x
+}
+
+type TeamIdentityLayout = {
+  logoX: number
+  textX: number
+  y: number
+  maxWidth: number
+  anchor: 'start' | 'middle' | 'end'
+}
+
+function teamIdentityBlock(team: CardTeam, layout: TeamIdentityLayout, theme: CardTheme) {
   const logoUrl = team.logoUrl?.trim()
 
   if (logoUrl) {
     return `
     <g filter="url(#logoShadow)">
-      <image href="${escapeXml(logoUrl)}" x="${x - 165}" y="${y - 112}" width="330" height="224" preserveAspectRatio="xMidYMid meet"/>
+      <image href="${escapeXml(logoUrl)}" x="${layout.logoX - 165}" y="${layout.y - 112}" width="330" height="224" preserveAspectRatio="xMidYMid meet"/>
     </g>`
   }
 
@@ -272,56 +412,48 @@ function teamIdentityBlock(team: CardTeam, x: number, y: number, theme: CardThem
 
   return `
     <g>
-      <rect x="${x - 176}" y="${y - 86}" width="352" height="142" rx="14" fill="#050807" opacity="0.68" stroke="${theme.accent}" stroke-opacity="0.45"/>
-      ${posterText(name, x, y, fitFont(name, 324, 50, 28), '#ffffff', '#050505', 7, 'middle')}
+      ${sportsTextBlock(name, layout.textX, layout.y, layout.maxWidth, 58, 34, theme.teamName, '#050505', 10, layout.anchor)}
     </g>`
 }
 
-function pitcherBlock(label: string, pitcherName: string | null, x: number, y: number, accent: string) {
-  const name = displayValue(pitcherName)
-  const labelText = `${label} `
-  const fontSize = 38
-  const fullWidth = resultCardTextWidth(`${labelText}${name}`, fontSize)
-  const labelWidth = resultCardTextWidth(labelText, fontSize)
-  const startX = x - fullWidth / 2
+function pitcherColumn(pitcherName: string | null, reliefPitcherName: string | null, x: number, y: number, maxWidth: number) {
+  const pitcherNameText = posterDisplayValue(pitcherName)
+  const reliefPitcherNameText = posterDisplayValue(reliefPitcherName)
 
   return `
     <g>
-      ${posterText(labelText, startX, y, fontSize, accent, '#040404', 7)}
-      ${posterText(name, startX + labelWidth, y, fontSize, '#ffffff', '#040404', 7)}
+      ${sportsTextBlock(pitcherNameText, x, y, maxWidth, 40, 22, statTextFill, '#050505', 7)}
+      ${sportsTextBlock(reliefPitcherNameText, x, y + 42, maxWidth, 40, 22, statTextFill, '#050505', 7)}
     </g>`
 }
 
 function battersSection(
   winnerHighlights: CardHighlight[],
-  loserHighlights: CardHighlight[],
-  theme: CardTheme
+  loserHighlights: CardHighlight[]
 ) {
   return `
   <g filter="url(#headlineShadow)">
-    ${posterText('MEJORES BATS:', 268, 1076, 44, theme.accent, '#050505', 8, 'middle')}
-    ${posterText('MEJORES BATS:', 802, 1076, 44, theme.accent, '#050505', 8, 'middle')}
-    ${batterLines(winnerHighlights, 268, 1135, 460)}
-    ${batterLines(loserHighlights, 802, 1135, 460)}
+    ${batterLines(winnerHighlights, 268, 1190, 470)}
+    ${batterLines(loserHighlights, 802, 1190, 470)}
   </g>`
 }
 
 function batterLines(highlights: CardHighlight[], x: number, startY: number, maxWidth: number) {
   const lines = highlights.length
     ? highlights.map(highlight => batterLineText(highlight))
-    : ['~']
+    : ['-']
 
   return lines.map((line, index) => {
     const y = startY + index * 58
 
-    return posterText(line, x, y, fitFont(line, maxWidth, 38, 22), '#ffffff', '#050505', 6, 'middle')
+    return sportsTextBlock(line, x, y, maxWidth, 40, 22, statTextFill, '#050505', 7, 'middle')
   }).join('\n')
 }
 
 function batterLineText(highlight: CardHighlight) {
-  const playerName = displayValue(highlight.playerName)
+  const playerName = posterDisplayValue(highlight.playerName)
 
-  if (playerName === '~') return playerName
+  if (playerName === '-') return playerName
 
   const homeRunText = highlight.homeRuns > 0
     ? ` ${highlight.homeRuns > 1 ? `${highlight.homeRuns} HR` : 'HR'}`
@@ -338,98 +470,43 @@ function displayValue(value: string | null) {
   return upper(cleanValue)
 }
 
+function posterDisplayValue(value: string | null) {
+  const cleanValue = displayValue(value)
+
+  return cleanValue === '~' ? '-' : cleanValue
+}
+
 type CardTheme = {
   accent: string
   backgroundUrl: string
-  headline: string
+  orange: string
+  score: string
+  teamName: string
 }
 
 function branchTheme(branch: string): CardTheme {
   if (branch === 'FEMENIL') {
     return {
       accent: '#ff66c8',
-      backgroundUrl: '/result-card/background-femenil.png',
-      headline: '#ffffff'
+      backgroundUrl: '/result-card/background-template.png',
+      orange: '#ff7a1a',
+      score: '#42c7ff',
+      teamName: teamNameFill
     }
   }
 
   return {
     accent: '#f1e82c',
-    backgroundUrl: '/result-card/background-varonil.png',
-    headline: '#f1e82c'
+    backgroundUrl: '/result-card/background-template.png',
+    orange: '#ff7a1a',
+    score: '#42c7ff',
+    teamName: teamNameFill
   }
 }
 
 function batterBackground(theme: CardTheme) {
   return `
   <image href="${theme.backgroundUrl}" x="0" y="0" width="${cardWidth}" height="${cardHeight}" preserveAspectRatio="xMidYMid slice"/>`
-}
-
-function getBranchLogoUrl(
-  input: {
-    primaryLogoUrl: string
-    secondaryLogoUrl: string
-  },
-  branch: string
-) {
-  if (branch === 'FEMENIL') {
-    return input.secondaryLogoUrl || input.primaryLogoUrl
-  }
-
-  return input.primaryLogoUrl || input.secondaryLogoUrl
-}
-
-function leagueMark(
-  leagueName: string,
-  logoUrl: string,
-  x: number,
-  y: number,
-  allowFallback: boolean,
-  size = 156
-) {
-  if (logoUrl) {
-    return `
-    <image href="${escapeXml(logoUrl)}" x="${x - (size / 2)}" y="${y - (size / 2)}" width="${size}" height="${size}" preserveAspectRatio="xMidYMid meet"/>`
-  }
-
-  if (!allowFallback) return ''
-
-  const mark = leagueMarkText(leagueName)
-  const radius = size / 2
-  const innerRadius = Math.max(radius - 20, 18)
-  const fontSize = fitFont(mark, Math.max(size - 58, 60), Math.min(54, size * 0.26), 22)
-
-  return `
-  <g transform="translate(${x - radius} ${y - radius})">
-    <circle cx="${radius}" cy="${radius}" r="${radius - 5}" fill="#f7f3df" stroke="#ffe15d" stroke-width="7"/>
-    <circle cx="${radius}" cy="${radius}" r="${innerRadius}" fill="#fff8d2" stroke="#0b6b45" stroke-width="3"/>
-    <path d="M${radius - 38} ${radius - 46} C${radius - 12} ${radius - 18} ${radius - 12} ${radius + 18} ${radius - 38} ${radius + 46}" fill="none" stroke="#d71920" stroke-width="5" stroke-linecap="round" stroke-dasharray="6 10" opacity="0.82"/>
-    <path d="M${radius + 38} ${radius - 46} C${radius + 12} ${radius - 18} ${radius + 12} ${radius + 18} ${radius + 38} ${radius + 46}" fill="none" stroke="#d71920" stroke-width="5" stroke-linecap="round" stroke-dasharray="6 10" opacity="0.82"/>
-    ${posterText(mark, radius, radius + (fontSize / 3), fontSize, '#0b6b45', undefined, undefined, 'middle')}
-  </g>`
-}
-
-function leagueMarkText(value: string) {
-  const cleanValue = value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9\s]/gi, '')
-    .trim()
-  const words = cleanValue.split(/\s+/).filter(Boolean)
-
-  if (words.length === 1) {
-    return words[0]?.slice(0, 4).toUpperCase() || 'DP'
-  }
-
-  return words.slice(0, 4).map(word => word[0] ?? '').join('').toUpperCase() || 'DP'
-}
-
-function fitFont(value: string, maxWidth: number, baseSize: number, minSize: number) {
-  const estimatedWidth = value.length * baseSize * 0.58
-
-  if (estimatedWidth <= maxWidth) return baseSize
-
-  return Math.max(minSize, Math.floor(maxWidth / Math.max(value.length * 0.58, 1)))
 }
 
 function posterText(

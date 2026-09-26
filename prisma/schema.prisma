@@ -284,21 +284,23 @@ model Game {
 }
 
 model GameResult {
-  id                 String   @id @default(cuid())
-  gameId             String   @unique
-  homeScore          Int
-  awayScore          Int
-  innings            Int?
-  isForfeit          Boolean  @default(false)
-  recordedById       String?
-  winningPitcherId   String?
-  losingPitcherId    String?
-  winningPitcherName String?
-  losingPitcherName  String?
-  recordedAt         DateTime @default(now())
-  notes              String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                       String   @id @default(cuid())
+  gameId                   String   @unique
+  homeScore                Int
+  awayScore                Int
+  innings                  Int?
+  isForfeit                Boolean  @default(false)
+  recordedById             String?
+  winningPitcherId         String?
+  losingPitcherId          String?
+  winningPitcherName       String?
+  losingPitcherName        String?
+  winningReliefPitcherName String?
+  losingReliefPitcherName  String?
+  recordedAt               DateTime @default(now())
+  notes                    String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 
   game              Game                   @relation(fields: [gameId], references: [id], onDelete: Cascade)
   recordedBy        User?                  @relation(fields: [recordedById], references: [id], onDelete: SetNull)

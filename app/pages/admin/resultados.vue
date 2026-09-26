@@ -98,6 +98,8 @@ type AdminResultGame = {
     losingPitcherId: string | null
     winningPitcherName: string | null
     losingPitcherName: string | null
+    winningReliefPitcherName: string | null
+    losingReliefPitcherName: string | null
     winningPitcher: AdminResultPlayer | null
     losingPitcher: AdminResultPlayer | null
     battingHighlights: AdminResultHighlight[]
@@ -201,6 +203,8 @@ const resultForm = reactive({
   isForfeit: false,
   winningPitcherName: '',
   losingPitcherName: '',
+  winningReliefPitcherName: '',
+  losingReliefPitcherName: '',
   notes: '',
   winnerHighlights: [emptyHighlight(), emptyHighlight(), emptyHighlight()],
   loserHighlights: [emptyHighlight(), emptyHighlight(), emptyHighlight()]
@@ -397,6 +401,30 @@ function lineupRowsForTeam(game: AdminResultGame, teamId: string) {
 
 function selectedLineupCount(side: 'home' | 'away') {
   return lineupForm[side].filter(player => player.selected).length
+}
+
+function isLineupSideFullySelected(side: 'home' | 'away') {
+  const rows = lineupForm[side]
+
+  return Boolean(rows.length) && rows.every(row => row.selected)
+}
+
+function isLineupSidePartiallySelected(side: 'home' | 'away') {
+  const selectedCount = selectedLineupCount(side)
+
+  return selectedCount > 0 && selectedCount < lineupForm[side].length
+}
+
+function handleLineupSelectAllChange(side: 'home' | 'away', event: Event) {
+  const checked = event.target instanceof HTMLInputElement ? event.target.checked : false
+
+  lineupForm[side].forEach((row) => {
+    row.selected = checked
+
+    if (!checked) {
+      row.battingOrder = null
+    }
+  })
 }
 
 function gameLabel(game: AdminResultGame) {
@@ -644,6 +672,8 @@ function hydrateResultForm(game: AdminResultGame | null) {
   resultForm.isForfeit = game.result?.isForfeit ?? false
   resultForm.winningPitcherName = savedPlayerName(game.result?.winningPitcherName, game.result?.winningPitcher)
   resultForm.losingPitcherName = savedPlayerName(game.result?.losingPitcherName, game.result?.losingPitcher)
+  resultForm.winningReliefPitcherName = game.result?.winningReliefPitcherName ?? ''
+  resultForm.losingReliefPitcherName = game.result?.losingReliefPitcherName ?? ''
   resultForm.notes = game.result?.notes ?? ''
   resultForm.winnerHighlights = resultForm.isForfeit ? emptyHighlights() : normalizeHighlights(game.result?.battingHighlights ?? [], 'WINNER')
   resultForm.loserHighlights = resultForm.isForfeit ? emptyHighlights() : normalizeHighlights(game.result?.battingHighlights ?? [], 'LOSER')
@@ -689,6 +719,8 @@ function setForfeitWinner(side: 'home' | 'away') {
   resultForm.innings = 7
   resultForm.winningPitcherName = ''
   resultForm.losingPitcherName = ''
+  resultForm.winningReliefPitcherName = ''
+  resultForm.losingReliefPitcherName = ''
   resultForm.winnerHighlights = emptyHighlights()
   resultForm.loserHighlights = emptyHighlights()
 }
@@ -718,6 +750,8 @@ function resultPayload(options: { offlineGuard?: boolean } = {}) {
     isForfeit: resultForm.isForfeit,
     winningPitcherName: resultForm.isForfeit ? null : optionalResultText(resultForm.winningPitcherName),
     losingPitcherName: resultForm.isForfeit ? null : optionalResultText(resultForm.losingPitcherName),
+    winningReliefPitcherName: resultForm.isForfeit ? null : optionalResultText(resultForm.winningReliefPitcherName),
+    losingReliefPitcherName: resultForm.isForfeit ? null : optionalResultText(resultForm.losingReliefPitcherName),
     notes: resultForm.notes,
     winnerHighlights: resultForm.isForfeit ? [] : resultForm.winnerHighlights,
     loserHighlights: resultForm.isForfeit ? [] : resultForm.loserHighlights
@@ -1427,10 +1461,26 @@ function editSelectedResult() {
             </div>
             <div v-if="!selectedGame.result.isForfeit">
               <p class="text-xs font-semibold uppercase text-muted">
+                Relevo ganador
+              </p>
+              <p class="truncate font-semibold text-highlighted">
+                {{ selectedGame.result.winningReliefPitcherName || '-' }}
+              </p>
+            </div>
+            <div v-if="!selectedGame.result.isForfeit">
+              <p class="text-xs font-semibold uppercase text-muted">
                 Pitcher derrotado
               </p>
               <p class="truncate font-semibold text-highlighted">
                 {{ savedPlayerName(selectedGame.result.losingPitcherName, selectedGame.result.losingPitcher) || '~' }}
+              </p>
+            </div>
+            <div v-if="!selectedGame.result.isForfeit">
+              <p class="text-xs font-semibold uppercase text-muted">
+                Relevo derrotado
+              </p>
+              <p class="truncate font-semibold text-highlighted">
+                {{ selectedGame.result.losingReliefPitcherName || '-' }}
               </p>
             </div>
           </div>
@@ -1711,7 +1761,7 @@ function editSelectedResult() {
             v-if="resultForm.isForfeit && winnerTeam && loserTeam"
             class="mb-3 rounded-lg border border-primary/30 bg-primary/10 p-3 text-sm text-highlighted"
           >
-            Se guardará {{ winnerTeam.name }} 7, {{ loserTeam.name }} 0. No se solicitarán pitchers ni bateadores destacados.
+            Se guardará {{ winnerTeam.name }} 7, {{ loserTeam.name }} 0. No se solicitarán pitchers, relevos ni bateadores destacados.
           </div>
 
           <div
@@ -1729,11 +1779,31 @@ function editSelectedResult() {
             </label>
 
             <label class="grid min-w-0 gap-1.5 text-sm">
+              <span class="font-medium text-highlighted">Relevo ganador · {{ winnerTeam.name }} <span class="text-muted">(opcional)</span></span>
+              <UInput
+                v-model="resultForm.winningReliefPitcherName"
+                maxlength="80"
+                placeholder="Nombre del relevo ganador"
+                class="min-w-0"
+              />
+            </label>
+
+            <label class="grid min-w-0 gap-1.5 text-sm">
               <span class="font-medium text-highlighted">Pitcher derrotado · {{ loserTeam.name }} <span class="text-muted">(opcional)</span></span>
               <UInput
                 v-model="resultForm.losingPitcherName"
                 maxlength="80"
                 placeholder="Nombre del pitcher derrotado"
+                class="min-w-0"
+              />
+            </label>
+
+            <label class="grid min-w-0 gap-1.5 text-sm">
+              <span class="font-medium text-highlighted">Relevo derrotado · {{ loserTeam.name }} <span class="text-muted">(opcional)</span></span>
+              <UInput
+                v-model="resultForm.losingReliefPitcherName"
+                maxlength="80"
+                placeholder="Nombre del relevo derrotado"
                 class="min-w-0"
               />
             </label>
@@ -2084,14 +2154,28 @@ function editSelectedResult() {
             <div class="grid gap-3 lg:grid-cols-2">
               <section class="rounded-lg border border-default p-2">
                 <div class="mb-2 flex items-center justify-between gap-2">
-                  <h3 class="text-sm font-bold text-highlighted">
-                    Capturar lineup · {{ selectedGame.homeTeam.name }}
-                  </h3>
+                  <div class="min-w-0">
+                    <h3 class="truncate text-sm font-bold text-highlighted">
+                      Capturar lineup · {{ selectedGame.homeTeam.name }}
+                    </h3>
+                    <label class="mt-1 flex w-fit cursor-pointer items-center gap-2 text-xs font-medium text-muted">
+                      <input
+                        type="checkbox"
+                        class="size-4 shrink-0"
+                        :checked="isLineupSideFullySelected('home')"
+                        :indeterminate="isLineupSidePartiallySelected('home')"
+                        :disabled="!lineupForm.home.length"
+                        @change="handleLineupSelectAllChange('home', $event)"
+                      >
+                      Seleccionar todos
+                    </label>
+                  </div>
                   <UBadge
                     color="primary"
                     variant="subtle"
+                    class="shrink-0"
                   >
-                    {{ selectedLineupCount('home') }}
+                    {{ selectedLineupCount('home') }}/{{ lineupForm.home.length }}
                   </UBadge>
                 </div>
 
@@ -2135,14 +2219,28 @@ function editSelectedResult() {
 
               <section class="rounded-lg border border-default p-2">
                 <div class="mb-2 flex items-center justify-between gap-2">
-                  <h3 class="text-sm font-bold text-highlighted">
-                    Capturar lineup · {{ selectedGame.awayTeam.name }}
-                  </h3>
+                  <div class="min-w-0">
+                    <h3 class="truncate text-sm font-bold text-highlighted">
+                      Capturar lineup · {{ selectedGame.awayTeam.name }}
+                    </h3>
+                    <label class="mt-1 flex w-fit cursor-pointer items-center gap-2 text-xs font-medium text-muted">
+                      <input
+                        type="checkbox"
+                        class="size-4 shrink-0"
+                        :checked="isLineupSideFullySelected('away')"
+                        :indeterminate="isLineupSidePartiallySelected('away')"
+                        :disabled="!lineupForm.away.length"
+                        @change="handleLineupSelectAllChange('away', $event)"
+                      >
+                      Seleccionar todos
+                    </label>
+                  </div>
                   <UBadge
                     color="primary"
                     variant="subtle"
+                    class="shrink-0"
                   >
-                    {{ selectedLineupCount('away') }}
+                    {{ selectedLineupCount('away') }}/{{ lineupForm.away.length }}
                   </UBadge>
                 </div>
 
