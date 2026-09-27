@@ -388,6 +388,8 @@ export async function getRecentResults(options: { seasonId?: string, category?: 
           losingPitcherId: true,
           winningPitcherName: true,
           losingPitcherName: true,
+          winningReliefPitcherName: true,
+          losingReliefPitcherName: true,
           winningPitcher: {
             select: resultPlayerSelect
           },

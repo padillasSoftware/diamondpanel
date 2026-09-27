@@ -67,11 +67,26 @@ type TeamMembersResponse = {
   members: AdminPlayer[]
 }
 
+type BulkTeamMembersResponse = {
+  count: number
+  members: AdminPlayer[]
+}
+
+type BulkMemberPreviewRow = {
+  lineNumber: number
+  raw: string
+  firstName: string
+  lastName: string
+  error: string | null
+}
+
 type PlayerPhotoPreviewPlayer = {
   firstName: string
   lastName: string
   photoUrl?: string | null
 }
+
+const bulkMemberLimit = 50
 
 const { data, refresh } = await useFetch<TeamsResponse>('/api/admin/teams')
 const { categoryOptions, firstActiveCategory } = useLeagueCategories()
@@ -123,6 +138,7 @@ const memberPhotoFile = ref<File | null>(null)
 const memberPhotoPreviewUrl = ref<string | null>(null)
 const isLoadingMembers = ref(false)
 const isSavingMember = ref(false)
+const isSavingBulkMembers = ref(false)
 const isDeletingMember = ref(false)
 const togglingTeamId = ref<string | null>(null)
 const isDeletingTeam = ref(false)
@@ -139,6 +155,9 @@ const selectedStatus = ref<'ALL' | TeamStatus>('ALL')
 const selectedCategory = ref<'ALL' | TeamCategory>('ALL')
 const selectedBranch = ref<'ALL' | TeamBranch>('ALL')
 const mobileSection = ref<'LIST' | 'FORM' | 'MEMBERS'>('LIST')
+const showPlayerNumberAndPositionFields = false
+const showBulkMemberImport = ref(false)
+const bulkMembersText = ref('')
 
 const teams = computed(() => data.value?.teams ?? [])
 const managerOptions = computed(() => data.value?.managerOptions ?? [])
@@ -161,11 +180,12 @@ const hasValidNewManager = computed(() => !hasNewManagerData.value || Boolean(
 const canSaveTeam = computed(() => Boolean(teamForm.name.trim() && teamForm.slug.trim() && hasValidNewManager.value))
 const canSaveMember = computed(() => {
   const hasBase = Boolean(memberForm.firstName.trim() && memberForm.lastName.trim())
-  const hasPosition = memberForm.memberRole !== 'PLAYER' || Boolean(memberForm.position.trim())
+  // Validacion pausada: numero y posicion estan ocultos temporalmente en el alta de jugadores.
+  // const hasPosition = memberForm.memberRole !== 'PLAYER' || Boolean(memberForm.position.trim())
   // Validacion pausada: CURP y fecha de nacimiento ya no son obligatorios para registrar jugadores.
   // const hasIdentity = Boolean(memberForm.curp.trim() && memberForm.birthDate)
 
-  return Boolean(editingTeamId.value && hasBase && hasPosition)
+  return Boolean(editingTeamId.value && hasBase)
 })
 const hasDuplicateMemberNumber = computed(() => {
   if (memberForm.memberRole !== 'PLAYER' || !memberForm.number) return false
@@ -199,6 +219,18 @@ const filteredTeams = computed(() => {
     return matchesSearch && matchesStatus && matchesCategory && matchesBranch
   })
 })
+const bulkMemberRows = computed(() => parseBulkMemberRows(bulkMembersText.value))
+const validBulkMemberRows = computed(() => bulkMemberRows.value.filter(row => !row.error))
+const invalidBulkMemberRows = computed(() => bulkMemberRows.value.filter(row => row.error))
+const hasBulkMemberLimitError = computed(() => validBulkMemberRows.value.length > bulkMemberLimit)
+const canSaveBulkMembers = computed(() =>
+  Boolean(
+    editingTeamId.value
+    && validBulkMemberRows.value.length
+    && !invalidBulkMemberRows.value.length
+    && !hasBulkMemberLimitError.value
+  )
+)
 
 const isDeleteModalOpen = computed({
   get: () => teamPendingDelete.value !== null,
@@ -319,6 +351,52 @@ function showError(message: string) {
   })
 }
 
+function parseBulkMemberRows(value: string): BulkMemberPreviewRow[] {
+  return value
+    .split(/\r?\n/)
+    .map((raw, index) => parseBulkMemberRow(raw, index + 1))
+    .filter((row): row is BulkMemberPreviewRow => row !== null)
+}
+
+function parseBulkMemberRow(raw: string, lineNumber: number): BulkMemberPreviewRow | null {
+  const cleanRaw = raw.trim()
+
+  if (!cleanRaw) return null
+
+  const separatedParts = cleanRaw
+    .split(/[\t,;|]/)
+    .map(part => part.trim())
+    .filter(Boolean)
+
+  const [firstName, lastName] = separatedParts.length >= 2
+    ? [separatedParts[0] ?? '', separatedParts.slice(1).join(' ')]
+    : splitFullName(cleanRaw)
+
+  return {
+    lineNumber,
+    raw: cleanRaw,
+    firstName,
+    lastName,
+    error: firstName && lastName ? null : 'Agrega nombre y apellido.'
+  }
+}
+
+function splitFullName(value: string): [string, string] {
+  const parts = value.split(/\s+/).filter(Boolean)
+
+  if (parts.length < 2) return [value, '']
+
+  return [
+    parts.slice(0, -1).join(' '),
+    parts.at(-1) ?? ''
+  ]
+}
+
+function resetBulkMemberImport() {
+  bulkMembersText.value = ''
+  showBulkMemberImport.value = false
+}
+
 function resetMemberForm() {
   editingMemberId.value = null
   clearPendingMemberPhoto()
@@ -354,6 +432,7 @@ function resetTeamForm() {
   teamForm.newManagerName = ''
   teamForm.newManagerEmail = ''
   showAdvancedTeamOptions.value = false
+  resetBulkMemberImport()
   resetMemberForm()
 }
 
@@ -366,6 +445,7 @@ function editTeam(team: AdminTeam) {
   editingTeamId.value = team.id
   teamMembers.value = []
   resetMemberForm()
+  resetBulkMemberImport()
   isSlugDirty.value = true
   teamForm.name = team.name
   teamForm.shortName = team.shortName ?? ''
@@ -623,7 +703,7 @@ async function saveMember() {
   }
 
   if (!canSaveMember.value) {
-    showError('Completa nombre, apellido y posición si el integrante es jugador.')
+    showError('Completa nombre y apellido del integrante.')
 
     return
   }
@@ -693,6 +773,63 @@ async function saveMember() {
     showError(statusMessage || 'No se pudo guardar el integrante. Revisa los datos e inténtalo de nuevo.')
   } finally {
     isSavingMember.value = false
+  }
+}
+
+async function saveBulkMembers() {
+  const teamId = editingTeamId.value
+
+  if (!teamId) {
+    showError('Primero selecciona un equipo.')
+
+    return
+  }
+
+  if (!validBulkMemberRows.value.length) {
+    showError('Agrega al menos un jugador con nombre y apellido.')
+
+    return
+  }
+
+  if (invalidBulkMemberRows.value.length) {
+    showError('Corrige las líneas marcadas antes de guardar.')
+
+    return
+  }
+
+  if (hasBulkMemberLimitError.value) {
+    showError(`Puedes agregar máximo ${bulkMemberLimit} jugadores por carga.`)
+
+    return
+  }
+
+  isSavingBulkMembers.value = true
+
+  try {
+    const response = await $fetch<BulkTeamMembersResponse>(`/api/admin/teams/${teamId}/members/bulk`, {
+      method: 'POST',
+      body: {
+        members: validBulkMemberRows.value.map(row => ({
+          firstName: row.firstName,
+          lastName: row.lastName
+        }))
+      }
+    })
+
+    await Promise.all([
+      loadTeamMembers(teamId),
+      refresh()
+    ])
+    resetBulkMemberImport()
+    showFeedback(response.count === 1 ? 'Jugador agregado.' : `${response.count} jugadores agregados.`)
+  } catch (error) {
+    const statusMessage = typeof error === 'object' && error && 'data' in error
+      ? String((error as { data?: { statusMessage?: unknown } }).data?.statusMessage ?? '')
+      : ''
+
+    showError(statusMessage || 'No se pudo hacer la carga masiva.')
+  } finally {
+    isSavingBulkMembers.value = false
   }
 }
 
@@ -1447,42 +1584,37 @@ async function confirmDeleteTeam() {
             </select>
           </label>
 
-          <label
-            v-if="memberForm.memberRole === 'PLAYER'"
-            class="grid gap-1.5 text-sm"
-          >
-            <span class="font-medium text-highlighted">Número</span>
-            <UInput
-              v-model="memberForm.number"
-              type="number"
-              min="0"
-              max="999"
-              placeholder="24"
-            />
-          </label>
+          <template v-if="showPlayerNumberAndPositionFields && memberForm.memberRole === 'PLAYER'">
+            <label class="grid gap-1.5 text-sm">
+              <span class="font-medium text-highlighted">Número</span>
+              <UInput
+                v-model="memberForm.number"
+                type="number"
+                min="0"
+                max="999"
+                placeholder="24"
+              />
+            </label>
 
-          <label
-            v-if="memberForm.memberRole === 'PLAYER'"
-            class="grid gap-1.5 text-sm"
-          >
-            <span class="font-medium text-highlighted">Posición</span>
-            <select
-              v-model="memberForm.position"
-              required
-              class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
-            >
-              <option value="">
-                Selecciona posición
-              </option>
-              <option
-                v-for="position in PLAYER_POSITION_OPTIONS"
-                :key="position"
-                :value="position"
+            <label class="grid gap-1.5 text-sm">
+              <span class="font-medium text-highlighted">Posición</span>
+              <select
+                v-model="memberForm.position"
+                class="h-10 w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
               >
-                {{ playerPositionLabel(position) }}
-              </option>
-            </select>
-          </label>
+                <option value="">
+                  Selecciona posición
+                </option>
+                <option
+                  v-for="position in PLAYER_POSITION_OPTIONS"
+                  :key="position"
+                  :value="position"
+                >
+                  {{ playerPositionLabel(position) }}
+                </option>
+              </select>
+            </label>
+          </template>
         </div>
 
         <UButton
@@ -1507,13 +1639,101 @@ async function confirmDeleteTeam() {
               {{ categoryLabel(editingTeam.category) }} · {{ branchLabel(editingTeam.branch) }}
             </p>
           </div>
-          <UBadge
-            color="neutral"
-            variant="outline"
-          >
-            {{ teamMembers.length }} registros
-          </UBadge>
+          <div class="flex shrink-0 items-center gap-2">
+            <UBadge
+              color="neutral"
+              variant="outline"
+            >
+              {{ teamMembers.length }} registros
+            </UBadge>
+            <UButton
+              type="button"
+              :icon="showBulkMemberImport ? 'i-lucide-chevron-up' : 'i-lucide-users-round'"
+              label="Carga masiva"
+              color="neutral"
+              variant="subtle"
+              size="sm"
+              @click="showBulkMemberImport = !showBulkMemberImport"
+            />
+          </div>
         </div>
+
+        <form
+          v-if="showBulkMemberImport"
+          class="mb-3 rounded-md border border-default bg-muted/20 p-2"
+          @submit.prevent="saveBulkMembers"
+        >
+          <label class="grid gap-1.5 text-sm">
+            <span class="font-medium text-highlighted">Jugadores</span>
+            <textarea
+              v-model="bulkMembersText"
+              rows="6"
+              class="min-h-36 w-full resize-y rounded-md border border-default bg-default px-3 py-2 text-sm text-highlighted outline-none transition focus:border-primary"
+              placeholder="Juan Pérez&#10;María López&#10;Luis,Ramírez"
+            />
+          </label>
+
+          <div class="mt-2 flex flex-wrap items-center gap-2 text-xs">
+            <UBadge
+              color="success"
+              variant="subtle"
+            >
+              {{ validBulkMemberRows.length }} válidos
+            </UBadge>
+            <UBadge
+              v-if="invalidBulkMemberRows.length"
+              color="error"
+              variant="subtle"
+            >
+              {{ invalidBulkMemberRows.length }} por corregir
+            </UBadge>
+            <UBadge
+              v-if="hasBulkMemberLimitError"
+              color="warning"
+              variant="subtle"
+            >
+              Máximo {{ bulkMemberLimit }}
+            </UBadge>
+          </div>
+
+          <div
+            v-if="bulkMemberRows.length"
+            class="mt-2 max-h-40 overflow-y-auto rounded-md border border-default"
+          >
+            <div
+              v-for="row in bulkMemberRows"
+              :key="`${row.lineNumber}-${row.raw}`"
+              class="grid grid-cols-[2.5rem_1fr] gap-2 border-b border-default px-2 py-1.5 text-xs last:border-b-0"
+            >
+              <span class="text-muted">{{ row.lineNumber }}</span>
+              <span
+                class="truncate"
+                :class="row.error ? 'font-medium text-error' : 'text-highlighted'"
+              >
+                {{ row.error ?? `${row.firstName} ${row.lastName}` }}
+              </span>
+            </div>
+          </div>
+
+          <div class="mt-2 grid gap-2 sm:flex sm:justify-end">
+            <UButton
+              type="button"
+              label="Limpiar"
+              color="neutral"
+              variant="outline"
+              :disabled="isSavingBulkMembers || !bulkMembersText.trim()"
+              @click="bulkMembersText = ''"
+            />
+            <UButton
+              type="submit"
+              icon="i-lucide-user-plus"
+              :label="`Agregar ${validBulkMemberRows.length || ''}`.trim()"
+              color="primary"
+              :disabled="!canSaveBulkMembers"
+              :loading="isSavingBulkMembers"
+            />
+          </div>
+        </form>
 
         <div
           v-if="isLoadingMembers"

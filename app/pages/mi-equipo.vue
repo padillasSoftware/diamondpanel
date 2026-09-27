@@ -93,6 +93,7 @@ const memberPendingDelete = ref<Player | null>(null)
 const selectedPlayerPhoto = ref<PlayerPhotoPreviewPlayer | null>(null)
 const isPlayerPhotoModalOpen = ref(false)
 const mobileSection = ref<'TEAM' | 'ROSTER'>('TEAM')
+const showPlayerNumberAndPositionFields = false
 const toast = useToast()
 
 const statusOptions = [
@@ -134,11 +135,12 @@ const memberPhotoPreviewPlayer = computed(() => ({
 }))
 const canSaveMember = computed(() => {
   const hasBase = Boolean(memberForm.firstName.trim() && memberForm.lastName.trim())
-  const hasPosition = memberForm.memberRole !== 'PLAYER' || Boolean(memberForm.position.trim())
+  // Validacion pausada: numero y posicion estan ocultos temporalmente en el alta de jugadores.
+  // const hasPosition = memberForm.memberRole !== 'PLAYER' || Boolean(memberForm.position.trim())
   // Validacion pausada: CURP y fecha de nacimiento ya no son obligatorios para registrar jugadores.
   // const hasIdentity = Boolean(memberForm.curp.trim() && memberForm.birthDate)
 
-  return hasBase && hasPosition
+  return hasBase
 })
 
 const hasDuplicateMemberNumber = computed(() => {
@@ -401,7 +403,7 @@ async function uploadMemberPhotoFile(memberId: string, file: File) {
 
 async function saveMember() {
   if (!canSaveMember.value) {
-    showError('Completa nombre, apellido y posición si el integrante es jugador.')
+    showError('Completa nombre y apellido del integrante.')
 
     return
   }
@@ -862,43 +864,38 @@ async function confirmDeleteMember() {
               </select>
             </label>
 
-            <label
-              v-if="memberForm.memberRole === 'PLAYER'"
-              class="grid min-w-0 gap-1.5 text-sm"
-            >
-              <span class="font-medium text-highlighted">Número</span>
-              <UInput
-                v-model="memberForm.number"
-                class="min-w-0"
-                type="number"
-                min="0"
-                max="999"
-                placeholder="24"
-              />
-            </label>
+            <template v-if="showPlayerNumberAndPositionFields && memberForm.memberRole === 'PLAYER'">
+              <label class="grid min-w-0 gap-1.5 text-sm">
+                <span class="font-medium text-highlighted">Número</span>
+                <UInput
+                  v-model="memberForm.number"
+                  class="min-w-0"
+                  type="number"
+                  min="0"
+                  max="999"
+                  placeholder="24"
+                />
+              </label>
 
-            <label
-              v-if="memberForm.memberRole === 'PLAYER'"
-              class="grid min-w-0 gap-1.5 text-sm"
-            >
-              <span class="font-medium text-highlighted">Posición</span>
-              <select
-                v-model="memberForm.position"
-                required
-                class="h-10 min-w-0 max-w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
-              >
-                <option value="">
-                  Selecciona posición
-                </option>
-                <option
-                  v-for="position in PLAYER_POSITION_OPTIONS"
-                  :key="position"
-                  :value="position"
+              <label class="grid min-w-0 gap-1.5 text-sm">
+                <span class="font-medium text-highlighted">Posición</span>
+                <select
+                  v-model="memberForm.position"
+                  class="h-10 min-w-0 max-w-full rounded-md border border-default bg-default px-3 text-sm text-highlighted outline-none focus:border-primary"
                 >
-                  {{ playerPositionLabel(position) }}
-                </option>
-              </select>
-            </label>
+                  <option value="">
+                    Selecciona posición
+                  </option>
+                  <option
+                    v-for="position in PLAYER_POSITION_OPTIONS"
+                    :key="position"
+                    :value="position"
+                  >
+                    {{ playerPositionLabel(position) }}
+                  </option>
+                </select>
+              </label>
+            </template>
           </div>
 
           <UButton

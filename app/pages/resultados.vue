@@ -355,7 +355,13 @@ function loserTeamName(game: ResultGame) {
                 PG: {{ resultPersonName(game.result.winningPitcherName, game.result.winningPitcher) || '~' }}
               </p>
               <p class="truncate text-muted">
+                R: {{ game.result.winningReliefPitcherName || '-' }}
+              </p>
+              <p class="truncate text-muted">
                 PD: {{ resultPersonName(game.result.losingPitcherName, game.result.losingPitcher) || '~' }}
+              </p>
+              <p class="truncate text-muted">
+                R: {{ game.result.losingReliefPitcherName || '-' }}
               </p>
             </div>
 

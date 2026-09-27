@@ -91,6 +91,8 @@ export const adminResultGameSelect = {
       losingPitcherId: true,
       winningPitcherName: true,
       losingPitcherName: true,
+      winningReliefPitcherName: true,
+      losingReliefPitcherName: true,
       winningPitcher: {
         select: resultPlayerSelect
       },
@@ -379,6 +381,8 @@ export function buildResultPayload(body: Record<string, unknown>, game: ResultGa
         losingPitcherId: null,
         winningPitcherName: null,
         losingPitcherName: null,
+        winningReliefPitcherName: null,
+        losingReliefPitcherName: null,
         notes: cleanOptionalText(body.notes, 300)
       },
       highlights: []
@@ -387,6 +391,8 @@ export function buildResultPayload(body: Record<string, unknown>, game: ResultGa
 
   const winningPitcherName = cleanOptionalText(body.winningPitcherName, 80)
   const losingPitcherName = cleanOptionalText(body.losingPitcherName, 80)
+  const winningReliefPitcherName = cleanOptionalText(body.winningReliefPitcherName, 80)
+  const losingReliefPitcherName = cleanOptionalText(body.losingReliefPitcherName, 80)
 
   const highlights = [
     ...cleanHighlightRows({
@@ -411,6 +417,8 @@ export function buildResultPayload(body: Record<string, unknown>, game: ResultGa
       losingPitcherId: null,
       winningPitcherName,
       losingPitcherName,
+      winningReliefPitcherName,
+      losingReliefPitcherName,
       notes: cleanOptionalText(body.notes, 300)
     },
     highlights

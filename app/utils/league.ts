@@ -166,6 +166,8 @@ export type ResultGame = Game & {
     losingPitcherId: string | null
     winningPitcherName: string | null
     losingPitcherName: string | null
+    winningReliefPitcherName: string | null
+    losingReliefPitcherName: string | null
     winningPitcher: ResultPlayer | null
     losingPitcher: ResultPlayer | null
     battingHighlights: BattingHighlight[]
