@@ -1,2 +1,6 @@
 [build]
-  command = "pnpm run db:migrate:deploy && pnpm run build"
+  command = "pnpm run build"
+  publish = "dist"
+
+[build.environment]
+  PNPM_FLAGS = "--shamefully-hoist"
