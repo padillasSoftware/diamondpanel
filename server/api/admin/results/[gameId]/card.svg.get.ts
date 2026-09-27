@@ -1,8 +1,7 @@
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { GameStatus } from '../../../../generated/prisma/enums'
 import { prisma } from '../../../../utils/db'
 import { getActiveSeasonForResults } from '../../../../utils/results'
+import { resultCardFontBase64 } from '../../../../utils/result-card-font-data'
 import { resultCardTextPath } from '../../../../utils/result-card-text'
 import { requireAdmin } from '../../../../utils/session'
 import { create } from 'fontkitten'
@@ -350,20 +349,7 @@ function getSportsFont() {
 }
 
 function loadSportsFontBuffer() {
-  const candidates = [
-    join(process.cwd(), 'public', 'result-card', 'fonts', 'graduate.ttf'),
-    join(process.cwd(), '.output', 'public', 'result-card', 'fonts', 'graduate.ttf')
-  ]
-
-  for (const candidate of candidates) {
-    try {
-      return readFileSync(candidate)
-    } catch {
-      // Try the next known public-assets location.
-    }
-  }
-
-  throw new Error('Graduate result-card font not found. Add public/result-card/fonts/graduate.ttf.')
+  return Buffer.from(resultCardFontBase64, 'base64')
 }
 
 function sportsGlyphsForText(font: Font, text: string) {

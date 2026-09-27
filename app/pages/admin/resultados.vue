@@ -195,6 +195,7 @@ const mobileSection = ref<'GAMES' | 'CAPTURE'>('GAMES')
 const isResultCardModalOpen = ref(false)
 const isSharingResultCard = ref(false)
 const isDownloadingResultCard = ref(false)
+const resultCardPreviewFormat = ref<'PNG' | 'SVG'>('PNG')
 
 const resultForm = reactive({
   homeScore: 0,
@@ -226,8 +227,21 @@ const teamFilterOptions = computed(() => {
 
   return [...teamsById.values()].sort((leftTeam, rightTeam) => leftTeam.name.localeCompare(rightTeam.name, 'es'))
 })
+const resultCardVersion = computed(() => {
+  const game = selectedGame.value
+
+  if (!game?.result) return ''
+
+  return encodeURIComponent(game.result.recordedAt || game.result.id)
+})
 const resultCardHref = computed(() =>
-  selectedGame.value?.result ? `/api/admin/results/${selectedGame.value.id}/card.png` : ''
+  selectedGame.value?.result ? `/api/admin/results/${selectedGame.value.id}/card.png?v=${resultCardVersion.value}` : ''
+)
+const resultCardSvgHref = computed(() =>
+  selectedGame.value?.result ? `/api/admin/results/${selectedGame.value.id}/card.svg?v=${resultCardVersion.value}` : ''
+)
+const resultCardPreviewHref = computed(() =>
+  resultCardPreviewFormat.value === 'SVG' ? resultCardSvgHref.value : resultCardHref.value
 )
 const selectedGameOfflineDrafts = computed(() =>
   selectedGame.value ? offlineDrafts.value.filter(draft => draft.gameId === selectedGame.value?.id) : []
@@ -328,6 +342,7 @@ watch(selectedOutcome, (outcome) => {
 
 watch(selectedGame, (game) => {
   editingResultId.value = null
+  resultCardPreviewFormat.value = 'PNG'
   hydrateResultForm(game)
   hydrateLineupForm(game)
   showBattingHighlights.value = Boolean(game?.result?.battingHighlights.length)
@@ -452,7 +467,18 @@ function slugifyFilename(value: string) {
 function openResultCardModal() {
   if (!resultCardHref.value) return
 
+  resultCardPreviewFormat.value = 'PNG'
   isResultCardModalOpen.value = true
+}
+
+function handleResultCardPreviewError() {
+  if (resultCardPreviewFormat.value === 'PNG' && resultCardSvgHref.value) {
+    resultCardPreviewFormat.value = 'SVG'
+
+    return
+  }
+
+  showError('No se pudo mostrar la imagen del resultado.')
 }
 
 async function fetchResultCardBlob() {
@@ -2357,10 +2383,12 @@ function editSelectedResult() {
         <div class="grid gap-3">
           <div class="overflow-hidden rounded-lg border border-default bg-muted/30">
             <img
-              v-if="resultCardHref"
-              :src="resultCardHref"
+              v-if="resultCardPreviewHref"
+              :key="resultCardPreviewHref"
+              :src="resultCardPreviewHref"
               :alt="selectedGame ? `Resultado ${gameLabel(selectedGame)}` : 'Resultado de juego'"
               class="max-h-[70vh] w-full object-contain"
+              @error="handleResultCardPreviewError"
             >
           </div>
           <p class="text-xs text-muted">
@@ -2379,8 +2407,8 @@ function editSelectedResult() {
             @click="close"
           />
           <UButton
-            v-if="resultCardHref"
-            :href="resultCardHref"
+            v-if="resultCardPreviewHref"
+            :href="resultCardPreviewHref"
             target="_blank"
             rel="noopener"
             label="Abrir"
