@@ -6,6 +6,7 @@
     "build": "nuxt build",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:admins": "tsx prisma/seed-admins.ts",
     "db:backfill:team-seasons": "tsx prisma/backfill-team-seasons.ts",
